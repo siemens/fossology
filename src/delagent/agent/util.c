@@ -165,7 +165,7 @@ int check_permission_folder(long folder_id, int user_id, int user_perm)
 	int count = 0;
 
 	memset(SQL,'\0',sizeof(SQL));
-	snprintf(SQL,sizeof(SQL),"SELECT count(*) FROM folder join users on (users.user_pk = folder.user_fk or users.user_perm = 10) where folder_pk = %ld and users.user_pk = %d;",parent,user_id);
+	snprintf(SQL,sizeof(SQL),"SELECT count(*) FROM folder join users on (users.user_pk = folder.user_fk or users.user_perm = 10) where folder_pk = %ld and users.user_pk = %d;",folder_id,user_id);
 	result = PQexec(db_conn, SQL);
 	if (fo_checkPQresult(db_conn, result, SQL, __FILE__, __LINE__)) exit(-1);
 	count = atol(PQgetvalue(result,0,0));
@@ -187,8 +187,9 @@ int check_permission_folder(long folder_id, int user_id, int user_perm)
  *        -1: failure;
  *        -2: does not exist;
  */
-int check_permission_license(long license_id, int user_id, int user_perm)
+int check_permission_license(long license_id, int user_perm)
 {
+
 
   if (user_perm != PERM_ADMIN)
   {
@@ -217,7 +218,7 @@ int DeleteLicense (long UploadId, int user_perm)
   PGresult *result;
   long items=0;
 
-  if (1 != check_permission_upload(UploadId, user_perm))
+  if (1 != check_permission_license(UploadId, user_perm))
   {
     return 0;
   }
@@ -843,6 +844,7 @@ int ListFoldersRecurse (long Parent, int Depth, long Row, int DelFlag, int user_
   char *Desc;
   PGresult *result;
   char SQL[MAXSQL];
+	int rc;
 
 	if(DelFlag && 0 >= check_permission_folder(Parent, user_id, user_perm)){
 		return 0;
@@ -868,7 +870,10 @@ int ListFoldersRecurse (long Parent, int Depth, long Row, int DelFlag, int user_
 
     if (!DelFlag)
     {
-      for(i=0; i<Depth; i++) fputs("   ",stdout);
+      for(i=0; i<Depth; i++)
+			{
+				fputs("   ",stdout);
+			}
     }
     Fid = atol(PQgetvalue(result,r,0));
     if (Fid != 0)
@@ -877,21 +882,41 @@ int ListFoldersRecurse (long Parent, int Depth, long Row, int DelFlag, int user_
       {
         printf("%4ld :: %s",Fid,PQgetvalue(result,r,2));
         Desc = PQgetvalue(result,r,3);
-        if (Desc && Desc[0]) printf(" (%s)",Desc);
+        if (Desc && Desc[0])
+				{
+					printf(" (%s)",Desc);
+				}
         printf("\n");
       }
-      ListFoldersRecurse(Fid,Depth+1,Parent,DelFlag,user_id,user_perm);
+      rc = ListFoldersRecurse(Fid,Depth+1,Parent,DelFlag,user_id,user_perm);
+			if (rc == 0)
+			{
+			  return 0;
+			}
     }
     else
     {
-      if (DelFlag==1 && UnlinkContent(atol(PQgetvalue(result,r,4)),Parent,2,user_id,user_perm))
+      if (DelFlag==1)
       {
+				rc = UnlinkContent(atol(PQgetvalue(result,r,4)),Parent,2,user_id,user_perm);
+				if (rc == 0)
+				{
+					return 0;
+				}
         continue;
       }
       if (DelFlag)
-        DeleteUpload(atol(PQgetvalue(result,r,4)),user_id,user_perm);
+			{
+        rc = DeleteUpload(atol(PQgetvalue(result,r,4)),user_id,user_perm);
+				if (rc == 0)
+				{
+					return 0;
+				}
+			}
       else
+			{
         printf("%4s :: Contains: %s\n","--",PQgetvalue(result,r,2));
+			}
     }
   }
   PQclear(result);
@@ -912,13 +937,21 @@ int ListFoldersRecurse (long Parent, int Depth, long Row, int DelFlag, int user_
         break;
 			}
 			printf("INFO: folder id=%ld will be deleted with flag %d\n",Parent,DelFlag);
-			if (DelFlag==1 && UnlinkContent(Parent,Row,1,user_id,user_perm))
+			if (DelFlag==1)
       {
+				rc = UnlinkContent(Parent,Row,1,user_id,user_perm);
+				if (rc == 0)
+				{
+					return 0;
+				}
         break;
       }
       memset(SQL,'\0',sizeof(SQL));
       snprintf(SQL,sizeof(SQL),"DELETE FROM foldercontents WHERE foldercontents_mode=1 AND child_id=%ld",Parent);
-      if (Test) printf("TEST: %s\n",SQL);
+      if (Test)
+			{
+				printf("TEST: %s\n",SQL);
+			}
       else
       {
         result = PQexec(db_conn, SQL);
@@ -946,60 +979,22 @@ int ListFoldersRecurse (long Parent, int Depth, long Row, int DelFlag, int user_
   return 1; /* success */
 } /* ListFoldersRecurse() */
 
-/**
- * \brief ListFolders(): List every folder.
- */
-void ListFolders (int user_id, int user_perm)
+void ListFoldersFindDetatchedFolders(PGresult *result, int user_id, int user_perm)
 {
-  int i,j,MaxRow;
-  long Fid;	/* folder ids */
   int DetachFlag=0;
+  int i,j;
+  int MaxRow = PQntuples(result);
+  long Fid;	/* folder ids */
   int Match;
   char *Desc;
-  char SQL[MAXSQL];
-  PGresult *result;
-  int cnt = 0;
-
-  memset(SQL,'\0',sizeof(SQL));
-  snprintf(SQL,sizeof(SQL),"select count(*) from users where user_pk = %d and user_perm >= 1;",user_id);
-  result = PQexec(db_conn, SQL);
-  if (fo_checkPQresult(db_conn, result, SQL, __FILE__, __LINE__))
-	{
-		exit(-1);
-	}
-  cnt = atol(PQgetvalue(result,0,0));
-  if(user_id != 0 && cnt == 0){
-    LOG_FATAL("user does not have the permsssion to view the folder list.\n");
-    exit(-1);
-  }
-  printf("# Folders\n");
-  memset(SQL,'\0',sizeof(SQL));
-  snprintf(SQL,sizeof(SQL),"SELECT folder_name from folder where folder_pk =1;");
-  result = PQexec(db_conn, SQL);
-  if (fo_checkPQresult(db_conn, result, SQL, __FILE__, __LINE__))
-	{
-		exit(-1);
-	}
-
-  printf("%4d :: %s\n", 1, PQgetvalue(result,0,0));
-  PQclear(result);
-
-  memset(SQL,'\0',sizeof(SQL));
-  snprintf(SQL,sizeof(SQL),"SELECT folder_pk,parent,name,description,upload_pk FROM folderlist ORDER BY name,parent,folder_pk;");
-  result = PQexec(db_conn, SQL);
-  if (fo_checkPQresult(db_conn, result, SQL, __FILE__, __LINE__))
-	{
-		exit(-1);
-	}
-  ListFoldersRecurse(1,1,-1,0,user_id,user_perm);
-
   /* Find detached folders */
-  MaxRow = PQntuples(result);
-  DetachFlag=0;
   for(i=0; i < MaxRow; i++)
   {
     Fid = atol(PQgetvalue(result,i,1));
-    if (Fid == 1) continue;	/* skip default parent */
+    if (Fid == 1)
+		{
+			continue;	/* skip default parent */
+		}
     Match=0;
     for(j=0; (j<MaxRow) && !Match; j++)
     {
@@ -1007,17 +1002,32 @@ void ListFolders (int user_id, int user_perm)
     }
     if (!Match && !atol(PQgetvalue(result,i,4)))
     {
-      if (!DetachFlag) { printf("# Unlinked folders\n"); DetachFlag=1; }
+      if (!DetachFlag)
+			{
+				printf("# Unlinked folders\n");
+				DetachFlag=1;
+			}
       printf("%4ld :: %s",Fid,PQgetvalue(result,i,2));
       Desc = PQgetvalue(result,i,3);
-      if (Desc && Desc[0]) printf(" (%s)",Desc);
+      if (Desc && Desc[0])
+			{
+				printf(" (%s)",Desc);
+			}
       printf("\n");
       ListFoldersRecurse(Fid,1,i,0,user_id,user_perm);
     }
   }
+}
 
+void ListFoldersFindDetatchedUploads(PGresult *result, int user_id, int user_perm)
+{
+  int DetachFlag=0;
+  int i,j;
+  int MaxRow = PQntuples(result);
+  long Fid;	/* folder ids */
+  int Match;
+  char *Desc;
   /* Find detached uploads */
-  DetachFlag=0;
   for(i=0; i < MaxRow; i++)
   {
     Fid = atol(PQgetvalue(result,i,1));
@@ -1037,6 +1047,54 @@ void ListFolders (int user_id, int user_perm)
       printf("\n");
     }
   }
+}
+
+void ListFoldersFindDetatched(int user_id, int user_perm)
+{
+  char SQL[MAXSQL];
+  PGresult *result;
+
+  memset(SQL,'\0',sizeof(SQL));
+  snprintf(SQL,sizeof(SQL),"SELECT folder_pk,parent,name,description,upload_pk FROM folderlist ORDER BY name,parent,folder_pk;");
+  result = PQexec(db_conn, SQL);
+  if (fo_checkPQresult(db_conn, result, SQL, __FILE__, __LINE__))
+	{
+		exit(-1);
+	}
+	ListFoldersFindDetatchedFolders(result, user_id, user_perm);
+	ListFoldersFindDetatchedUploads(result, user_id, user_perm);
+
+  PQclear(result);
+}
+
+/**
+ * \brief ListFolders(): List every folder.
+ */
+void ListFolders (int user_id, int user_perm)
+{
+  char SQL[MAXSQL];
+  PGresult *result;
+
+  if(user_perm == 0){
+    LOG_FATAL("user does not have the permsssion to view the folder list.\n");
+    exit(-1);
+  }
+
+  printf("# Folders\n");
+  memset(SQL,'\0',sizeof(SQL));
+  snprintf(SQL,sizeof(SQL),"SELECT folder_name from folder where folder_pk =1;");
+  result = PQexec(db_conn, SQL);
+  if (fo_checkPQresult(db_conn, result, SQL, __FILE__, __LINE__))
+	{
+		exit(-1);
+	}
+
+  printf("%4d :: %s\n", 1, PQgetvalue(result,0,0));
+  PQclear(result);
+
+  ListFoldersRecurse(1,1,-1,0,user_id,user_perm);
+
+  ListFoldersFindDetatched(user_id, user_perm);
 
   PQclear(result);
 } /* ListFolders() */
@@ -1096,47 +1154,15 @@ void ListUploads (int user_id, int user_perm)
  * \return 1: success; 0: fail
  *
  **/
-int DeleteFolder (long FolderId, int user_id, int user_perm)
+int DeleteFolder(long FolderId, int user_id, int user_perm)
 {
   return ListFoldersRecurse(FolderId,0,-1,2,user_id,user_perm);
 } /* DeleteFolder() */
 
 /**********************************************************************/
 
-void DoSchedulerTasks(){
-  char *Parm = NULL;
-  char SQL[MAXSQL];
-  PGresult *result;
-  int user_id = -1;
-  int user_perm = -1;
-
-	while(fo_scheduler_next())
-	{
-		Parm = fo_scheduler_current();
-		user_id = fo_scheduler_userID();
-
-		/* get perm level of user */
-		snprintf(SQL,sizeof(SQL),"SELECT user_perm from users where user_pk='%d';", user_id);
-		result = PQexec(db_conn, SQL);
-		if (fo_checkPQresult(db_conn, result, SQL, __FILE__, __LINE__))
-		{
-			exit(-1);
-		}
-		if (!PQntuples(result))
-		{
-			exit(-1);
-		}
-		user_perm = atoi(PQgetvalue(result, 0, 0));
-
-		if (ReadParameter(Parm, user_id, user_perm) < 0)
-		{
-			exit(-1);
-		}
-	}
-}
-
 /**
- * \brief ReadParameter()
+ * \brief ReadAndProcessParameter()
  *
  *  Read Parameter from scheduler.
  *  Process line elements.
@@ -1146,7 +1172,7 @@ void DoSchedulerTasks(){
  * \return 0 on OK, -1 on failure.
  *
  **/
-int ReadParameter (char *Parm, int user_id, int user_perm)
+int ReadAndProcessParameter (char *Parm, int user_id, int user_perm)
 {
   char FullLine[MAXLINE];
   char *L;
@@ -1227,4 +1253,37 @@ int ReadParameter (char *Parm, int user_id, int user_perm)
   }
 
   return(rc);
-} /* ReadParameter() */
+} /* ReadAndProcessParameter() */
+
+void DoSchedulerTasks()
+{
+  char *Parm = NULL;
+  char SQL[MAXSQL];
+  PGresult *result;
+  int user_id = -1;
+  int user_perm = -1;
+
+	while(fo_scheduler_next())
+	{
+		Parm = fo_scheduler_current();
+		user_id = fo_scheduler_userID();
+
+		/* get perm level of user */
+		snprintf(SQL,sizeof(SQL),"SELECT user_perm from users where user_pk='%d';", user_id);
+		result = PQexec(db_conn, SQL);
+		if (fo_checkPQresult(db_conn, result, SQL, __FILE__, __LINE__))
+		{
+			exit(-1);
+		}
+		if (!PQntuples(result))
+		{
+			exit(-1);
+		}
+		user_perm = atoi(PQgetvalue(result, 0, 0));
+
+		if (ReadAndProcessParameter(Parm, user_id, user_perm) < 0)
+		{
+			exit(-1);
+		}
+	}
+}
