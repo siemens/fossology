@@ -211,7 +211,6 @@ int check_permission_license(long license_id, int user_perm)
  */
 int DeleteLicense (long UploadId, int user_perm)
 {
-  char TempTable[256];
   char SQL[MAXSQL];
   PGresult *result;
   long items=0;
@@ -235,11 +234,6 @@ int DeleteLicense (long UploadId, int user_perm)
     exit(-1);
   }
   PQclear(result);
-
-  snprintf(TempTable,sizeof(TempTable),"DelLic_%ld",UploadId);
-
-  /* Create the temp table */
-  verbosePrintf("# Creating temp table: %s\n",TempTable);
 
   /* Get the list of pfiles to process */
   snprintf(SQL,MAXSQL,"SELECT DISTINCT(pfile_fk) FROM uploadtree WHERE upload_fk = '%ld' ;",UploadId);
@@ -377,7 +371,9 @@ int DeleteUpload (long UploadId, int user_id, int user_perm)
   PQexecCheckClear(desc, "SET statement_timeout = 0;", __FILE__, __LINE__);
   PQexecCheckClear(NULL, "BEGIN;", __FILE__, __LINE__);
 
-  snprintf(TempTable,sizeof(TempTable),"DelUp_%ld",UploadId);
+  snprintf(TempTable,sizeof(TempTable),"DelUp_%ld_pfile",UploadId);
+  snprintf(SQL,MAXSQL,"DROP TABLE %s;",TempTable);
+  PQexecCheckClear(NULL, SQL, __FILE__, __LINE__);
 
   /***********************************************/
   /*** Delete everything that impacts the UI ***/
@@ -396,17 +392,17 @@ int DeleteUpload (long UploadId, int user_id, int user_perm)
 
   /* Get the list of pfiles to delete */
   /** These are all pfiles in the upload_fk that only appear once. **/
-  snprintf(SQL,MAXSQL,"SELECT DISTINCT pfile_pk,pfile_sha1 || '.' || pfile_md5 || '.' || pfile_size AS pfile INTO %s_pfile FROM uploadtree INNER JOIN pfile ON upload_fk = %ld AND pfile_fk = pfile_pk;",TempTable,UploadId);
+  snprintf(SQL,MAXSQL,"SELECT DISTINCT pfile_pk,pfile_sha1 || '.' || pfile_md5 || '.' || pfile_size AS pfile INTO %s FROM uploadtree INNER JOIN pfile ON upload_fk = %ld AND pfile_fk = pfile_pk;",TempTable,UploadId);
   PQexecCheckClear("Getting list of pfiles to delete",
                  SQL, __FILE__, __LINE__);
 
   /* Remove pfiles with reuse */
-  snprintf(SQL,MAXSQL,"DELETE FROM %s_pfile USING uploadtree WHERE pfile_pk = uploadtree.pfile_fk AND uploadtree.upload_fk != %ld;",TempTable,UploadId);
+  snprintf(SQL,MAXSQL,"DELETE FROM %s USING uploadtree WHERE pfile_pk = uploadtree.pfile_fk AND uploadtree.upload_fk != %ld;",TempTable,UploadId);
   PQexecCheckClear(NULL, SQL, __FILE__, __LINE__);
 
   if (Verbose)
   {
-    snprintf(SQL,MAXSQL,"SELECT COUNT(*) FROM %s_pfile;",TempTable);
+    snprintf(SQL,MAXSQL,"SELECT COUNT(*) FROM %s;",TempTable);
     result = PQexecCheck(NULL, SQL, __FILE__, __LINE__);
     printf("# Created pfile table: %ld entries\n",atol(PQgetvalue(result,0,0)));
     PQclear(result);
@@ -416,7 +412,7 @@ int DeleteUpload (long UploadId, int user_id, int user_perm)
   /* Now to delete the actual pfiles from the repository before remove the DB. */
 
   /* Get the file listing -- needed for deleting pfiles from the repository. */
-  snprintf(SQL,MAXSQL,"SELECT * FROM %s_pfile ORDER BY pfile_pk;",TempTable);
+  snprintf(SQL,MAXSQL,"SELECT * FROM %s ORDER BY pfile_pk;",TempTable);
   pfile_result = PQexecCheck(NULL, SQL, __FILE__, __LINE__);
 
   if (Test <= 1)
@@ -490,10 +486,10 @@ int DeleteUpload (long UploadId, int user_id, int user_perm)
   /***********************************************/
   /* delete from pfile is SLOW due to constraint checking.
      Do it separately. */
-  snprintf(SQL,MAXSQL,"DELETE FROM pfile USING %s_pfile WHERE pfile.pfile_pk = %s_pfile.pfile_pk;",TempTable,TempTable);
+  snprintf(SQL,MAXSQL,"DELETE FROM pfile USING %s WHERE pfile.pfile_pk = %s.pfile_pk;",TempTable,TempTable);
   PQexecCheckClear("Deleting from pfile", SQL, __FILE__, __LINE__);
 
-  snprintf(SQL,MAXSQL,"DROP TABLE %s_pfile;",TempTable);
+  snprintf(SQL,MAXSQL,"DROP TABLE %s;",TempTable);
   PQexecCheckClear(NULL, SQL, __FILE__, __LINE__);
 
   PQexecCheckClear(NULL, "SET statement_timeout = 120000;", __FILE__, __LINE__);
@@ -504,7 +500,7 @@ int DeleteUpload (long UploadId, int user_id, int user_perm)
   {
     PQexecCheckClear(NULL, "ROLLBACK", __FILE__, __LINE__);
 
-    snprintf(SQL,MAXSQL,"DROP TABLE %s_pfile;",TempTable);
+    snprintf(SQL,MAXSQL,"DROP TABLE %s;",TempTable);
     PQexecCheckClear(NULL, SQL, __FILE__, __LINE__);
   }
   else
