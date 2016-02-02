@@ -24,7 +24,7 @@
  */
 #include "delagent.h"
 
-int Verbose = 0;
+int Verbose = 1;
 int Test = 0;
 PGconn* db_conn = NULL;        // the connection to Database
 
@@ -367,13 +367,13 @@ int DeleteUpload (long UploadId, int user_id, int user_perm)
     return 0;
   }
 
+  snprintf(TempTable,sizeof(TempTable),"DelUp_%ld_pfile",UploadId);
+  snprintf(SQL,MAXSQL,"DROP TABLE IF EXISTS %s;",TempTable);
+  PQexecCheckClear(NULL, SQL, __FILE__, __LINE__);
+
   snprintf(desc, myBUFSIZ, "Deleting upload %ld",UploadId);
   PQexecCheckClear(desc, "SET statement_timeout = 0;", __FILE__, __LINE__);
   PQexecCheckClear(NULL, "BEGIN;", __FILE__, __LINE__);
-
-  snprintf(TempTable,sizeof(TempTable),"DelUp_%ld_pfile",UploadId);
-  snprintf(SQL,MAXSQL,"DROP TABLE %s;",TempTable);
-  PQexecCheckClear(NULL, SQL, __FILE__, __LINE__);
 
   /***********************************************/
   /*** Delete everything that impacts the UI ***/
@@ -403,8 +403,16 @@ int DeleteUpload (long UploadId, int user_id, int user_perm)
   if (Verbose)
   {
     snprintf(SQL,MAXSQL,"SELECT COUNT(*) FROM %s;",TempTable);
+#if 0
     result = PQexecCheck(NULL, SQL, __FILE__, __LINE__);
-    printf("# Created pfile table: %ld entries\n",atol(PQgetvalue(result,0,0)));
+#else
+    result = PQexec(db_conn, SQL);
+    if (fo_checkPQresult(db_conn, result, SQL, __FILE__, __LINE__))
+    {
+      exit(-1);
+    }
+#endif
+    printf("# Created pfile table %s with %ld entries\n", TempTable, atol(PQgetvalue(result,0,0)));
     PQclear(result);
   }
 
@@ -413,7 +421,15 @@ int DeleteUpload (long UploadId, int user_id, int user_perm)
 
   /* Get the file listing -- needed for deleting pfiles from the repository. */
   snprintf(SQL,MAXSQL,"SELECT * FROM %s ORDER BY pfile_pk;",TempTable);
+#if 0
   pfile_result = PQexecCheck(NULL, SQL, __FILE__, __LINE__);
+#else
+  pfile_result = PQexec(db_conn, SQL);
+  if (fo_checkPQresult(db_conn, result, SQL, __FILE__, __LINE__))
+  {
+    exit(-1);
+  }
+#endif
 
   if (Test <= 1)
   {
@@ -468,7 +484,15 @@ int DeleteUpload (long UploadId, int user_id, int user_perm)
   /* Delete uploadtree_nnn table */
   char uploadtree_tablename[1024];
   snprintf(SQL,MAXSQL,"SELECT uploadtree_tablename FROM upload WHERE upload_pk = %ld;",UploadId);
+#if 0
   result = PQexecCheck(NULL, SQL, __FILE__, __LINE__);
+#else
+  result = PQexec(db_conn, SQL);
+  if (fo_checkPQresult(db_conn, result, SQL, __FILE__, __LINE__))
+  {
+    exit(-1);
+  }
+#endif
   if (PQntuples(result))
   {
     strcpy(uploadtree_tablename, PQgetvalue(result, 0, 0));

@@ -70,7 +70,7 @@ void writeMessageAfterDelete(char *kind, long id, char *user_name, int returnedC
   }
   else
   {
-    LOG_FATAL("You '%s' does not have the permsssion to delete the %s '%ld', or the %s '%ld' does not exist.\n", user_name, kind, id, kind, id);
+    LOG_FATAL("User '%s' does not have the permsssion to delete the %s '%ld', or the %s '%ld' does not exist.\n", user_name, kind, id, kind, id);
     exit(returnedCode);
   }
 }
