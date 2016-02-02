@@ -36,7 +36,7 @@ int verbosePrintf (const char *format, ...)
   if (Verbose)
   {
     va_start (arg, format);
-    done = printf(format, arg);
+    done = vprintf(format, arg);
     va_end (arg);
   }
   return done;
