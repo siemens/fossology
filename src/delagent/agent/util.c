@@ -151,7 +151,7 @@ int authentication(char *user, char *password, int *user_id, int *user_perm)
  *        -1: failure;
  *        -2: does not exist;
  */
-int check_permission_upload(long upload_id, int user_id, int user_perm)
+int check_permission_upload(long upload_id, int user_id)
 {
   char SQL[MAXSQL] = {0};;
   PGresult *result = NULL;
@@ -312,7 +312,7 @@ int DeleteLicense (long UploadId, int user_perm)
  *
  * \return 1: success; 0: fail
  */
-int DeleteUpload (long UploadId, int user_id, int user_perm)
+int DeleteUpload (long UploadId, int user_id)
 {
   char *S;
   int Row,MaxRow;
@@ -320,7 +320,7 @@ int DeleteUpload (long UploadId, int user_id, int user_perm)
   PGresult *result, *pfile_result;
   char SQL[MAXSQL], desc[myBUFSIZ];
 
-  int permission_upload = check_permission_upload(UploadId, user_id, user_perm);
+  int permission_upload = check_permission_upload(UploadId, user_id);
   if (permission_upload == -2)
   {
     return 1;
@@ -388,7 +388,7 @@ int DeleteUpload (long UploadId, int user_id, int user_perm)
   pfile_result = PQexecCheck(NULL, SQL, __FILE__, __LINE__);
 #else
   pfile_result = PQexec(db_conn, SQL);
-  if (fo_checkPQresult(db_conn, result, SQL, __FILE__, __LINE__))
+  if (fo_checkPQresult(db_conn, pfile_result, SQL, __FILE__, __LINE__))
   {
     exit(-1);
   }
@@ -619,7 +619,7 @@ int ListFoldersRecurse (long Parent, int Depth, long Row, int DelFlag, int user_
       }
       if (DelFlag)
       {
-        rc = DeleteUpload(atol(PQgetvalue(result,r,4)),user_id,user_perm);
+        rc = DeleteUpload(atol(PQgetvalue(result,r,4)),user_id);
         if (rc == 0)
         {
           return 0;
@@ -940,7 +940,7 @@ int ReadAndProcessParameter (char *Parm, int user_id, int user_perm)
   /* Handle the request */
   if ((Type==1) && (Target==1))
   {
-    rc = DeleteUpload(Id, user_id, user_perm);
+    rc = DeleteUpload(Id, user_id);
   }
   else if ((Type==1) && (Target==2))
   {

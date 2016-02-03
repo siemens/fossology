@@ -46,7 +46,7 @@ extern PGconn* db_conn;
 /* authentication and permission checking */
 int authentication(char *user, char * password, int *user_id, int *user_perm);
 
-int check_permission_upload(long upload_id, int user_id, int user_perm);
+int check_permission_upload(long upload_id, int user_id);
 int check_permission_folder(long folder_id, int user_id, int user_perm);
 int check_permission_license(long license_id, int user_perm);
 
@@ -56,7 +56,7 @@ void ListUploads(int user_id, int user_perm);
 
 /* function that delete actual things */
 int DeleteLicense(long UploadId, int user_perm);
-int DeleteUpload(long UploadId, int user_id, int user_perm);
+int DeleteUpload(long UploadId, int user_id);
 int DeleteFolder(long FolderId, int user_id, int user_perm);
 
 /* for usage from scheduler */
