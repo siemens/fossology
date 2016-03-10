@@ -233,7 +233,7 @@ int main (int argc, char *argv[])
     alarm(60);  /* from this point on, handle the alarm */
     if (DelUpload)
     {
-      returnedCode = DeleteUpload(DelUpload, user_id);
+      returnedCode = DeleteUpload(DelUpload, user_id, user_perm);
 
       writeMessageAfterDelete("upload", DelUpload, user_name, returnedCode);
     }
