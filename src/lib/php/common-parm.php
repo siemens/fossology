@@ -130,6 +130,7 @@ function Traceback_parm_keep($List)
   {
     $L = &$List[$i];
     $Val = GetParm($L,PARM_STRING);
+    if(is_numeric($Val) && ($Val < 0)){ $Val = ""; }
     if (!empty($Val)) { $Opt .= "&" . "$L=$Val"; }
   }
   return($Opt);

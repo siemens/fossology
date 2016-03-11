@@ -616,7 +616,9 @@ int ListFoldersRecurse (long Parent, int Depth, long Row, int DelFlag, int user_
       {
         if (DelFlag)
         {
-          printf("Deleting the folder failed.");
+          LOG_FATAL("Deleting the folder failed.\n");
+          exit(-1);
+
         }
         return 0;
       }
@@ -632,8 +634,8 @@ int ListFoldersRecurse (long Parent, int Depth, long Row, int DelFlag, int user_
         rc = DeleteUpload(atol(PQgetvalue(result,r,4)),user_id);
         if (rc < 1)
         {
-          printf("Deleting the folder failed since it contains uploads you can't delete.");
-          return 0;
+          LOG_FATAL("Deleting the folder failed since it contains uploads you can't delete.\n");
+          exit(-1);
         }
       }
       else
