@@ -17,13 +17,10 @@ web:
     - FOSSOLOGY_DB_USER=fossy
     - FOSSOLOGY_DB_PASSWORD=fossy
   ports:
-    - 8081:80
+    - 8082:80
   links:
     - db
 db:
   image: postgres
-  environment:
-    - POSTGRES_DB=fossology
-    - POSTGRES_USER=fossy
-    - POSTGRES_PASSWORD=fossy
-    - POSTGRES_INITDB_ARGS='-E SQL_ASCII'
+  volumes:
+    - db/fossologyinit.sql:/docker-entrypoint-initdb.d/fossologyinit.sql
