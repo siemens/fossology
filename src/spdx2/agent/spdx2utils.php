@@ -63,7 +63,11 @@ class SpdxTwoUtils
       }
       else
       {
-        return self::$prefix . $license;
+        if(!empty($license)){
+          return self::$prefix . $license;
+        }else{
+          return "NOASSERTION";
+        }
       }
     }
   }
