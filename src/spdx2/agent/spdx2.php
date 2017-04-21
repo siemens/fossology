@@ -440,7 +440,7 @@ class SpdxTwoAgent extends Agent
         if($shortName != 'No_license_found'){
           $filesWithLicenses[$row['uploadtree_pk']]['scanner'][] = $shortName;
         }else{
-          $filesWithLicenses[$row['uploadtree_pk']]['scanner'][] = "";
+          $filesWithLicenses[$row['uploadtree_pk']]['scanner'][] = "NONE";
         }
         $this->includedLicenseIds[$reportedLicenseId] = true;
       }
