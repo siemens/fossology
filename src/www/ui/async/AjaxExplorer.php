@@ -439,7 +439,10 @@ class AjaxExplorer extends DefaultPlugin
       $getTextEditBulk = _("Bulk");
       $fileListLinks .= "[<a href='#' onclick='openBulkModal($childUploadTreeId)' >$getTextEditBulk</a>]";
     }
-
+    if(!$isContainer)
+    {
+      $fileListLinks .= "<input type='checkbox' name='selectedForIrrelevant' id='selectedForIrrelevant' value='".$uploadId.",".$childUploadTreeId."'>";
+    }
     $filesThatShouldStillBeCleared = array_key_exists($childItemTreeBounds->getItemId()
         , $this->filesThatShouldStillBeCleared) ? $this->filesThatShouldStillBeCleared[$childItemTreeBounds->getItemId()] : 0;
 
