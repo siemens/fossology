@@ -42,7 +42,7 @@ function createDirlistTable() {
           }
         },
         {"sTitle":"Files Cleared","sClass":"center","bSortable":false,"bSearchable":false},
-        {"sTitle":"Actions","sClass":"left","bSortable":false,"bSearchable":false,"sWidth":"13.6%"}],
+        {"sTitle":"Actions  <input type='checkbox' name='selectAllForIrrelevant' id='selectAllForIrrelevant' >","sClass":"left","bSortable":false,"bSearchable":false,"sWidth":"13.6%"}],
     "bProcessing": true,
     "bStateSave": true,
     "sCookiePrefix" : "fossology_",
@@ -60,7 +60,39 @@ function createDirlistTable() {
   };
 
   otable = $('#dirlist').dataTable(dirlistTableConfig);
+
+  $('#selectAllForIrrelevant').change(function () {
+    $('#selectedForIrrelevant').prop('checked', $(this).prop("checked"));
+  });
+
+  $('#markIrrelevant').click(function () {
+    $("input:checkbox[name=selectedForIrrelevant]:checked").each(function() {
+      getCurrentValue = $(this).val();
+      var splitForUploadData = getCurrentValue.split(',');
+      markSelectedAsIrrelevant(splitForUploadData[0], splitForUploadData[1]);
+    });
+  });
+
 }
+
+function markSelectedAsIrrelevant(upload, item) {
+
+alert(upload + ',' + item);
+ /* $.ajax({
+    type: 'POST',
+    dataType: 'text',
+    url: '?mod=ajax-copyright-hist&action=delete&type={{ table.type }}',
+    data: { id : upload + ',' + item },
+      success: function(data) {
+        $("#delete{{ table.type }}" + hash).hide();
+        var updateElement = $("#update{{ table.type }}" + hash);
+        updateElement.html('deleted [<a href="#" onclick="event.preventDefault();undo{{ table.type }}(' +upload + ',' + item + ',\'' + hash + '\',\'' + kind + '\');return false;">Undo</a>]');
+        updateElement.show();
+      },
+      error: function() { alert('error'); }
+  });*/
+}
+
 
 $(document).ready(function () {
   createDirlistTable();
