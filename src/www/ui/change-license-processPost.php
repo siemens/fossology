@@ -95,10 +95,19 @@ class changeLicenseProcessPost extends FO_Plugin
     $decisionMark = @$_POST['decisionMark'];
     if(!empty($decisionMark))
     {
-      $itemTableName = $this->uploadDao->getUploadtreeTableName($itemId);
-      /** @var ItemTreeBounds */
-      $itemTreeBounds = $this->uploadDao->getItemTreeBounds($itemId,$itemTableName);
-      $errMsg = $this->clearingDao->markDirectoryAsIrrelevant($itemTreeBounds,$groupId,$userId);
+      if(!is_array($itemId)) {
+        $itemTableName = $this->uploadDao->getUploadtreeTableName($itemId);
+        /** @var ItemTreeBounds */
+        $itemTreeBounds = $this->uploadDao->getItemTreeBounds($itemId,$itemTableName);
+        $errMsg = $this->clearingDao->markDirectoryAsIrrelevant($itemTreeBounds,$groupId,$userId);
+      }else{
+        foreach($itemId as $uploadTreeId){
+          $itemTableName = $this->uploadDao->getUploadtreeTableName($uploadTreeId);
+          /** @var ItemTreeBounds */
+          $itemTreeBounds = $this->uploadDao->getItemTreeBounds($uploadTreeId,$itemTableName);
+          $errMsg = $this->clearingDao->markDirectoryAsIrrelevant($itemTreeBounds,$groupId,$userId);
+        }
+      }
       if (empty($errMsg))
       {
         return new JsonResponse(array('result'=>'success'));
