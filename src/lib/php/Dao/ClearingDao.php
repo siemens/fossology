@@ -263,8 +263,10 @@ class ClearingDao extends Object
 
         $firstMatch = false;
         //prepare the new one
-        $previousClearingId = $clearingId;
-        if(!$forClearingHistory){
+        if($forClearingHistory){
+          $previousClearingId = $clearingId;
+        }
+        else{
           $previousItemId = $itemId;
         }
         $clearingEvents = array();
@@ -382,9 +384,9 @@ INSERT INTO clearing_decision (
    * @param int $groupId
    * @return ClearingEvent[] sorted by ts_added
    */
-  public function getRelevantClearingEvents($itemTreeBounds, $groupId)
+  public function getRelevantClearingEvents($itemTreeBounds, $groupId, $includeSubFolders=true)
   {
-    $decision = $this->getFileClearingsFolder($itemTreeBounds, $groupId, $onlyCurrent=true);
+    $decision = $this->getFileClearingsFolder($itemTreeBounds, $groupId, $includeSubFolders, $onlyCurrent=true);
     $events = array();
     $date = 0;
 
@@ -544,11 +546,14 @@ INSERT INTO clearing_decision (
   }
 
   /**
-   * @param $licenseId
-   * @param $licenseShortName
-   * @param $licenseName
+   * @param int $eventId
+   * @param int $userId
+   * @param int $groupId
+   * @param int $licenseRef
    * @param $licenseIsRemoved
-   * @param $clearingLicenses
+   * @param $type
+   * @param $reportInfo
+   * @param string $comment
    * @return ClearingEvent
    */
   protected function buildClearingEvent($eventId, $userId, $groupId, $licenseRef, $licenseIsRemoved, $type, $reportInfo, $comment)
@@ -753,41 +758,82 @@ INSERT INTO clearing_decision (
    * @param int $groupId
    * @param int $userId
    */
-  protected function markDirectoryAsIrrelevantIfScannerDetected(ItemTreeBounds $itemTreeBounds,$groupId,$userId)
+  public function deleteIrrelevantDecisionsFromDirectory(ItemTreeBounds $itemTreeBounds,$groupId,$userId)
   {
-    $params = array($itemTreeBounds->getLeft(), $itemTreeBounds->getRight(), $userId, $groupId, DecisionTypes::IRRELEVANT, DecisionScopes::ITEM);
-    $options = array(UploadTreeProxy::OPT_SKIP_THESE=>'noLicense',
-                     UploadTreeProxy::OPT_ITEM_FILTER=>' AND (lft BETWEEN $1 AND $2)',
-                     UploadTreeProxy::OPT_GROUP_ID=>'$4');
-    $uploadTreeProxy = new UploadTreeProxy($itemTreeBounds->getUploadId(), $options, $itemTreeBounds->getUploadTreeTableName());
-    $statementName = __METHOD__ ;
-    $sql = $uploadTreeProxy->asCte()
-        .' INSERT INTO clearing_decision (uploadtree_fk,pfile_fk,user_fk,group_fk,decision_type,scope) 
-          SELECT uploadtree_pk itemid,pfile_fk pfile_id, $3, $4, $5, $6 FROM UploadTreeView';
-    $this->dbManager->prepare($statementName, $sql);
-    $res = $this->dbManager->execute($statementName,$params);
-    $this->dbManager->freeResult($res);
-  }  
-    
+    $this->markDirectoryAsIrrelevantIfScannerDetected($itemTreeBounds, $groupId, $userId, true);
+    $this->markDirectoryAsIrrelevantIfUserEdited($itemTreeBounds, $groupId, $userId, true);
+  }
+  
   /**
    * @param ItemTreeBounds $itemTreeBounds
    * @param int $groupId
    * @param int $userId
    */
-  protected function markDirectoryAsIrrelevantIfUserEdited(ItemTreeBounds $itemTreeBounds,$groupId,$userId) 
+  protected function markDirectoryAsIrrelevantIfScannerDetected(ItemTreeBounds $itemTreeBounds,$groupId,$userId,$removeDecision=false)
+  {
+    $statementName = __METHOD__ ;
+    $params = array($itemTreeBounds->getLeft(), $itemTreeBounds->getRight());
+    $params[] = $groupId;
+    $a = count($params);
+    $options = array(UploadTreeProxy::OPT_SKIP_THESE=>'noLicense',
+                     UploadTreeProxy::OPT_ITEM_FILTER=>' AND (lft BETWEEN $1 AND $2)',
+                     UploadTreeProxy::OPT_GROUP_ID=>'$'.$a.'');
+    $uploadTreeProxy = new UploadTreeProxy($itemTreeBounds->getUploadId(), $options, $itemTreeBounds->getUploadTreeTableName());
+    if(!$removeDecision) {
+      $params[] = $userId;
+      $params[] = DecisionTypes::IRRELEVANT;
+      $params[] = DecisionScopes::ITEM;
+      $sql = $uploadTreeProxy->asCte()
+          .' INSERT INTO clearing_decision (uploadtree_fk,pfile_fk,user_fk,group_fk,decision_type,scope)
+             SELECT uploadtree_pk itemid,pfile_fk pfile_id, $'.($a+1).', $'.$a.', $'.($a+2).', $'.($a+3).'
+               FROM UploadTreeView WHERE NOT EXISTS (
+             SELECT uploadtree_fk FROM clearing_decision
+              WHERE decision_type=$'.($a+2).' AND uploadtree_fk=UploadTreeView.uploadtree_pk)';
+    } else {
+      $params[] = DecisionTypes::IRRELEVANT;
+      $sql = $uploadTreeProxy->asCte()
+          .' DELETE FROM clearing_decision WHERE clearing_decision_pk IN (
+             SELECT clearing_decision_pk
+               FROM clearing_decision cd INNER JOIN (
+             SELECT MAX(date_added) AS date_added, uploadtree_fk
+               FROM clearing_decision WHERE uploadtree_fk IN (
+             SELECT uploadtree_pk FROM UploadTreeView) GROUP BY uploadtree_fk) cd2 ON cd.uploadtree_fk = cd2.uploadtree_fk
+                AND cd.date_added = cd2.date_added AND decision_type = $'.($a+1).')';
+    }
+    $this->dbManager->prepare($statementName, $sql);
+    $res = $this->dbManager->execute($statementName,$params);
+    $this->dbManager->freeResult($res);
+  }
+
+  /**
+   * @param ItemTreeBounds $itemTreeBounds
+   * @param int $groupId
+   * @param int $userId
+   */
+  protected function markDirectoryAsIrrelevantIfUserEdited(ItemTreeBounds $itemTreeBounds,$groupId,$userId,$removeDecision=false) 
   {
     $statementName = __METHOD__ ;
     $params = array($itemTreeBounds->getLeft(), $itemTreeBounds->getRight());
     $condition = "ut.lft BETWEEN $1 AND $2";
     $decisionsCte = $this->getRelevantDecisionsCte($itemTreeBounds, $groupId, $onlyCurrent=true, $statementName, $params, $condition);
-    $params[] = $userId; 
-    $a = count($params);
-    $params[] = $groupId;
-    $params[] = DecisionTypes::IRRELEVANT;
-    $params[] = DecisionScopes::ITEM;
-    $this->dbManager->prepare($statementName, $decisionsCte
-        .' INSERT INTO clearing_decision (uploadtree_fk,pfile_fk,user_fk,group_fk,decision_type,scope) 
-          SELECT itemid,pfile_id, $'.$a.', $'.($a+1).', $'.($a+2).', $'.($a+3).' FROM allDecs ad WHERE type_id!=$'.($a+2));
+    if(!$removeDecision) {
+      $params[] = $userId; 
+      $a = count($params);
+      $params[] = $groupId;
+      $params[] = DecisionTypes::IRRELEVANT;
+      $params[] = DecisionScopes::ITEM;
+      $this->dbManager->prepare($statementName, $decisionsCte
+          .' INSERT INTO clearing_decision (uploadtree_fk,pfile_fk,user_fk,group_fk,decision_type,scope)
+             SELECT itemid,pfile_id, $'.$a.', $'.($a+1).', $'.($a+2).', $'.($a+3).'
+               FROM allDecs ad WHERE type_id != $'.($a+2));
+    } else {
+      $params[] = DecisionTypes::IRRELEVANT;
+      $a = count($params);
+      $this->dbManager->prepare($statementName, $decisionsCte
+          .' DELETE FROM clearing_decision WHERE decision_type = $'.$a.' 
+                AND clearing_decision_pk IN (
+             SELECT id FROM allDecs WHERE type_id = $'.$a.')');
+    }
     $res = $this->dbManager->execute($statementName,$params);
     $this->dbManager->freeResult($res);
   }
@@ -816,5 +862,33 @@ INSERT INTO clearing_decision (
   {
     $this->dbManager->getSingleRow('DELETE FROM upload_clearing_license WHERE upload_fk=$1 AND group_fk=$2 AND rf_fk=$3',
             array($uploadId,$groupId,$licenseId));
+  }
+  /**
+   * @param ItemTreeBounds $itemTreeBounds
+   * @param int $groupId
+   * @param bool $onlyCurrent
+   * @return ClearingDecision[]
+   */
+  function getIrrelevantFilesFolder(ItemTreeBounds $itemTreeBounds, $groupId, $onlyCurrent=true)
+  {
+    $statementName = __METHOD__;
+    $params = array();
+    $decisionsCte = $this->getRelevantDecisionsCte($itemTreeBounds, $groupId, $onlyCurrent, $statementName, $params);
+    $params[] = DecisionTypes::IRRELEVANT;
+    $sql = "$decisionsCte
+            SELECT
+	    itemid as uploadtree_pk,
+            lr.rf_shortname AS shortname,
+	    comment
+            FROM decision
+            LEFT JOIN clearing_decision_event cde ON cde.clearing_decision_fk = decision.id
+            LEFT JOIN clearing_event ce ON ce.clearing_event_pk = cde.clearing_event_fk
+            LEFT JOIN license_ref lr ON lr.rf_pk = ce.rf_fk
+            WHERE type_id=$".count($params);
+    $this->dbManager->prepare($statementName, $sql);
+    $res = $this->dbManager->execute($statementName, $params);
+    $irrelevantFiles = $this->dbManager->fetchAll($res);
+    $this->dbManager->freeResult($res);
+    return $irrelevantFiles;
   }
 }

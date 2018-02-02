@@ -61,7 +61,7 @@ class SpdxTwoAgent extends Agent
   /** @var LicenseMap */
   private $licenseMap;
   /** @var array */
-  protected $agentNames = array('nomos' => 'N', 'monk' => 'M');
+  protected $agentNames = array('nomos' => 'N', 'monk' => 'M', 'ninka' => 'Nk', 'reportImport' => 'I');
   /** @var array */
   protected $includedLicenseIds = array();
   /** @var string */
@@ -351,7 +351,9 @@ class SpdxTwoAgent extends Agent
       $filesWithLicenses[$key]['files']=array();
       $filesWithLicenses[$key]['copyrights']=array();
     }
-
+    if(empty($copyrights)){
+      $copyrights = array();
+    }
     $filesWithLicenses[$key]['files'][$file] = $fullPath;
     foreach ($copyrights as $copyright) {
       if (!in_array($copyright, $filesWithLicenses[$key]['copyrights'])) {
@@ -684,7 +686,7 @@ class SpdxTwoAgent extends Agent
    */
   protected function getLicenseTexts() {
     $licenseTexts = array();
-    $licenseViewProxy = new LicenseViewProxy($this->groupId,array(LicenseViewProxy::OPT_COLUMNS=>array('rf_pk','rf_shortname','rf_text')));
+    $licenseViewProxy = new LicenseViewProxy($this->groupId,array(LicenseViewProxy::OPT_COLUMNS=>array('rf_pk','rf_shortname','rf_fullname','rf_text')));
     $this->dbManager->prepare($stmt=__METHOD__, $licenseViewProxy->getDbViewQuery());
     $res = $this->dbManager->execute($stmt);
 
@@ -692,14 +694,18 @@ class SpdxTwoAgent extends Agent
     {
       if (array_key_exists($row['rf_pk'], $this->includedLicenseIds))
       {
-        $licenseTexts[$row['rf_shortname']] = $row['rf_text'];
+        $licenseTexts[$row['rf_shortname']] = array(
+          'text' => $row['rf_text'],
+          'name' => $row['rf_fullname'] ?: $row['rf_shortname']);
       }
     }
     foreach($this->includedLicenseIds as $license => $customText)
     {
       if (true !== $customText)
       {
-        $licenseTexts[$license] = $customText;
+        $licenseTexts[$license] = array(
+          'text' => $customText,
+          'name' => $license);
       }
     }
     $this->dbManager->freeResult($res);

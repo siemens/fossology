@@ -76,11 +76,18 @@ function performPostRequest(doRemove) {
   });
 }
 
-function markDecisions() {
-  var data = {
-    "uploadTreeId": $('#uploadTreeId').val(),
-    "decisionMark": 'irrelevant'
-  };
+function markDecisions(uploadTreeIdForMultiple) {
+  if(Array.isArray(uploadTreeIdForMultiple)){
+    var data = {
+      "uploadTreeId": uploadTreeIdForMultiple,
+      "decisionMark": 'irrelevant'
+    };
+  }else{
+    var data = {
+      "uploadTreeId": $('#uploadTreeId').val(),
+      "decisionMark": 'irrelevant'
+    };
+  }
   resultEntity = $('bulkIdResult');
   $.ajax({
     type: "POST",
@@ -90,4 +97,23 @@ function markDecisions() {
     error: function(responseobject) { scheduledDeciderError(responseobject, resultEntity); }
   });
 
+}
+
+function deleteMarkedDecisions() {
+  var data = {
+    "uploadTreeId": $('#uploadTreeId').val(),
+    "decisionMark": 'deleteIrrelevant'
+  };
+  resultEntity = $('bulkIdResult');
+    var txt;
+    var pleaseConfirm = confirm("You are about to delete all irrelevant decisions. Please confirm!");
+    if (pleaseConfirm == true) {
+      $.ajax({
+        type: "POST",
+        url: "?mod=change-license-processPost",
+        data: data,
+        success: function (data) { location.reload(); },
+        error: function(responseobject) { scheduledDeciderError(responseobject, resultEntity); }
+      });
+    }
 }

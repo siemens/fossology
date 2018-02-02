@@ -87,6 +87,12 @@ install-arch:
 	$(MAKE) DESTDIR=$(CURDIR)/debian/fossology-common \
            PREFIX=/usr SYSCONFDIR=/etc/fossology LOCALSTATEDIR=/var \
            -C src composer_install
+	mkdir -p ~/composer/
+	utils/install_composer.sh ~/composer/
+	COMPOSER_PHAR=~/composer/composer
+	# emulating writing composer file, TODO see if that is really needed now
+	cp src/composer.json $(CURDIR)/debian/fossology-common
+	cp src/composer.lock $(CURDIR)/debian/fossology-common
 	mkdir -p $(CURDIR)/debian/fossology-common/usr/share/fossology/setup
 	cp $(CURDIR)/install/scripts/* $(CURDIR)/debian/fossology-common/usr/share/fossology/setup
 
@@ -157,7 +163,10 @@ install-arch:
 	$(MAKE) DESTDIR=$(CURDIR)/debian/fossology-readmeoss \
            PREFIX=/usr SYSCONFDIR=/etc/fossology LOCALSTATEDIR=/var \
            -C src/readmeoss install
-	
+
+	$(MAKE) DESTDIR=$(CURDIR)/debian/fossology-unifiedreport \
+           PREFIX=/usr SYSCONFDIR=/etc/fossology LOCALSTATEDIR=/var \
+           -C src/unifiedreport install
 	$(MAKE) DESTDIR=$(CURDIR)/debian/fossology-reuser \
            PREFIX=/usr SYSCONFDIR=/etc/fossology LOCALSTATEDIR=/var \
            -C src/reuser install
@@ -165,6 +174,10 @@ install-arch:
 	$(MAKE) DESTDIR=$(CURDIR)/debian/fossology-spdx2 \
            PREFIX=/usr SYSCONFDIR=/etc/fossology LOCALSTATEDIR=/var \
            -C src/spdx2 install
+
+	$(MAKE) DESTDIR=$(CURDIR)/debian/fossology-reportimport \
+           PREFIX=/usr SYSCONFDIR=/etc/fossology LOCALSTATEDIR=/var \
+           -C src/reportImport install
 
 	mkdir -p $(CURDIR)/debian/fossology-dev/usr/bin
 	cp $(shell which composer) $(CURDIR)/debian/fossology-dev/usr/bin
