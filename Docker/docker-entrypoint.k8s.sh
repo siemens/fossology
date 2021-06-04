@@ -1,40 +1,24 @@
 #!/bin/bash
-# FOSSology docker-entrypoint script
-# SPDX-FileCopyrightText: © 2016 Siemens AG
-# SPDX-FileCopyrightText: © fabio.huser@siemens.com
-# SPDX-FileCopyrightText: © 2016 TNG Technology Consulting GmbH
-# SPDX-FileCopyrightText: © maximilian.huber@tngtech.com
+# FOSSology docker-entrypoint script for kubernetes
+# SPDX-FileCopyrightText: 2021 Omar AbdelSamea <omarmohamed168@gmail.com>
+# SPDX-License-Identifier: GPL-2.0
 #
-# SPDX-License-Identifier: FSFAP
-#
-# Description: startup helper script for the FOSSology Docker container
+# Description: startup helper script for the FOSSology Docker container in kuberentes
 
 set -o errexit -o nounset -o pipefail
 
-db_host="${FOSSOLOGY_DB_HOST:-localhost}"
-db_name="${FOSSOLOGY_DB_NAME:-fossology}"
-db_user="${FOSSOLOGY_DB_USER:-fossy}"
-db_password="${FOSSOLOGY_DB_PASSWORD:-fossy}"
-
-# Write configuration
-cat <<EOM > /usr/local/etc/fossology/Db.conf
-dbname=$db_name;
-host=$db_host;
-user=$db_user;
-password=$db_password;
-EOM
-
-sed -i 's/address = .*/address = '"${FOSSOLOGY_SCHEDULER_HOST:-localhost}"'/' \
-    /usr/local/etc/fossology/fossology.conf
+sed -i 's/address = .*/address = '"${FOSSOLOGY_SCHEDULER_HOST:-scheduler}"'/' \
+    /etc/fossology/fossology.conf
 
 # Startup DB if needed or wait for external DB
-if [[ $db_host == 'localhost' ]]; then
+if [[ "$1" == "scheduler" ]]; then
   echo '*****************************************************'
   echo 'WARNING: No database host was set and therefore the'
   echo 'internal database without persistency will be used.'
   echo 'THIS IS NOT RECOMENDED FOR PRODUCTIVE USE!'
   echo '*****************************************************'
-  sleep 5
+  bash ./fo_conf.sh db
+  sleep 10
   /etc/init.d/postgresql start
 else
   test_for_postgres() {
@@ -45,11 +29,12 @@ else
     >&2 echo "Postgres is unavailable - sleeping"
     sleep 1
   done
-fi
+fi  
 
-# Setup environment
+# # Setup environment and add fossology.conf to etcd
 if [[ $# -eq 0 || ($# -eq 1 && "$1" == "scheduler") ]]; then
-  /usr/local/lib/fossology/fo-postinstall --common --database --licenseref
+    /usr/lib/fossology/fo-postinstall --common --database --licenseref
+    bash ./fo_conf.sh scheduler
 fi
 
 # Start Fossology
@@ -58,19 +43,25 @@ echo 'Fossology initialisation complete; Starting up...'
 echo
 if [[ $# -eq 0 ]]; then
   /etc/init.d/cron start
-  /usr/local/share/fossology/scheduler/agent/fo_scheduler \
+  /etc/fossology/mods-enabled/scheduler/agent/fo_scheduler \
     --log /dev/stdout \
-    --verbose=3 \
+    --verbose=4095 \
     --reset &
   /usr/sbin/apache2ctl -D FOREGROUND
 elif [[ $# -eq 1 && "$1" == "scheduler" ]]; then
-  exec /usr/local/share/fossology/scheduler/agent/fo_scheduler \
+  exec /etc/fossology/mods-enabled/scheduler/agent/fo_scheduler \
     --log /dev/stdout \
-    --verbose=3 \
+    --verbose=4095 \
     --reset
 elif [[ $# -eq 1 && "$1" == "web" ]]; then
-  /etc/init.d/cron start
+  service cron start
   exec /usr/sbin/apache2ctl -e info -D FOREGROUND
+elif [[ $# -ge 1 && "$1" == "agent" ]]; then
+  bash ./fo_conf.sh agent $2
+  chmod +x /usr/share/fossology/scheduler/agent/fo_cli
+  /usr/share/fossology/scheduler/agent/fo_cli --host=${FOSSOLOGY_SCHEDULER_HOST:-scheduler} \
+  --port=24693 --reload || echo "Scheduler is initlaizing or not running"
+  exec tail -f /dev/null
 else
   exec "$@"
 fi

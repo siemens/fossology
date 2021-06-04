@@ -196,7 +196,10 @@ ubuntu-*
 .phpunit.result.cache
 *-Xunit.xml
 /phpenv/
+
 # cmake ignore files
 **/build
 cmake-build-release
 cmake-build-debug
+
+microservice-testing
