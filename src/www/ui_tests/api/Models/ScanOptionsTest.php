@@ -79,7 +79,7 @@ namespace Fossology\UI\Api\Test\Models
         ]);
       self::$functions->shouldReceive('register_plugin')
         ->with(\Hamcrest\Matchers::identicalTo(
-          new ScanOptions(null, null, null)));
+          new ScanOptions(null, null, null, null)));
     }
 
     /**
