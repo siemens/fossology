@@ -499,7 +499,7 @@ WHERE $withHash ( ut.lft BETWEEN $1 AND $2 ) $agentFilter AND ut.upload_fk = $3"
       $paramEvent[] = $row['upload_fk'];
       $paramEvent[] = $row[$cpTablePk];
       $paramEvent[] = $row['uploadtree_pk'];
-      $sqlExists = "SELECT exists(SELECT 1 FROM $cpTableEvent WHERE $cpTableEventFk = $1 AND upload_fk = $2 AND uploadtree_fk = $3)::int";
+      $sqlExists = "SELECT exists(SELECT 1 FROM $cpTableEvent WHERE $cpTableEventFk = $2 AND upload_fk = $1 AND uploadtree_fk = $3)::int";
       $rowExists = $this->dbManager->getSingleRow($sqlExists, array($row[$cpTablePk], $row['upload_fk'], $row['uploadtree_pk']), $stmt.'Exists');
       $eventExists = $rowExists['exists'];
       if ($action == "delete") {
@@ -517,16 +517,22 @@ WHERE $withHash ( ut.lft BETWEEN $1 AND $2 ) $agentFilter AND ut.upload_fk = $3"
           WHERE upload_fk = $1 AND $cpTableEventFk = $2 AND uploadtree_fk = $3";
           $statement = "$stmt.rollback.up";
       } else {
-        $paramEvent[] = StringOperation::replaceUnicodeControlChar($content);
+        $cleanContent = StringOperation::replaceUnicodeControlChar($content);
+        $paramEvent[] = $cleanContent;
+        $newhash = null;
+        if (!empty($cleanContent)) {
+          $newhash = md5($cleanContent);
+        }
+        $paramEvent[] = $newhash;
 
         if ($eventExists) {
           $sqlEvent = "UPDATE $cpTableEvent
-                       SET upload_fk = $1, content = $4, hash = md5($4)
+                       SET upload_fk = $1, content = $4, hash = $5
                        WHERE $cpTableEventFk = $2 AND uploadtree_fk = $3";
           $statement = "$stmt.update";
         } else {
           $sqlEvent = "INSERT INTO $cpTableEvent(upload_fk, uploadtree_fk, $cpTableEventFk, is_enabled, content, hash)
-                       VALUES($1, $3, $2, 'true', $4, md5($4))";
+                       VALUES($1, $3, $2, 'true', $4, $5)";
           $statement = "$stmt.insert";
         }
       }
