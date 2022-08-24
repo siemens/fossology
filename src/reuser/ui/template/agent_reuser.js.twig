@@ -23,11 +23,11 @@ function reloadUploads(parameter) {
       });
       sortList('#{{ uploadToReuseSelectorName }} option');
     })
-    .fail(failed);
+    .error(failed);
 }
 
 function toggleDisabled() {
-  $('#searchInFolder').click(function () {
+  $('.reuseSearchInFolder').click(function () {
     $('#{{ reuseFolderSelectorName }}').prop('disabled', !$(this).prop('checked'));
     $('#{{ uploadToReuseSelectorName }}').empty();
     if($(this).prop('checked')) {

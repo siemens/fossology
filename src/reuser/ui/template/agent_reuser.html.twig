@@ -13,7 +13,7 @@
       </span>
     </label>
     <img src="images/info_16.png" data-toggle="tooltip" title="{{ 'Copy clearing decisions if there is the same file hash between two files'|trans }}" alt="" class="info-bullet"/><br/>
-    <input type="checkbox" class="browse-upload-checkbox view-license-rc-size" id="searchInFolder"/> {{ 'Select an already uploaded package for reuse in specific folder ' | trans }}
+    <input type="checkbox" class="browse-upload-checkbox view-license-rc-size reuseSearchInFolder" /> {{ 'Select an already uploaded package for reuse in specific folder ' | trans }}
     {% include 'reuse-folder.html.twig' with {'name': reuseFolderSelectorName, 'id': reuseFolderSelectorName} %}
     <br/>
     <input type="checkbox" class="browse-upload-checkbox view-license-rc-size" name="reuseMode[]" value="reuseEnhanced"/>

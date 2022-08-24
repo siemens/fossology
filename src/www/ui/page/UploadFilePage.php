@@ -8,8 +8,8 @@
 
 namespace Fossology\UI\Page;
 
-use Fossology\UI\Page\UploadPageBase;
 use Fossology\Lib\Auth\Auth;
+use Fossology\Lib\UI\MenuHook;
 use Symfony\Component\HttpFoundation\File\Exception\FileException;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
@@ -40,6 +40,32 @@ class UploadFilePage extends UploadPageBase
    */
   protected function handleView(Request $request, $vars)
   {
+    // Recalculate views for reuse agent to support multi file uploads
+    $parmAgentList = MenuHook::getAgentPluginNames("ParmAgents");
+    $vars['parmAgentContents'] = array();
+    $vars['parmAgentFoots'] = array();
+    $vars['hiddenAgentContents'] = array();
+    foreach ($parmAgentList as $parmAgent) {
+      $agent = plugin_find($parmAgent);
+      if ($parmAgent == "agent_reuser") {
+        $vars['parmAgentContents'][] = sprintf("<li>
+  <div class='form-group'>
+    <label for='reuse'>
+      (%s) %s
+    </label>
+    <img src='images/info_16.png' data-toggle='tooltip' title='%s' alt='' class='info-bullet'/><br/>
+    <button type='button' class='btn btn-default btn-sm' data-toggle='modal' data-target='#reuseModal'>%s</button>
+    <img src='images/info_16.png' data-toggle='tooltip' title='%s' alt='' class='info-bullet'/><br/>
+</li>", _("Optional"), _("Reuse"),
+          _("Copy clearing decisions if there is the same file hash between two files"),
+          _("Set the reuse information"),
+          _("Open the pop-up to setup the reuse information for uploads"));
+        $vars['hiddenAgentContents'][] = $agent->renderContent($vars);
+      } else {
+        $vars['parmAgentContents'][] = $agent->renderContent($vars);
+      }
+      $vars['parmAgentFoots'][] = $agent->renderFoot($vars);
+    }
     $vars['fileInputName'] = self::FILE_INPUT_NAME;
     return $this->render("upload_file.html.twig", $this->mergeWithDefault($vars));
   }
