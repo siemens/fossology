@@ -1,19 +1,20 @@
 {# SPDX-FileCopyrightText: © Fossology contributors
- 
+
    SPDX-License-Identifier: GPL-2.0-only
 #}
 $.getScript( "scripts/tools.js", function( data, textStatus, jqxhr ) {console.log( "Failure handler loaded." ); });
 
-$('#{{ reuseFolderSelectorName }}').change(function () {
+$('[id^={{ reuseFolderSelectorName }}]').change(function () {
+  const groupIndex = $(this).attr('id').replace('{{ reuseFolderSelectorName }}', '');
   var folderGroupPair = this.selectedOptions[0].value;
   //noinspection JSAnnotator
-  reloadUploads('&{{ folderParameterName }}=' + folderGroupPair);
+  reloadUploads('&{{ folderParameterName }}=' + folderGroupPair, groupIndex);
 });
 
-function reloadUploads(parameter) {
-  $.getJSON("?mod=plugin_reuser&do=getUploads" + parameter)
+function reloadUploads(folderGroupPair, groupIndex) {
+  $.getJSON("?mod=plugin_reuser&do=getUploads" + folderGroupPair)
     .done(function (data) {
-      var packageForReuse = $('#{{ uploadToReuseSelectorName }}');
+      var packageForReuse = $(`#{{ uploadToReuseSelectorName }}${groupIndex}`);
       packageForReuse.empty();
       $.each(data, function (key, value) {
         var option = document.createElement("option");
@@ -21,24 +22,24 @@ function reloadUploads(parameter) {
         option.value = key;
         packageForReuse.append(option);
       });
-      sortList('#{{ uploadToReuseSelectorName }} option');
+      sortList(`#{{ uploadToReuseSelectorName }}${groupIndex} option`);
     })
     .error(failed);
 }
 
 function toggleDisabled() {
-  $('.reuseSearchInFolder').click(function () {
-    $('#{{ reuseFolderSelectorName }}').prop('disabled', !$(this).prop('checked'));
-    $('#{{ uploadToReuseSelectorName }}').empty();
+  $('[id^=searchInFolder]').click(function () {
+    const groupIndex = $(this).attr('id').replace('searchInFolder', '');
+    $(`#{{ reuseFolderSelectorName }}${groupIndex}`).prop('disabled', !$(this).prop('checked'));
+    $(`#{{ uploadToReuseSelectorName }}${groupIndex}`).empty();
     if($(this).prop('checked')) {
-      $('#{{ reuseFolderSelectorName }}').change();
+      $(`#{{ reuseFolderSelectorName }}${groupIndex}`).trigger('change');
     }
     else {
       reloadUploads("");
     }
   });
   reloadUploads("");
-
 }
 
 $(document).ready( function(){
