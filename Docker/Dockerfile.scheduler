@@ -1,29 +1,34 @@
 # FOSSology Dockerfile
 # SPDX-FileCopyrightText: 2021 Omar AbdelSamea <omarmohamed168@gmail.com>
-# SPDX-License-Identifier: GPL-2.0
+# SPDX-License-Identifier: GPL-2.0-only
 #
 # Description: Docker container image recipe for scheduler
 
-FROM fossology/packages:latest as builder
-LABEL maintainer="Fossology <fossology@fossology.org>"
-
-WORKDIR /fossology_packages/fossology
+#FROM fossology/packages:latest as builder
+#LABEL org.opencontainers.image.authors="Fossology <fossology@fossology.org>"
+#LABEL org.opencontainers.image.source="https://github.com/fossology/fossology"
+#LABEL org.opencontainers.image.vendor="FOSSology"
+#LABEL org.opencontainers.image.licenses="GPL-2.0-only AND LGPL-2.1-only"
+#
+#WORKDIR /fossology_packages/fossology
 
 FROM debian:buster-slim
+LABEL org.opencontainers.image.authors="Fossology <fossology@fossology.org>"
+LABEL org.opencontainers.image.source="https://github.com/fossology/fossology"
+LABEL org.opencontainers.image.vendor="FOSSology"
+LABEL org.opencontainers.image.licenses="GPL-2.0-only AND LGPL-2.1-only"
 
 WORKDIR /fossology
-
-LABEL maintainer="Fossology <fossology@fossology.org>"
 
 RUN DEBIAN_FRONTEND=noninteractive apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install postgresql postgresql-contrib dnsutils -y
 
-COPY --from=builder /fossology_packages/fossology/packages/fossology-common_*_amd64.deb .
-COPY --from=builder /fossology_packages/fossology/packages/fossology-db_*_amd64.deb .
-COPY --from=builder /fossology_packages/fossology/packages/fossology-scheduler_*_amd64.deb .
+COPY --from=fossology/packages:latest /fossology_packages/fossology/packages/fossology-common_*_amd64.deb .
+COPY --from=fossology/packages:latest /fossology_packages/fossology/packages/fossology-db_*_amd64.deb .
+COPY --from=fossology/packages:latest /fossology_packages/fossology/packages/fossology-scheduler_*_amd64.deb .
 
 RUN DEBIAN_FRONTEND=noninteractive apt-get update \
-    && pg_ctlcluster 11 main start && service postgresql start && service postgresql status\
+    && pg_ctlcluster 11 main start && service postgresql start && service postgresql status \
     && dpkg -i fossology-common_*_amd64.deb fossology-scheduler_*_amd64.deb fossology-db_*_amd64.deb || echo "deb failed" \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y -f
 

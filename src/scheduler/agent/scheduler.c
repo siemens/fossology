@@ -920,7 +920,7 @@ void scheduler_agent_config(scheduler_t* scheduler)
       NOTIFY("Debug ma list name %s", name);
       if(!add_meta_agent(scheduler->meta_agents, name, cmd, max, special))
       {
-        V_SCHED("CONFIG: could not create meta agent using %s\n", ep->d_name);
+        V_SCHED("CONFIG: could not create meta agent\n");
       }
       else if(TVERB_SCHED)
       {

@@ -122,6 +122,7 @@ foreach(SCHE_LIBS glib-2.0 gthread-2.0 gio-2.0 gobject-2.0)
 endforeach()
 pkg_check_modules(jsoncpp REQUIRED jsoncpp)
 pkg_check_modules(jsonc REQUIRED json-c)
+pkg_check_modules(curl REQUIRED libcurl)
 
 set(CMAKE_INSTALL_MESSAGE NEVER) # control if messages should be displayed while installing
 

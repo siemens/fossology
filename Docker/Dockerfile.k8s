@@ -1,0 +1,278 @@
+# FOSSology Dockerfile
+# SPDX-FileCopyrightText: 2021 Omar AbdelSamea <omarmohamed168@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Description: Docker container image recipe for pacakges base image
+
+FROM debian:buster-slim AS builder
+LABEL org.opencontainers.image.authors="Fossology <fossology@fossology.org>"
+LABEL org.opencontainers.image.source="https://github.com/fossology/fossology"
+LABEL org.opencontainers.image.vendor="FOSSology"
+LABEL org.opencontainers.image.licenses="GPL-2.0-only AND LGPL-2.1-only"
+
+WORKDIR /fossology_packages/fossology
+
+RUN DEBIAN_FRONTEND=noninteractive apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
+    git ca-certificates lsb-release php-cli sudo ninja-build tar curl \
+    libcurl4-gnutls-dev
+
+RUN curl -L "https://github.com/Kitware/CMake/releases/download/v3.23.0/cmake-3.23.0-linux-x86_64.sh" -o cmake.sh \
+ && sh cmake.sh --prefix=/usr/local/ --exclude-subdir \
+ && rm cmake.sh
+
+COPY ./utils/fo-installdeps ./utils/fo-installdeps
+COPY ./install/fo-install-pythondeps ./install/fo-install-pythondeps
+COPY ./utils/utils.sh ./utils/utils.sh
+COPY ./src/copyright/mod_deps ./src/copyright/
+COPY ./src/delagent/mod_deps ./src/delagent/
+COPY ./src/mimetype/mod_deps ./src/mimetype/
+COPY ./src/nomos/mod_deps ./src/nomos/
+COPY ./src/ojo/mod_deps ./src/ojo/
+COPY ./src/pkgagent/mod_deps ./src/pkgagent/
+COPY ./src/scancode/mod_deps ./src/scancode/
+COPY ./src/scheduler/mod_deps ./src/scheduler/
+COPY ./src/ununpack/mod_deps ./src/ununpack/
+COPY ./src/wget_agent/mod_deps ./src/wget_agent/
+
+RUN DEBIAN_FRONTEND=noninteractive apt-get update \
+ && DEBIAN_FRONTEND=noninteractive ./utils/fo-installdeps --build -y \
+ && DEBIAN_FRONTEND=noninteractive ./install/fo-install-pythondeps --build -y
+
+COPY . .
+
+RUN cmake -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=/usr \
+    -DFO_SYSCONFDIR=/etc/fossology -S. -B./build -G Ninja \
+ && ninja -C build package \
+ && find build -type f -name "*-dbgsym*" -delete \
+ && mkdir -p packages \
+ && mv build/*.deb packages/
+
+FROM scratch AS package
+LABEL org.opencontainers.image.authors="Fossology <fossology@fossology.org>"
+LABEL org.opencontainers.image.source="https://github.com/fossology/fossology"
+LABEL org.opencontainers.image.vendor="FOSSology"
+LABEL org.opencontainers.image.licenses="GPL-2.0-only AND LGPL-2.1-only"
+
+WORKDIR /fossology_packages/fossology
+
+COPY --from=builder /fossology_packages/fossology/packages /fossology_packages/fossology/packages
+
+FROM debian:buster-slim AS scheduler
+LABEL org.opencontainers.image.authors="Fossology <fossology@fossology.org>"
+LABEL org.opencontainers.image.source="https://github.com/fossology/fossology"
+LABEL org.opencontainers.image.vendor="FOSSology"
+LABEL org.opencontainers.image.licenses="GPL-2.0-only AND LGPL-2.1-only"
+
+WORKDIR /fossology
+
+COPY --from=package /fossology_packages/fossology/packages/fossology-common_*_amd64.deb .
+COPY --from=package /fossology_packages/fossology/packages/fossology-db_*_amd64.deb .
+COPY --from=package /fossology_packages/fossology/packages/fossology-scheduler_*_amd64.deb .
+
+RUN DEBIAN_FRONTEND=noninteractive apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get -y install \
+    postgresql postgresql-contrib dnsutils curl \
+ && pg_ctlcluster 11 main start && service postgresql start && service postgresql status \
+ && dpkg -i fossology-common_*_amd64.deb fossology-scheduler_*_amd64.deb fossology-db_*_amd64.deb || echo "deb failed" \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y -f \
+ && curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl \
+ && chmod +x ./kubectl \
+ && mv ./kubectl /usr/local/bin
+
+COPY ./src/www/ui/core-schema.dat /usr/share/fossology/www/ui/
+
+COPY ./Docker/docker-entrypoint.k8s.sh /fossology/docker-entrypoint.sh
+
+# scheduler needs acces to ./kube directory so it can access kubectl command
+RUN chmod +x /fossology/docker-entrypoint.sh \
+ && mkdir /root/.kube \
+ && chmod -R o=rwx /root/
+
+ENTRYPOINT ["/fossology/docker-entrypoint.sh"]
+
+FROM debian:buster-slim AS web
+
+LABEL org.opencontainers.image.authors="Fossology <fossology@fossology.org>"
+LABEL org.opencontainers.image.source="https://github.com/fossology/fossology"
+LABEL org.opencontainers.image.vendor="FOSSology"
+LABEL org.opencontainers.image.licenses="GPL-2.0-only AND LGPL-2.1-only"
+
+WORKDIR /fossology
+
+### install dependencies
+COPY --from=package /fossology_packages/fossology/packages/fossology-common_*_amd64.deb .
+COPY --from=package /fossology_packages/fossology/packages/fossology-web_*_amd64.deb .
+
+RUN DEBIAN_FRONTEND=noninteractive apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y cron \
+ && dpkg -i fossology-common_*_amd64.deb fossology-web_*_amd64.deb || echo "deb failed" \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y -f \
+ && service cron start
+
+# configure php
+COPY ./install/scripts/php-conf-fix.sh ./install/scripts/php-conf-fix.sh
+RUN /fossology/install/scripts/php-conf-fix.sh --overwrite
+
+# configure apache
+RUN mkdir -p /var/log/apache2/ \
+ && ln -sf /proc/self/fd/1 /var/log/apache2/access.log \
+ && ln -sf /proc/self/fd/1 /var/log/apache2/error.log
+
+COPY ./Docker/docker-entrypoint.k8s.sh /fossology/docker-entrypoint.sh
+RUN chmod +x /fossology/docker-entrypoint.sh
+ENTRYPOINT ["/fossology/docker-entrypoint.sh"]
+
+FROM debian:buster-slim AS ununpack
+
+LABEL org.opencontainers.image.authors="Fossology <fossology@fossology.org>"
+LABEL org.opencontainers.image.source="https://github.com/fossology/fossology"
+LABEL org.opencontainers.image.vendor="FOSSology"
+LABEL org.opencontainers.image.licenses="GPL-2.0-only AND LGPL-2.1-only"
+
+WORKDIR /fossology
+
+### install dependencies
+COPY --from=package /fossology_packages/fossology/packages/fossology-common_*_amd64.deb .
+COPY --from=package /fossology_packages/fossology/packages/fossology-ununpack_*_amd64.deb .
+
+RUN DEBIAN_FRONTEND=noninteractive apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y curl libjson-c-dev \
+ && dpkg -i fossology-common_*_amd64.deb fossology-ununpack_*_amd64.deb || echo "deb failed" \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y -f
+
+COPY --from=builder /fossology_packages/fossology/build/src/scheduler/agent/fo_cli /usr/share/fossology/scheduler/agent/
+COPY ./Docker/fo_conf.sh /fossology/
+
+COPY ./Docker/docker-entrypoint.k8s.sh /fossology/docker-entrypoint.sh
+RUN chmod +x /fossology/docker-entrypoint.sh
+ENTRYPOINT ["/fossology/docker-entrypoint.sh"]
+
+FROM debian:buster-slim AS adj2nest
+
+LABEL org.opencontainers.image.authors="Fossology <fossology@fossology.org>"
+LABEL org.opencontainers.image.source="https://github.com/fossology/fossology"
+LABEL org.opencontainers.image.vendor="FOSSology"
+LABEL org.opencontainers.image.licenses="GPL-2.0-only AND LGPL-2.1-only"
+
+WORKDIR /fossology
+
+COPY --from=package /fossology_packages/fossology/packages/fossology-common_*_amd64.deb .
+COPY --from=package /fossology_packages/fossology/packages/fossology-adj2nest_*_amd64.deb .
+
+RUN DEBIAN_FRONTEND=noninteractive apt-get update \
+ && dpkg -i fossology-common_*_amd64.deb fossology-adj2nest_*_amd64.deb || echo "deb failed" \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y -f
+
+COPY --from=builder /fossology_packages/fossology/build/src/scheduler/agent/fo_cli /usr/share/fossology/scheduler/agent/
+COPY ./Docker/fo_conf.sh /fossology/
+
+COPY ./Docker/docker-entrypoint.k8s.sh /fossology/docker-entrypoint.sh
+RUN chmod +x /fossology/docker-entrypoint.sh
+ENTRYPOINT ["/fossology/docker-entrypoint.sh"]
+
+FROM debian:buster-slim AS wgetagent
+
+LABEL org.opencontainers.image.authors="Fossology <fossology@fossology.org>"
+LABEL org.opencontainers.image.source="https://github.com/fossology/fossology"
+LABEL org.opencontainers.image.vendor="FOSSology"
+LABEL org.opencontainers.image.licenses="GPL-2.0-only AND LGPL-2.1-only"
+
+WORKDIR /fossology
+
+### install dependencies
+COPY --from=package /fossology_packages/fossology/packages/fossology-common_*_amd64.deb .
+COPY --from=package /fossology_packages/fossology/packages/fossology-wgetagent_*_amd64.deb .
+
+RUN DEBIAN_FRONTEND=noninteractive apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y curl libjson-c-dev \
+ && dpkg -i fossology-common_*_amd64.deb fossology-wgetagent_*_amd64.deb || echo "deb failed" \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y -f
+
+COPY --from=builder /fossology_packages/fossology/build/src/scheduler/agent/fo_cli /usr/share/fossology/scheduler/agent/
+COPY ./Docker/fo_conf.sh /fossology/
+
+COPY ./Docker/docker-entrypoint.k8s.sh /fossology/docker-entrypoint.sh
+RUN chmod +x /fossology/docker-entrypoint.sh
+ENTRYPOINT ["/fossology/docker-entrypoint.sh"]
+
+FROM debian:buster-slim AS nomos
+
+LABEL org.opencontainers.image.authors="Fossology <fossology@fossology.org>"
+LABEL org.opencontainers.image.source="https://github.com/fossology/fossology"
+LABEL org.opencontainers.image.vendor="FOSSology"
+LABEL org.opencontainers.image.licenses="GPL-2.0-only AND LGPL-2.1-only"
+
+WORKDIR /fossology
+
+### install dependencies
+COPY --from=package /fossology_packages/fossology/packages/fossology-common_*_amd64.deb .
+COPY --from=package /fossology_packages/fossology/packages/fossology-nomos_*_amd64.deb .
+
+RUN DEBIAN_FRONTEND=noninteractive apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y curl libjson-c-dev \
+ && dpkg -i fossology-common_*_amd64.deb fossology-nomos_*_amd64.deb || echo "deb failed" \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y -f
+
+COPY --from=builder /fossology_packages/fossology/build/src/scheduler/agent/fo_cli /usr/share/fossology/scheduler/agent/
+COPY ./Docker/fo_conf.sh /fossology/
+
+COPY ./Docker/docker-entrypoint.k8s.sh /fossology/docker-entrypoint.sh
+RUN chmod +x /fossology/docker-entrypoint.sh
+ENTRYPOINT ["/fossology/docker-entrypoint.sh"]
+
+FROM debian:buster-slim AS ojo
+
+LABEL org.opencontainers.image.authors="Fossology <fossology@fossology.org>"
+LABEL org.opencontainers.image.source="https://github.com/fossology/fossology"
+LABEL org.opencontainers.image.vendor="FOSSology"
+LABEL org.opencontainers.image.licenses="GPL-2.0-only AND LGPL-2.1-only"
+
+WORKDIR /fossology
+
+### install dependencies
+COPY --from=package /fossology_packages/fossology/packages/fossology-common_*_amd64.deb .
+COPY --from=package /fossology_packages/fossology/packages/fossology-ojo_*_amd64.deb .
+
+RUN DEBIAN_FRONTEND=noninteractive apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y curl libjson-c-dev \
+ && dpkg -i fossology-common_*_amd64.deb fossology-ojo_*_amd64.deb || echo "deb failed" \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y -f
+
+COPY --from=builder /fossology_packages/fossology/build/src/scheduler/agent/fo_cli /usr/share/fossology/scheduler/agent/
+COPY ./Docker/fo_conf.sh /fossology/
+
+COPY ./Docker/docker-entrypoint.k8s.sh /fossology/docker-entrypoint.sh
+RUN chmod +x /fossology/docker-entrypoint.sh
+ENTRYPOINT ["/fossology/docker-entrypoint.sh"]
+
+FROM debian:buster-slim AS copyright
+
+LABEL org.opencontainers.image.authors="Fossology <fossology@fossology.org>"
+LABEL org.opencontainers.image.source="https://github.com/fossology/fossology"
+LABEL org.opencontainers.image.vendor="FOSSology"
+LABEL org.opencontainers.image.licenses="GPL-2.0-only AND LGPL-2.1-only"
+
+WORKDIR /fossology
+
+### install dependencies
+COPY --from=package /fossology_packages/fossology/packages/fossology-common_*_amd64.deb .
+COPY --from=package /fossology_packages/fossology/packages/fossology-copyright_*_amd64.deb .
+
+RUN DEBIAN_FRONTEND=noninteractive apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y curl libjson-c-dev \
+ && dpkg -i fossology-common_*_amd64.deb fossology-copyright_*_amd64.deb || echo "deb failed" \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y -f
+
+COPY --from=builder /fossology_packages/fossology/build/src/scheduler/agent/fo_cli /usr/share/fossology/scheduler/agent/
+COPY ./Docker/fo_conf.sh /fossology/
+
+COPY ./Docker/docker-entrypoint.k8s.sh /fossology/docker-entrypoint.sh
+RUN chmod +x /fossology/docker-entrypoint.sh
+ENTRYPOINT ["/fossology/docker-entrypoint.sh"]
+
+# TODO: Issue already solved. Needs test
+# soft link to solve path issue (cannot open regex definitions)
+#RUN mkdir -p /usr/local/share/fossology/copyright/agent
+#RUN ln -s /etc/fossology/mods-enabled/copyright/agent/copyright.conf \
+# /usr/local/share/fossology/copyright/agent/copyright.conf

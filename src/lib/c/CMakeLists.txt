@@ -36,7 +36,8 @@ foreach(FO_CLIB_TARGET fossology fossology_cov)
             ${FO_CWD}/fossconfig.c
             ${FO_CWD}/sqlCopy.c)
     target_link_libraries(${FO_CLIB_TARGET}
-        PRIVATE ${glib_LIBRARIES} ${PostgreSQL_LIBRARIES})
+        PRIVATE ${glib_LIBRARIES} ${PostgreSQL_LIBRARIES} ${jsonc_LIBRARIES}
+            ${curl_LIBRARIES})
 endforeach()
 
 target_compile_options(fossology_cov PRIVATE ${FO_COV_FLAGS})

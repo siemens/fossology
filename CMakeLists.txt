@@ -5,6 +5,7 @@ SPDX-FileCopyrightText: © 2021 Avinal Kumar <avinal.xlvii@gmail.com>
 
 cmake_minimum_required(VERSION 3.13 FATAL_ERROR)
 project(FOSSOLOGY)
+include( GNUInstallDirs )
 
 # set defaults for the project
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/SetDefaults.cmake)

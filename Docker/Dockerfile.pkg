@@ -1,28 +1,58 @@
 # FOSSology Dockerfile
 # SPDX-FileCopyrightText: 2021 Omar AbdelSamea <omarmohamed168@gmail.com>
-# SPDX-License-Identifier: GPL-2.0
+# SPDX-License-Identifier: GPL-2.0-only
 #
 # Description: Docker container image recipe for pacakges base image
 
 FROM debian:buster-slim as builder
-LABEL maintainer="Fossology <fossology@fossology.org>"
+LABEL org.opencontainers.image.authors="Fossology <fossology@fossology.org>"
+LABEL org.opencontainers.image.source="https://github.com/fossology/fossology"
+LABEL org.opencontainers.image.vendor="FOSSology"
+LABEL org.opencontainers.image.licenses="GPL-2.0-only AND LGPL-2.1-only"
 
 WORKDIR /fossology_packages/fossology
 
 RUN DEBIAN_FRONTEND=noninteractive apt-get update \
- && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y git ca-certificates 
-        
-RUN  DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y wget lsb-release sudo composer curl php-cli \
-  && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y libcppunit-dev libcunit1-dev libcurl4-openssl-dev libjson-c-dev libdbd-sqlite3-perl \
-  && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y php-sqlite3 php-zip tar debhelper libssl-dev postgresql-server-dev-all
+ && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
+    git ca-certificates lsb-release php-cli sudo ninja-build tar curl \
+    libcurl4-gnutls-dev
 
-COPY . /fossology_packages/fossology
+RUN curl -L "https://github.com/Kitware/CMake/releases/download/v3.23.0/cmake-3.23.0-linux-x86_64.sh" -o cmake.sh \
+ && sh cmake.sh --prefix=/usr/local/ --exclude-subdir \
+ && rm cmake.sh
 
-RUN  ./utils/fo-installdeps -y -b
+COPY ./utils/fo-installdeps ./utils/fo-installdeps
+COPY ./install/fo-install-pythondeps ./install/fo-install-pythondeps
+COPY ./utils/utils.sh ./utils/utils.sh
+COPY ./src/copyright/mod_deps ./src/copyright/
+COPY ./src/delagent/mod_deps ./src/delagent/
+COPY ./src/mimetype/mod_deps ./src/mimetype/
+COPY ./src/nomos/mod_deps ./src/nomos/
+COPY ./src/ojo/mod_deps ./src/ojo/
+COPY ./src/pkgagent/mod_deps ./src/pkgagent/
+COPY ./src/scancode/mod_deps ./src/scancode/
+COPY ./src/scheduler/mod_deps ./src/scheduler/
+COPY ./src/ununpack/mod_deps ./src/ununpack/
+COPY ./src/wget_agent/mod_deps ./src/wget_agent/
 
-RUN  ./utils/fo-debuild --no-sign --no-tar       
+RUN DEBIAN_FRONTEND=noninteractive apt-get update \
+ && DEBIAN_FRONTEND=noninteractive ./utils/fo-installdeps --build -y \
+ && DEBIAN_FRONTEND=noninteractive ./install/fo-install-pythondeps --build -y
+
+COPY . .
+
+RUN cmake -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=/usr \
+    -DFO_SYSCONFDIR=/etc/fossology -S. -B./build -G Ninja \
+ && ninja -C build package \
+ && find build -type f -name "*-dbgsym*" -delete \
+ && mkdir -p packages \
+ && mv build/*.deb packages/
 
 FROM scratch
+LABEL org.opencontainers.image.authors="Fossology <fossology@fossology.org>"
+LABEL org.opencontainers.image.source="https://github.com/fossology/fossology"
+LABEL org.opencontainers.image.vendor="FOSSology"
+LABEL org.opencontainers.image.licenses="GPL-2.0-only AND LGPL-2.1-only"
 
 WORKDIR /fossology_packages/fossology
 
