@@ -2,7 +2,7 @@
 
 # SPDX-FileCopyrightText: © 2020 Siemens AG
 # SPDX-FileCopyrightText: © anupam.ghosh@siemens.com
-# SPDX-FileCopyrightText: © gaurav.mishra@siemens.com
+# SPDX-FileCopyrightText: © mishra.gaurav@siemens.com
 
 # SPDX-License-Identifier: GPL-2.0-only
 

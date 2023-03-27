@@ -1526,7 +1526,7 @@ Copyright: Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
            Copyright (C) 2006-2013 Hewlett-Packard Development Company, L.P.
            Copyright (C) 2006-2011 Hewlett-Packard Development Company, L.P.
            Copyright (C) 2006,2009,2013 Hewlett-Packard Development Company, L.P.
-           Copyright Siemens AG 2020, anupam.ghosh@siemens.com, gaurav.mishra@siemens.com
+           Copyright Siemens AG 2020, anupam.ghosh@siemens.com, mishra.gaurav@siemens.com
            Copyright (C) Siemens AG 2017
            Copyright (C) 2009 Hewlett-Packard Development Company, L.P.
            Copyright 2018 Siemens AG Author: Gaurav Mishra <mishra.gaurav@siemens.com>
@@ -1766,7 +1766,7 @@ Copyright: Copyright 2015 Siemens AG
            Copyright 2019 Author: Vivek Kumar <vvksindia@gmail.com>
            Copyright 2019 Author: Vivek Kumar <vvksindia@gmaail.com>
            Copyright Siemens AG 2019
-           Copyright Siemens AG 2020, anupam.ghosh@siemens.com, gaurav.mishra@siemens.com
+           Copyright Siemens AG 2020, anupam.ghosh@siemens.com, mishra.gaurav@siemens.com
 License: FSFAP-cc79f51f0b86e915ba8f560b9ae83f4d
 
 Files: fossology-master.zip/fossology-master/src/www/ui/scripts/jquery.validate.js

@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: © 2020 Siemens AG
 # SPDX-FileCopyrightText: © anupam.ghosh@siemens.com
-# SPDX-FileCopyrightText: © gaurav.mishra@siemens.com
+# SPDX-FileCopyrightText: © mishra.gaurav@siemens.com
 
 # SPDX-License-Identifier: FSFAP
 
@@ -9,7 +9,7 @@ stages:
 
 license_check:
   stage: license
-  image: fossology/fossology:scanner
+  image: ghcr.io/fossology/fossology:scanner
   script:
     - /bin/fossologyscanner nomos ojo
   only: [merge_requests]
@@ -21,7 +21,7 @@ license_check:
 
 copyright_check:
   stage: license
-  image: fossology/fossology:scanner
+  image: ghcr.io/fossology/fossology:scanner
   script:
     - /bin/fossologyscanner copyright keyword
   only: [merge_requests]
@@ -33,7 +33,7 @@ copyright_check:
 
 repo_license_scan:
   stage: license
-  image: fossology/fossology:scanner
+  image: ghcr.io/fossology/fossology:scanner
   script:
     - /bin/fossologyscanner repo nomos ojo
   only: [tags]
@@ -45,7 +45,7 @@ repo_license_scan:
 
 repo_copyright_check:
   stage: license
-  image: fossology/fossology:scanner
+  image: ghcr.io/fossology/fossology:scanner
   script:
     - /bin/fossologyscanner copyright keyword repo
   only: [tags]
