@@ -22,17 +22,17 @@ hCopyrightScanner::hCopyrightScanner()
   RegexConfProvider rcp;
   rcp.maybeLoad("copyright");
 
-  regCopyright = rx::regex(rcp.getRegexValue("copyright","REG_COPYRIGHT"),
-                        rx::regex_constants::icase);
+  regCopyright = rx::make_u32regex(rcp.getRegexValue("copyright","REG_COPYRIGHT"),
+                                   rx::regex_constants::icase);
 
-  regException = rx::regex(rcp.getRegexValue("copyright","REG_EXCEPTION"),
-               rx::regex_constants::icase);
-  regNonBlank = rx::regex(rcp.getRegexValue("copyright","REG_NON_BLANK"));
+  regException = rx::make_u32regex(rcp.getRegexValue("copyright","REG_EXCEPTION"),
+                                   rx::regex_constants::icase);
+  regNonBlank = rx::make_u32regex(rcp.getRegexValue("copyright","REG_NON_BLANK"));
 
-  regSimpleCopyright = rx::regex(rcp.getRegexValue("copyright","REG_SIMPLE_COPYRIGHT"),
-                     rx::regex_constants::icase);
-  regSpdxCopyright = rx::regex(rcp.getRegexValue("copyright","REG_SPDX_COPYRIGHT"),
-                     rx::regex_constants::icase);
+  regSimpleCopyright = rx::make_u32regex(rcp.getRegexValue("copyright","REG_SIMPLE_COPYRIGHT"),
+                                         rx::regex_constants::icase);
+  regSpdxCopyright = rx::make_u32regex(rcp.getRegexValue("copyright","REG_SPDX_COPYRIGHT"),
+                                       rx::regex_constants::icase);
 }
 
 /**
@@ -41,22 +41,21 @@ hCopyrightScanner::hCopyrightScanner()
  * Given a string s, scans for copyright statements using regCopyrights.
  * Then checks for an regException match.
  * \param[in]  s   String to work on
- * \param[out] out List of matchs
+ * \param[out] results List of matchs
  */
-void hCopyrightScanner::ScanString(const string& s, list<match>& out) const
+void hCopyrightScanner::ScanString(const wstring& s, list<match>& results) const
 {
-
-  string::const_iterator begin = s.begin();
-  string::const_iterator pos = begin;
-  string::const_iterator end = s.end();
+  auto const begin = s.begin();
+  auto pos = begin;
+  auto const end = s.end();
   while (pos != end)
   {
     // Find potential copyright statement
-    rx::smatch results;
-    if (!rx::regex_search(pos, end, results, regCopyright))
+    rx::wsmatch matches;
+    if (!rx::regex_search(pos, end, matches, regCopyright))
       // No further copyright statement found
       break;
-    string::const_iterator foundPos = results[0].first;
+    auto foundPos = matches[0].first;
 
     if (!rx::regex_match(foundPos, end, regException))
     {
@@ -70,13 +69,14 @@ void hCopyrightScanner::ScanString(const string& s, list<match>& out) const
        *   - spaces and punctuation
        *   - no word of two letters, no two consecutive digits
       */
-      string::const_iterator j = find(foundPos, end, '\n');
+      auto j = find(foundPos, end, '\n');
       while (j != end)
       {
-        string::const_iterator beginOfLine = j;
+        auto beginOfLine = j;
         ++beginOfLine;
-        string::const_iterator endOfLine = find(beginOfLine, end, '\n');
-        if (rx::regex_search(beginOfLine, endOfLine, regSpdxCopyright)){
+        auto const endOfLine = find(beginOfLine, end, '\n');
+        if (rx::regex_search(beginOfLine, endOfLine, regSpdxCopyright))
+        {
           // Found end
           break;
         }
@@ -90,18 +90,17 @@ void hCopyrightScanner::ScanString(const string& s, list<match>& out) const
       }
       if (j - foundPos >= 301)
         // Truncate
-        out.push_back(match(foundPos - begin, (foundPos - begin) + 300, copyrightType));
+        results.push_back(match(foundPos - begin, (foundPos - begin) + 300, copyrightType));
       else
       {
-        out.push_back(match(foundPos - begin, j - begin, copyrightType));
+        results.push_back(match(foundPos - begin, j - begin, copyrightType));
       }
       pos = j;
     }
     else
     {
       // An exception: this is not a copyright statement: continue at the end of this statement
-      pos = results[0].second;
+      pos = matches[0].second;
     }
   }
 }
-

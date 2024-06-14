@@ -126,11 +126,12 @@ string cleanNonPrint(string::const_iterator sBegin, string::const_iterator sEnd)
  * \param m     Matches to be cleaned
  * \return string Cleaned text
  */
-string cleanMatch(const string& sText, const match& m)
+string cleanMatch(const wstring& sText, const match& m)
 {
-  string::const_iterator it = sText.begin();
-  icu::UnicodeString unicodeStr = fo::recodeToUnicode(string(it + m.start,
-    it + m.end));
+  auto const it = sText.begin();
+  std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
+  auto const unicodeStr = fo::recodeToUnicode(converter.to_bytes(wstring(
+    it + m.start, it + m.end)));
   string utfCompatibleText;
 
   unicodeStr.toUTF8String(utfCompatibleText);

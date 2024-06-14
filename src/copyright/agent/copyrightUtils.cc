@@ -293,7 +293,9 @@ CopyrightState getState(CliOptions&& cliOptions)
  * \param copyrightDatabaseHandler Database handler object
  * \return True of successful insertion, false otherwise
  */
-bool saveToDatabase(const string& s, const list<match>& matches, unsigned long pFileId, int agentId, const CopyrightDatabaseHandler& copyrightDatabaseHandler)
+bool saveToDatabase(const wstring& s, const list<match>& matches,
+  unsigned long pFileId, int agentId,
+  const CopyrightDatabaseHandler& copyrightDatabaseHandler)
 {
   if (!copyrightDatabaseHandler.begin())
   {
@@ -334,13 +336,15 @@ bool saveToDatabase(const string& s, const list<match>& matches, unsigned long p
  * \param agentId         Agent id
  * \param databaseHandler Database handler used by agent
  */
-void matchFileWithLicenses(const string& sContent, unsigned long pFileId, CopyrightState const& state, int agentId, CopyrightDatabaseHandler& databaseHandler)
+void matchFileWithLicenses(const wstring& sContent, unsigned long pFileId,
+  CopyrightState const& state, int agentId,
+  CopyrightDatabaseHandler& databaseHandler)
 {
   list<match> l;
   const list<unptr::shared_ptr<scanner>>& scanners = state.getScanners();
-  for (auto sc = scanners.begin(); sc != scanners.end(); ++sc)
+  for (const auto & scanner : scanners)
   {
-    (*sc)->ScanString(sContent, l);
+    scanner->ScanString(sContent, l);
   }
   saveToDatabase(sContent, l, pFileId, agentId, databaseHandler);
 }
@@ -375,7 +379,7 @@ void matchPFileWithLicenses(CopyrightState const& state, int agentId, unsigned l
   }
   if (fileName)
   {
-    string s;
+    wstring s;
     ReadFileToString(fileName, s);
 
     matchFileWithLicenses(s, pFileId, state, agentId, databaseHandler);
@@ -436,18 +440,18 @@ bool processUploadId(const CopyrightState& state, int agentId, int uploadId, Cop
  * @param fileName Location of the file to be scanned
  * @return A pair of file scanned and list of matches found.
  */
-pair<string, list<match>> processSingleFile(const CopyrightState& state,
+pair<wstring, list<match>> processSingleFile(const CopyrightState& state,
   const string fileName)
 {
   const list<unptr::shared_ptr<scanner>>& scanners = state.getScanners();
   list<match> matchList;
 
   // Read file into one string
-  string s;
+  wstring s;
   if (!ReadFileToString(fileName, s))
   {
     // File error
-    s = "";
+    s = L"";
   }
   else
   {
@@ -467,7 +471,7 @@ pair<string, list<match>> processSingleFile(const CopyrightState& state,
  *                   data is printed
  */
 void appendToJson(const std::string fileName,
-    const std::pair<string, list<match>> resultPair, bool &printComma)
+    const std::pair<wstring, list<match>> resultPair, bool &printComma)
 {
   Json::Value result;
 #if JSONCPP_VERSION_HEXA < ((1 << 24) | (4 << 16))
@@ -533,7 +537,7 @@ void appendToJson(const std::string fileName,
  * @param resultPair Result pair from scanSingleFile()
  */
 void printResultToStdout(const std::string fileName,
-    const std::pair<string, list<match>> resultPair)
+    const std::pair<wstring, list<match>> resultPair)
 {
   if (resultPair.first.empty())
   {

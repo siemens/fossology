@@ -60,6 +60,10 @@ int main(int argc, char** argv)
   CliOptions cliOptions;
   vector<string> fileNames;
   string directoryToScan;
+
+  // Set global locale to C to avoid problems
+  std::locale::global(std::locale("C"));
+
   if (!parseCliOptions(argc, argv, cliOptions, fileNames, directoryToScan))
   {
     return_sched(1);
@@ -86,7 +90,7 @@ int main(int argc, char** argv)
       for (unsigned int argn = 0; argn < fileNamesCount; ++argn)
       {
         const string fileName = fileNames[argn];
-        pair<string, list<match>> scanResult = processSingleFile(state, fileName);
+        pair<wstring, list<match>> scanResult = processSingleFile(state, fileName);
         if (json)
         {
           appendToJson(fileName, scanResult, printComma);

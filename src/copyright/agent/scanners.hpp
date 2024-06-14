@@ -11,15 +11,18 @@
 #ifndef SCANNERS_HPP_
 #define SCANNERS_HPP_
 
+#include <sstream>
 #include <fstream>
-using std::ifstream;
+using std::wifstream;
 using std::istream;
 #include <string>
 using std::string;
+using std::wstring;
 #include <list>
 using std::list;
+#include <codecvt>
 
-bool ReadFileToString(const string& fileName, string& out);
+bool ReadFileToString(const string& fileName, wstring& out);
 
 /**
  * \struct match
@@ -58,7 +61,7 @@ public:
    * \param[in]  s       String to scan
    * \param[out] results Copyright matches are appended to this list
    */
-  virtual void ScanString(const string& s, list<match>& results) const = 0;
+  virtual void ScanString(const wstring& s, list<match>& results) const = 0;
 
   /**
    * \brief Helper function to scan file
@@ -69,7 +72,7 @@ public:
    */
   virtual void ScanFile(const string& fileName, list<match>& results) const
   {
-    string s;
+    wstring s;
     ReadFileToString(fileName, s);
     ScanString(s, results);
   }

@@ -17,11 +17,11 @@
  * \return True on success, fail otherwise
  * \todo There should be a maximum string size
  */
-
-bool ReadFileToString(const string& fileName, string& out)
+bool ReadFileToString(const string& fileName, wstring& out)
 {
-  ifstream stream(fileName);
-  std::stringstream sstr;
+  wifstream stream(fileName);
+  stream.imbue(std::locale(stream.getloc(), new std::codecvt_utf8_utf16<wchar_t, 0x10FFFF, std::consume_header>));
+  std::wstringstream sstr;
   sstr << stream.rdbuf();
   out = sstr.str();
   return !stream.fail();

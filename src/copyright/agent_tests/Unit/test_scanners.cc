@@ -80,7 +80,9 @@ private:
   {
     list<match> matches;
     list<match> expected;
-    sc.ScanString(content, matches);
+    std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
+    std::wstring wcontent = converter.from_bytes(content);
+    sc.ScanString(wcontent, matches);
 
     for (auto s = expectedStrings.begin(); s != expectedStrings.end(); ++s)
     {
@@ -207,12 +209,12 @@ protected:
    */
   void cleanEntries () {
     // Binary content
-    string actualFileContent;
+    wstring actualFileContent;
     ReadFileToString("../testdata/testdata142", actualFileContent);
 
-    vector<string> binaryStrings;
-    std::stringstream *ss = new std::stringstream(actualFileContent);
-    string temp;
+    vector<wstring> binaryStrings;
+    auto *ss = new std::wstringstream(actualFileContent);
+    wstring temp;
 
     while (std::getline(*ss, temp)) {
       binaryStrings.push_back(temp);
@@ -231,14 +233,15 @@ protected:
     }
 
     // Expected data
-    string expectedFileContent;
+    wstring expectedFileContent;
     ReadFileToString("../testdata/testdata142_exp", expectedFileContent);
 
     delete(ss);
-    ss = new std::stringstream(expectedFileContent);
+    ss = new std::wstringstream(expectedFileContent);
     vector<string> expectedStrings;
     while (std::getline(*ss, temp)) {
-      expectedStrings.push_back(temp);
+      std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
+      expectedStrings.push_back(converter.to_bytes(temp));
     }
 
     vector<string> actualStrings;

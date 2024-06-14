@@ -15,7 +15,7 @@
 
 #include "libfossUtils.hpp"
 
-string cleanMatch(const string& sText, const match& m);
+string cleanMatch(const wstring& sText, const match& m);
 
 
 #endif /* CLEANENTRIES_HPP_ */

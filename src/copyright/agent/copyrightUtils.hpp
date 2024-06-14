@@ -51,14 +51,14 @@ void normalizeContent(std::string& content);
 
 bool processUploadId(const CopyrightState& state, int agentId, int uploadId, CopyrightDatabaseHandler& handler, bool ignoreFilesWithMimeType);
 
-std::pair<std::string, std::list<match>> processSingleFile(const CopyrightState& state,
+std::pair<std::wstring, std::list<match>> processSingleFile(const CopyrightState& state,
   const std::string fileName);
 
 void appendToJson(const std::string fileName,
-    const std::pair<string, list<match>> resultPair, bool &printComma);
+    const std::pair<wstring, list<match>> resultPair, bool &printComma);
 
 void printResultToStdout(const std::string fileName,
-    const std::pair<string, list<match>> resultPair);
+    const std::pair<wstring, list<match>> resultPair);
 
 #endif /* COPYRIGHTUTILS_HPP_ */
 

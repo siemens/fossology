@@ -23,7 +23,7 @@ class regexScanner : public scanner
    * \var rx::regex _reg
    * Regex to be used during scan
    */
-  rx::regex _reg;
+  rx::u32regex _reg;
   /**
    * \var string _type
    * Type of regex to use
@@ -38,7 +38,7 @@ class regexScanner : public scanner
   int _index;
 
 public:
-  void ScanString(const string& str, list<match>& results) const;
+  void ScanString(const wstring& s, list<match>& results) const override;
 
   regexScanner(const string& type,
                const string& identity,
