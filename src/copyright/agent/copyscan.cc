@@ -6,6 +6,9 @@
 */
 
 #include "copyscan.hpp"
+#include <unicode/schriter.h>
+#include <unicode/brkiter.h>
+
 #include <cctype>
 #include <algorithm>
 #include "regexConfProvider.hpp"
@@ -27,10 +30,12 @@ hCopyrightScanner::hCopyrightScanner()
 
   regException = rx::make_u32regex(rcp.getRegexValue("copyright","REG_EXCEPTION"),
                                    rx::regex_constants::icase);
+
   regNonBlank = rx::make_u32regex(rcp.getRegexValue("copyright","REG_NON_BLANK"));
 
   regSimpleCopyright = rx::make_u32regex(rcp.getRegexValue("copyright","REG_SIMPLE_COPYRIGHT"),
                                          rx::regex_constants::icase);
+
   regSpdxCopyright = rx::make_u32regex(rcp.getRegexValue("copyright","REG_SPDX_COPYRIGHT"),
                                        rx::regex_constants::icase);
 }
@@ -43,21 +48,21 @@ hCopyrightScanner::hCopyrightScanner()
  * \param[in]  s   String to work on
  * \param[out] results List of matchs
  */
-void hCopyrightScanner::ScanString(const wstring& s, list<match>& results) const
+void hCopyrightScanner::ScanString(const icu::UnicodeString& s, list<match>& results) const
 {
-  auto const begin = s.begin();
+  auto const begin = s.getBuffer();
   auto pos = begin;
-  auto const end = s.end();
+  auto const end = begin + s.length();
   while (pos != end)
   {
     // Find potential copyright statement
-    rx::wsmatch matches;
-    if (!rx::regex_search(pos, end, matches, regCopyright))
+    rx::u16match matches;
+    if (!rx::u32regex_search(pos, end, matches, regCopyright))
       // No further copyright statement found
       break;
-    auto foundPos = matches[0].first;
+    auto const foundPos = matches[0].first;
 
-    if (!rx::regex_match(foundPos, end, regException))
+    if (!rx::u32regex_match(foundPos, end, regException))
     {
       /**
        * Not an exception, this means that at foundPos there is a copyright statement.
@@ -68,20 +73,24 @@ void hCopyrightScanner::ScanString(const wstring& s, list<match>& results) const
        * A blank line may consist of
        *   - spaces and punctuation
        *   - no word of two letters, no two consecutive digits
-      */
-      auto j = find(foundPos, end, '\n');
-      while (j != end)
+       */
+      auto const linePos = s.indexOf(u'\n', foundPos - begin, end - foundPos);
+      auto j = begin + linePos;
+      // auto j = std::find(foundPos, end, '\n');
+      while (linePos != -1 && j != end)
       {
         auto beginOfLine = j;
         ++beginOfLine;
-        auto const endOfLine = find(beginOfLine, end, '\n');
-        if (rx::regex_search(beginOfLine, endOfLine, regSpdxCopyright))
+        // auto const endOfLine = std::find(beginOfLine, end, '\n');
+        auto const posEndOfLine = s.indexOf(u'\n', beginOfLine - begin, end - beginOfLine);
+        auto const endOfLine = begin + posEndOfLine;
+        if (rx::u32regex_search(beginOfLine, endOfLine, regSpdxCopyright))
         {
           // Found end
           break;
         }
-        if (rx::regex_search(beginOfLine, endOfLine, regSimpleCopyright)
-          || !rx::regex_match(beginOfLine, endOfLine, regNonBlank))
+        if (rx::u32regex_search(beginOfLine, endOfLine, regSimpleCopyright)
+          || !rx::u32regex_match(beginOfLine, endOfLine, regNonBlank))
         {
           // Found end
           break;

@@ -4,6 +4,8 @@
  SPDX-License-Identifier: GPL-2.0-only
 */
 #include <sstream>
+#include <unicode/schriter.h>
+#include <unicode/brkiter.h>
 
 #include "libfossUtils.hpp"
 
@@ -49,6 +51,43 @@ icu::UnicodeString fo::recodeToUnicode(const std::string &input)
     {
       i = lastPos;
       U16_NEXT(in, i, len, uniChar);
+      if (U_IS_UNICODE_CHAR(uniChar) && uniChar > 0)
+      {
+        out.append(uniChar);
+      }
+    }
+  }
+  out.trim();
+  return out;
+}
+
+/**
+ * Remove all non-UTF8 characters from a string.
+ * @param input The string to be recoded
+ * @return Unicode string with invalid characters removed
+ */
+icu::UnicodeString fo::recodeToUnicode(const icu::UnicodeString &input)
+{
+  auto iter = icu::StringCharacterIterator(input);
+  // int const len = input.length();
+
+  icu::UnicodeString out;
+  // for (int i = 0; i < len;)
+  while (iter.hasNext())
+  {
+    // UChar32 uniChar;
+    // int const lastPos = i;
+    // U8_NEXT(input, i, len, uniChar);
+    UChar32 uniChar = iter.next32PostInc();
+    if (uniChar > 0)
+    {
+      out.append(uniChar);
+    }
+    else
+    {
+      // i = lastPos;
+      // U16_NEXT(input, i, len, uniChar);
+      uniChar = iter.next32PostInc();
       if (U_IS_UNICODE_CHAR(uniChar) && uniChar > 0)
       {
         out.append(uniChar);

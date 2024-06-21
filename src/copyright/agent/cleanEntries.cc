@@ -26,25 +26,14 @@ using std::ostream_iterator;
  * \param sEnd   String end
  * \return string Trimmed string
  */
-string cleanGeneral(string::const_iterator sBegin, string::const_iterator sEnd)
+icu::UnicodeString cleanGeneral(const UChar* sBegin, const UChar* sEnd)
 {
-  stringstream ss;
-  rx::regex_replace(ostream_iterator<char>(ss), sBegin, sEnd, rx::regex("[[:space:]\\x0-\\x1f]{2,}"), " ");
-  string s = ss.str();
-  string::size_type len = s.length();
-  if (len > 1)
-  {
-    char cBegin = s[0];
-    char cEnd = s[len - 1];
-    if (cBegin == ' ' && cEnd == ' ')
-      return s.substr(1, len - 2);
-    else if (cBegin == ' ')
-      return s.substr(1);
-    else if (cEnd == ' ')
-      return s.substr(0, len - 1);
-  }
-  // Only one character/space??? Should not be possible
-  return s == " " ? "" : s;
+  icu::UnicodeString s = rx::u32regex_replace(
+    icu::UnicodeString(sBegin, sEnd - sBegin),
+    rx::make_u32regex("[[:space:]\\x0-\\x1f]{2,}"),
+    " ");
+
+  return s.trim();
 }
 
 /**
@@ -53,12 +42,17 @@ string cleanGeneral(string::const_iterator sBegin, string::const_iterator sEnd)
  * \param sEnd   String end
  * \return string Clean spdx statements
  */
-string cleanSpdxStatement(string::const_iterator sBegin, string::const_iterator sEnd)
+icu::UnicodeString cleanSpdxStatement(const UChar* sBegin, const UChar* sEnd)
 {
-  stringstream ss;
-  rx::regex_replace(ostream_iterator<char>(ss), sBegin, sEnd, rx::regex("spdx-filecopyrighttext:", rx::regex_constants::icase), " ");
-  string s = ss.str();
-  return cleanGeneral(s.begin(), s.end());
+  icu::UnicodeString s = rx::u32regex_replace(
+    icu::UnicodeString(sBegin, sEnd - sBegin),
+    rx::make_u32regex("spdx-filecopyrighttext:", rx::regex_constants::icase),
+    " ");
+
+  auto const begin = s.getBuffer();
+  auto const end = begin + s.length();
+
+  return cleanGeneral(begin, end);
 }
 
 /**
@@ -68,12 +62,16 @@ string cleanSpdxStatement(string::const_iterator sBegin, string::const_iterator 
  * \param sEnd   String end
  * \return string Clean statements
  */
-string cleanStatement(string::const_iterator sBegin, string::const_iterator sEnd)
+icu::UnicodeString cleanStatement(const UChar* sBegin, const UChar* sEnd)
 {
-  stringstream ss;
-  rx::regex_replace(ostream_iterator<char>(ss), sBegin, sEnd, rx::regex("\n[[:space:][:punct:]]*"), " ");
-  string s = ss.str();
-  return cleanSpdxStatement(s.begin(), s.end());
+  icu::UnicodeString s = rx::u32regex_replace(
+    icu::UnicodeString(sBegin, sEnd - sBegin),
+    rx::make_u32regex("\n[[:space:][:punct:]]*"), " ");
+
+  auto const begin = s.getBuffer();
+  auto const end = begin + s.length();
+
+  return cleanSpdxStatement(begin, end);
 }
 
 /**
@@ -126,19 +124,16 @@ string cleanNonPrint(string::const_iterator sBegin, string::const_iterator sEnd)
  * \param m     Matches to be cleaned
  * \return string Cleaned text
  */
-string cleanMatch(const wstring& sText, const match& m)
+icu::UnicodeString cleanMatch(const icu::UnicodeString& sText, const match& m)
 {
-  auto const it = sText.begin();
-  std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
-  auto const unicodeStr = fo::recodeToUnicode(converter.to_bytes(wstring(
-    it + m.start, it + m.end)));
-  string utfCompatibleText;
+  auto const unicodeStr = fo::recodeToUnicode(
+    sText.tempSubString(m.start, m.end - m.start));
 
-  unicodeStr.toUTF8String(utfCompatibleText);
+  auto const begin = unicodeStr.getBuffer();
+  auto const end = begin + unicodeStr.length();
 
   if (m.type == "statement")
-    return cleanStatement(utfCompatibleText.begin(), utfCompatibleText.end());
+    return cleanStatement(begin, end);
   else
-    return cleanGeneral(utfCompatibleText.begin(), utfCompatibleText.end());
+    return cleanGeneral(begin, end);
 }
-

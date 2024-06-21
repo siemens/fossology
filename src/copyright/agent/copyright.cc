@@ -90,7 +90,7 @@ int main(int argc, char** argv)
       for (unsigned int argn = 0; argn < fileNamesCount; ++argn)
       {
         const string fileName = fileNames[argn];
-        pair<wstring, list<match>> scanResult = processSingleFile(state, fileName);
+        pair<icu::UnicodeString, list<match>> scanResult = processSingleFile(state, fileName);
         if (json)
         {
           appendToJson(fileName, scanResult, printComma);
@@ -99,7 +99,7 @@ int main(int argc, char** argv)
         {
           printResultToStdout(fileName, scanResult);
         }
-        if (scanResult.first.empty())
+        if (scanResult.first.isEmpty())
         {
           fileError = true;
         }

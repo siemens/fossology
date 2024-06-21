@@ -31,7 +31,7 @@ regexScanner::regexScanner(const string& type,
  *                                   std::istringstream& stream)
  */
 regexScanner::regexScanner(const string& type,
-                           std::istringstream& stream,
+                           std::wistringstream& stream,
                            int index)
   : _type(type),
     _identity(type),
@@ -48,17 +48,17 @@ regexScanner::regexScanner(const string& type,
  * \param[in]  s       String to scan
  * \param[out] results List of match results
  */
-void regexScanner::ScanString(const wstring& s, list<match>& results) const
+void regexScanner::ScanString(const icu::UnicodeString& s, list<match>& results) const
 {
   // Read file into one string
-  auto const end = s.end();
-  auto pos = s.begin();
+  auto pos = s.getBuffer();
+  auto const end = pos + s.length();
   unsigned int intPos = 0;
 
   while (pos != end)
   {
     // Find next match
-    rx::wsmatch res;
+    rx::u16match res;
     if (rx::u32regex_search(pos, end, res, _reg))
     {
       // Found match

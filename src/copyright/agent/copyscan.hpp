@@ -17,7 +17,7 @@
 class hCopyrightScanner : public scanner
 {
 public:
-  void ScanString(const wstring& s, list<match>& results) const override;
+  void ScanString(const icu::UnicodeString& s, list<match>& results) const override;
   hCopyrightScanner();
 private:
   /**

@@ -38,13 +38,13 @@ class regexScanner : public scanner
   int _index;
 
 public:
-  void ScanString(const wstring& s, list<match>& results) const override;
+  void ScanString(const icu::UnicodeString& s, list<match>& results) const override;
 
   regexScanner(const string& type,
                const string& identity,
                int index = 0);
   regexScanner(const string& type,
-               std::istringstream& stream,
+               std::wistringstream& stream,
                int index = 0);
 } ;
 
