@@ -80,8 +80,7 @@ private:
   {
     list<match> matches;
     list<match> expected;
-    std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
-    std::wstring wcontent = converter.from_bytes(content);
+    icu::UnicodeString const wcontent = icu::UnicodeString::fromUTF8(content);
     sc.ScanString(wcontent, matches);
 
     for (auto s = expectedStrings.begin(); s != expectedStrings.end(); ++s)
@@ -209,11 +208,15 @@ protected:
    */
   void cleanEntries () {
     // Binary content
-    wstring actualFileContent;
+    icu::UnicodeString actualFileContent;
     ReadFileToString("../testdata/testdata142", actualFileContent);
 
+    string temp_string;
+    actualFileContent.toUTF8String(temp_string);
+    wstring actualFileContentW(temp_string.begin(), temp_string.end());
+
     vector<wstring> binaryStrings;
-    auto *ss = new std::wstringstream(actualFileContent);
+    auto *ss = new std::wstringstream(actualFileContentW);
     wstring temp;
 
     while (std::getline(*ss, temp)) {
@@ -233,18 +236,23 @@ protected:
     }
 
     // Expected data
-    wstring expectedFileContent;
+    icu::UnicodeString expectedFileContent;
     ReadFileToString("../testdata/testdata142_exp", expectedFileContent);
 
+    expectedFileContent.toUTF8String(temp_string);
+    wstring expectedFileContentW(temp_string.begin(), temp_string.end());
+
     delete(ss);
-    ss = new std::wstringstream(expectedFileContent);
-    vector<string> expectedStrings;
+    ss = new std::wstringstream(expectedFileContentW);
+    vector<icu::UnicodeString> expectedStrings;
     while (std::getline(*ss, temp)) {
-      std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
-      expectedStrings.push_back(converter.to_bytes(temp));
+      expectedStrings.push_back(icu::UnicodeString::fromUTF32(
+        reinterpret_cast<const UChar32*>(temp.c_str()),
+        temp.length())
+      );
     }
 
-    vector<string> actualStrings;
+    vector<icu::UnicodeString> actualStrings;
     for (size_t i = 0; i < matches.size(); i ++)
     {
       actualStrings.push_back(cleanMatch(actualFileContent, matches[i]));
