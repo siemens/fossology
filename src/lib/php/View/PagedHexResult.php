@@ -80,8 +80,8 @@ class PagedHexResult extends PagedResult
   {
     do {
       $usableCharacters = min(self::BYTES_PER_LINE - $this->charCount, strlen($text));
-      $usedCharacters = substr($text, 0, $usableCharacters);
-      $text = substr($text, $usableCharacters);
+      $usedCharacters = mb_substr($text, 0, $usableCharacters);
+      $text = mb_substr($text, $usableCharacters);
       $escapedText = $this->encodeCharacters($usedCharacters);
       $this->charText .= preg_replace("/\\s/", "&nbsp;", $escapedText);
       $asHexStrings = $this->asHexStrings($usedCharacters);

@@ -28,7 +28,7 @@ class TextFragment
 
   public function getEndOffset()
   {
-    return $this->startOffset + strlen($this->text);
+    return $this->startOffset + mb_strlen($this->text);
   }
 
   public function getSlice($startOffset, $endOffset = null)
@@ -36,10 +36,10 @@ class TextFragment
     $adjustedStartOffset = max($startOffset - $this->startOffset, 0);
     if (isset($endOffset)) {
       $adjustedEndOffset = max($endOffset - $this->startOffset, 0);
-      return substr($this->text, $adjustedStartOffset,
+      return mb_substr($this->text, $adjustedStartOffset,
         max($adjustedEndOffset - $adjustedStartOffset, 0));
     } else {
-      return substr($this->text, $adjustedStartOffset);
+      return mb_substr($this->text, $adjustedStartOffset);
     }
   }
 }

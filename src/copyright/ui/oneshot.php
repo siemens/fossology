@@ -4,8 +4,10 @@
 
  SPDX-License-Identifier: GPL-2.0-only
 */
-use Fossology\Lib\Data\Highlight;
+
 use Fossology\Lib\Auth\Auth;
+use Fossology\Lib\Data\Highlight;
+
 /**
  * \file oneshot.php
  * \brief One-Shot Copyright/Email/URL Analysis
@@ -80,7 +82,7 @@ class agent_copyright_once extends FO_Plugin
         'url' => Highlight::URL);
     while (!feof($inputFile)) {
       $Line = fgets($inputFile);
-      if ($Line[0] == '/') {
+      if (!$Line || $Line[0] == '/') {
         continue;
       }
       $count = strlen($Line);

@@ -61,7 +61,7 @@ class HighlightProcessor
    */
   protected function getReferenceText(License $license, Highlight $highlight)
   {
-    $referenceText = substr($license->getText(), $highlight->getRefStart(), min($highlight->getRefLength(), self::REF_TEXT_MAX_LENGTH));
+    $referenceText = mb_substr($license->getText(), $highlight->getRefStart(), min($highlight->getRefLength(), self::REF_TEXT_MAX_LENGTH));
     return $referenceText . ($highlight->getRefLength() > self::REF_TEXT_MAX_LENGTH ? " ... " : "");
   }
 

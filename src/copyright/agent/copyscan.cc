@@ -16,6 +16,31 @@
 const string copyrightType("statement");  /**< A constant for default copyrightType as "statement" */
 
 /**
+ * \brief Get the position of the line break
+ *
+ * Calculate the position of the line break in the input string using CRLF, CR,
+ * or LF.
+ * @param input Input string to search in
+ * @param begin Begin pointer of the string
+ * @param end End pointer of the string
+ * @param pos Position pointer to search from
+ * @return Position of the line break, else -1
+ */
+int32_t getLineBreakPosition(const icu::UnicodeString& input, const UChar* begin, const UChar* end, const UChar* pos)
+{
+  int32_t linePos = input.indexOf(icu::UnicodeString(u"\r\n"), pos - begin, end - pos);
+  if (linePos == -1)
+  {
+    linePos = input.indexOf(u'\r', pos - begin, end - pos);
+    if (linePos == -1)
+    {
+      linePos = input.indexOf(u'\n', pos - begin, end - pos);
+    }
+  }
+  return linePos;
+}
+
+/**
  * \brief Constructor for default hCopyrightScanner
  *
  * Initialize all regex values
@@ -76,7 +101,7 @@ void hCopyrightScanner::ScanString(const icu::UnicodeString& s, list<match>& res
        *   - spaces and punctuation
        *   - no word of two letters, no two consecutive digits
        */
-      auto const linePos = s.indexOf(u'\n', foundPos - begin, end - foundPos);
+      auto const linePos = getLineBreakPosition(s, begin, end, foundPos);
       auto j = end;
       if (linePos != -1)
       {
@@ -86,7 +111,7 @@ void hCopyrightScanner::ScanString(const icu::UnicodeString& s, list<match>& res
       {
         auto beginOfLine = j;
         ++beginOfLine;
-        auto const posEndOfLine = s.indexOf(u'\n', beginOfLine - begin, end - beginOfLine);
+        auto const posEndOfLine = getLineBreakPosition(s, begin, end, beginOfLine);
         auto const endOfLine = begin + posEndOfLine;
         if (rx::u32regex_search(beginOfLine, endOfLine, regSpdxCopyright))
         {
@@ -105,11 +130,11 @@ void hCopyrightScanner::ScanString(const icu::UnicodeString& s, list<match>& res
       if (endIndex - foundIndex >= 301)
       {
         // Truncate
-        results.push_back(match(foundIndex, foundIndex + 300, copyrightType));
+        results.emplace_back(foundIndex, foundIndex + 300, copyrightType);
       }
       else
       {
-        results.push_back(match(foundIndex, endIndex, copyrightType));
+        results.emplace_back(foundIndex, endIndex, copyrightType);
       }
       pos = j;
     }
