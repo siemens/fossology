@@ -33,8 +33,8 @@ unsigned long fo::stringToUnsignedLong(const char* string)
  */
 icu::UnicodeString fo::recodeToUnicode(const std::string &input)
 {
-  int len = input.length();
-  const unsigned char *in =
+  int const len = input.length();
+  const auto *in =
     reinterpret_cast<const unsigned char*>(input.c_str());
 
   icu::UnicodeString out;
@@ -69,15 +69,10 @@ icu::UnicodeString fo::recodeToUnicode(const std::string &input)
 icu::UnicodeString fo::recodeToUnicode(const icu::UnicodeString &input)
 {
   auto iter = icu::StringCharacterIterator(input);
-  // int const len = input.length();
 
   icu::UnicodeString out;
-  // for (int i = 0; i < len;)
   while (iter.hasNext())
   {
-    // UChar32 uniChar;
-    // int const lastPos = i;
-    // U8_NEXT(input, i, len, uniChar);
     UChar32 uniChar = iter.next32PostInc();
     if (uniChar > 0)
     {
@@ -85,8 +80,6 @@ icu::UnicodeString fo::recodeToUnicode(const icu::UnicodeString &input)
     }
     else
     {
-      // i = lastPos;
-      // U16_NEXT(input, i, len, uniChar);
       uniChar = iter.next32PostInc();
       if (U_IS_UNICODE_CHAR(uniChar) && uniChar > 0)
       {

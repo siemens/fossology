@@ -9,6 +9,8 @@
  */
 #include "regexConfProvider.hpp"
 
+#include <codecvt>
+
 using namespace std;
 
 /**
@@ -87,6 +89,8 @@ bool RegexConfProvider::getRegexConfStream(const string& identity,
   if (_isVerbosityDebug)
     cout << "try to open conf: " << confFile << endl;
   stream.open(confFile.c_str());
+
+  stream.imbue(std::locale(stream.getloc(), new codecvt_utf8_utf16<wchar_t>));
 
   return stream.is_open();
 }

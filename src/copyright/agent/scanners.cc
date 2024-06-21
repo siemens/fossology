@@ -20,7 +20,7 @@
 bool ReadFileToString(const string& fileName, icu::UnicodeString& out)
 {
   wifstream stream(fileName);
-  stream.imbue(std::locale(stream.getloc(), new std::codecvt_utf8_utf16<wchar_t, 0x10FFFF, std::consume_header>));
+  stream.imbue(std::locale(stream.getloc(), new std::codecvt_utf8_utf16<wchar_t>));
   std::wstringstream sstr;
   sstr << stream.rdbuf();
   out = icu::UnicodeString::fromUTF32(

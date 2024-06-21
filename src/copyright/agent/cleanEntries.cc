@@ -13,10 +13,6 @@
  * \todo skip "dnl "
 */
 #include "cleanEntries.hpp"
-#include <sstream>
-#include <iterator>
-using std::stringstream;
-using std::ostream_iterator;
 
 /**
  * \brief Trim space at beginning and end
@@ -44,7 +40,7 @@ icu::UnicodeString cleanGeneral(const UChar* sBegin, const UChar* sEnd)
  */
 icu::UnicodeString cleanSpdxStatement(const UChar* sBegin, const UChar* sEnd)
 {
-  icu::UnicodeString s = rx::u32regex_replace(
+  icu::UnicodeString const s = rx::u32regex_replace(
     icu::UnicodeString(sBegin, sEnd - sBegin),
     rx::make_u32regex("spdx-filecopyrighttext:", rx::regex_constants::icase),
     " ");
@@ -64,7 +60,7 @@ icu::UnicodeString cleanSpdxStatement(const UChar* sBegin, const UChar* sEnd)
  */
 icu::UnicodeString cleanStatement(const UChar* sBegin, const UChar* sEnd)
 {
-  icu::UnicodeString s = rx::u32regex_replace(
+  icu::UnicodeString const s = rx::u32regex_replace(
     icu::UnicodeString(sBegin, sEnd - sBegin),
     rx::make_u32regex("\n[[:space:][:punct:]]*"), " ");
 
@@ -72,48 +68,6 @@ icu::UnicodeString cleanStatement(const UChar* sBegin, const UChar* sEnd)
   auto const end = begin + s.length();
 
   return cleanSpdxStatement(begin, end);
-}
-
-/**
- * \brief Clean non unicode characters (binary data).
- *
- * Uses ICU library to check if the characters are unicode or not and append
- * only unicode characters to the result string.
- * \param sBegin String begin
- * \param sEnd   String end
- * \return string Clean statements
- */
-string cleanNonPrint(string::const_iterator sBegin, string::const_iterator sEnd)
-{
-  string s(sBegin, sEnd);
-  const unsigned char *in = reinterpret_cast<const unsigned char*>(s.c_str());
-  int len = s.length();
-
-  icu::UnicodeString out;
-  for (int i = 0; i < len;)
-  {
-    UChar32 uniChar;
-    size_t lastPos = i;
-    U8_NEXT(in, i, len, uniChar);   // Get next UTF-8 char
-    if (uniChar > 0)
-    {
-      out.append(uniChar);
-    }
-    else
-    {
-      i = lastPos;  // Rest pointer
-      U16_NEXT(in, i, len, uniChar); // Try to get failed input as UTF-16
-      if (U_IS_UNICODE_CHAR(uniChar) && uniChar > 0)
-      {
-        out.append(uniChar);
-      }
-    }
-  }
-  out.trim();
-
-  string ret;
-  out.toUTF8String(ret);
-  return ret;
 }
 
 /**
