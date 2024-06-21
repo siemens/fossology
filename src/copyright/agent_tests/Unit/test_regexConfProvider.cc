@@ -129,7 +129,7 @@ protected:
 
     // evaluate and verify, that recursion does not appear
     CPPUNIT_ASSERT_MESSAGE("This should just terminate (the return value is not specified)",
-                           rcp.getRegexValue(testIdentity,testKey).isEmpty());
+                           !rcp.getRegexValue(testIdentity,testKey).isEmpty());
   }
 };
 

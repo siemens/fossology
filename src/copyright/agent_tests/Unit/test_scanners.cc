@@ -32,7 +32,7 @@ ostream& operator<<(ostream& out, const list<match>& l)
 /**
  * \brief test data
  */
-const char testContent[] = "© 2007 Hugh Jackman\n\n"
+const icu::UnicodeString testContent(u"© 2007 Hugh Jackman\n\n"
   "Copyright 2004 my company\n\n"
   "Copyrights by any strange people\n\n"
   "(C) copyright 2007-2011, 2013 my favourite company Google\n\n"
@@ -53,7 +53,7 @@ const char testContent[] = "© 2007 Hugh Jackman\n\n"
   "* Copyright (c) 1989, 1993\n" // Really just one newline here!
   "* The Regents of the University of California. All rights reserved.\n\n"
   "to be licensed as a whole"
-  "/* Most of the following tests are stolen from RCS 5.7's src/conf.sh.  */";
+  "/* Most of the following tests are stolen from RCS 5.7's src/conf.sh.  */");
 
 class scannerTestSuite : public CPPUNIT_NS :: TestFixture {
   CPPUNIT_TEST_SUITE (scannerTestSuite);
@@ -76,21 +76,19 @@ private:
    * \param type            Match type
    * \param expectedStrings Expected strings from scanner result
    */
-  void scannerTest (const scanner& sc, const char* content, const string& type, list<const char*> expectedStrings)
+  void scannerTest (const scanner& sc, const icu::UnicodeString& content,
+    const string& type, const list<icu::UnicodeString>& expectedStrings)
   {
     list<match> matches;
     list<match> expected;
-    icu::UnicodeString const wcontent = icu::UnicodeString::fromUTF8(content);
-    sc.ScanString(wcontent, matches);
+    sc.ScanString(content, matches);
 
     for (auto s = expectedStrings.begin(); s != expectedStrings.end(); ++s)
     {
-      const char * p = strstr(content, *s);
-      if (p)
-      {
-        int pos = p - content;
-        expected.push_back(match(pos, pos+strlen(*s), type));
-      }
+      auto const begin = content.indexOf(*s);
+      auto const end = begin + s->countChar32();
+      if (begin > -1)
+        expected.emplace_back(begin, end, type);
       // else: expected string is not contained in original string
     }
     CPPUNIT_ASSERT_EQUAL(expected, matches);

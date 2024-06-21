@@ -53,6 +53,7 @@ void hCopyrightScanner::ScanString(const icu::UnicodeString& s, list<match>& res
   auto const begin = s.getBuffer();
   auto pos = begin;
   auto const end = begin + s.length();
+
   while (pos != end)
   {
     // Find potential copyright statement
@@ -61,6 +62,7 @@ void hCopyrightScanner::ScanString(const icu::UnicodeString& s, list<match>& res
       // No further copyright statement found
       break;
     auto const foundPos = matches[0].first;
+    auto const foundIndex = s.indexOf(*foundPos, foundPos - begin, end - foundPos);
 
     if (!rx::u32regex_match(foundPos, end, regException))
     {
@@ -75,13 +77,15 @@ void hCopyrightScanner::ScanString(const icu::UnicodeString& s, list<match>& res
        *   - no word of two letters, no two consecutive digits
        */
       auto const linePos = s.indexOf(u'\n', foundPos - begin, end - foundPos);
-      auto j = begin + linePos;
-      // auto j = std::find(foundPos, end, '\n');
-      while (linePos != -1 && j != end)
+      auto j = end;
+      if (linePos != -1)
+      {
+        j = begin + linePos;
+      }
+      while (j != end)
       {
         auto beginOfLine = j;
         ++beginOfLine;
-        // auto const endOfLine = std::find(beginOfLine, end, '\n');
         auto const posEndOfLine = s.indexOf(u'\n', beginOfLine - begin, end - beginOfLine);
         auto const endOfLine = begin + posEndOfLine;
         if (rx::u32regex_search(beginOfLine, endOfLine, regSpdxCopyright))
@@ -97,12 +101,15 @@ void hCopyrightScanner::ScanString(const icu::UnicodeString& s, list<match>& res
         }
         j = endOfLine;
       }
-      if (j - foundPos >= 301)
+      auto const endIndex = s.indexOf(*j, j - begin, end - j);
+      if (endIndex - foundIndex >= 301)
+      {
         // Truncate
-        results.push_back(match(foundPos - begin, (foundPos - begin) + 300, copyrightType));
+        results.push_back(match(foundIndex, foundIndex + 300, copyrightType));
+      }
       else
       {
-        results.push_back(match(foundPos - begin, j - begin, copyrightType));
+        results.push_back(match(foundIndex, endIndex, copyrightType));
       }
       pos = j;
     }
