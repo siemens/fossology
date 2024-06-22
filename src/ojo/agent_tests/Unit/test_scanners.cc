@@ -18,8 +18,12 @@ using namespace std;
 
 ostream& operator<<(ostream& out, const vector<ojomatch>& l)
 {
-  for (auto m : l)
-    out << '[' << m.start << ':' << m.end << "]: '" << m.content << "'";
+  for (const auto& m : l)
+  {
+    std::string content;
+    m.content.toUTF8String(content);
+    out << '[' << m.start << ':' << m.end << "]: '" << content << "'";
+  }
   return out;
 }
 
@@ -27,7 +31,7 @@ ostream& operator<<(ostream& out, const vector<ojomatch>& l)
  * \brief test data
  */
 // REUSE-IgnoreStart
-const std::string testContent = "!/usr/bin/env python3\n"
+const icu::UnicodeString testContent(u"!/usr/bin/env python3\n"
     "# -*- coding: utf-8 -*-\n"
     "\n"
     "\"\"\"\n"
@@ -45,10 +49,10 @@ const std::string testContent = "!/usr/bin/env python3\n"
     "You should have received a copy of the GNU General Public License along\n"
     "with this program; if not, write to the Free Software Foundation, Inc.,\n"
     "51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.\n"
-    "\"\"\"";
+    "\"\"\"");
 // REUSE-IgnoreEnd
 
-const std::string testContentWithoutIdentifier = "!/usr/bin/env python3\n"
+const icu::UnicodeString testContentWithoutIdentifier(u"!/usr/bin/env python3\n"
     "# -*- coding: utf-8 -*-\n"
     "\n"
     "\"\"\"\n"
@@ -63,10 +67,10 @@ const std::string testContentWithoutIdentifier = "!/usr/bin/env python3\n"
     "You should have received a copy of the GNU General Public License along\n"
     "with this program; if not, write to the Free Software Foundation, Inc.,\n"
     "51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.\n"
-    "\"\"\"";
+    "\"\"\"");
 
 // REUSE-IgnoreStart
-const std::string multipleSpdxLicense = "!/usr/bin/env python3\n"
+const icu::UnicodeString multipleSpdxLicense(u"!/usr/bin/env python3\n"
     "# -*- coding: utf-8 -*-\n"
     "\n"
     "\"\"\"\n"
@@ -84,7 +88,7 @@ const std::string multipleSpdxLicense = "!/usr/bin/env python3\n"
     "You should have received a copy of the GNU General Public License along\n"
     "with this program; if not, write to the Free Software Foundation, Inc.,\n"
     "51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.\n"
-    "\"\"\"";
+    "\"\"\"");
 // REUSE-IgnoreEnd
 
 class scannerTestSuite : public CPPUNIT_NS :: TestFixture {
@@ -101,14 +105,17 @@ private:
    * \param content         Content to scan
    * \param expectedStrings Expected strings from scanner result
    */
-  void scannerTest (const string& content, vector<string> expectedStrings)
+  void scannerTest (const icu::UnicodeString& content, const vector<icu::UnicodeString>& expectedStrings)
   {
     // Temporary store the content in a file
     char* tempFilePath = strdup("/tmp/ojo-XXXXXX");
     mkstemp(tempFilePath);
 
+    std::string sContent;
+    content.toUTF8String(sContent);
+
     fstream tempFile(tempFilePath);
-    tempFile << content;
+    tempFile << sContent;
     tempFile.close();
 
     OjoAgent ojo;
@@ -119,7 +126,7 @@ private:
 
     CPPUNIT_ASSERT_EQUAL(expectedStrings.size(), matches.size());
 
-    for (auto expected : expectedStrings)
+    for (const auto& expected : expectedStrings)
     {
       CPPUNIT_ASSERT(std::find(matches.begin(), matches.end(), expected) != matches.end());
     }

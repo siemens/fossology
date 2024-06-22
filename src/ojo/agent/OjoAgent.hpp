@@ -11,6 +11,7 @@
 #define SRC_OJO_AGENT_OJOAGENT_HPP_
 
 #include <boost/regex.hpp>
+#include <boost/regex/icu.hpp>
 #include <fstream>
 #include <sstream>
 
@@ -39,13 +40,16 @@ class OjoAgent
      * @var boost::regex regDualLicense
      * Regex to find dual license strings
      */
-    const boost::regex regLicenseList, regLicenseName, regDualLicense;
-    void scanString(const std::string &text, boost::regex reg,
-        std::vector<ojomatch> &result, unsigned int offset, bool isDualTest);
+    const boost::u32regex regLicenseList, regLicenseName, regDualLicense;
+    void scanString(const icu::UnicodeString& text, const boost::u32regex& reg,
+                    std::vector<ojomatch>& result, unsigned int offset,
+                    bool isDualTest);
     void filterMatches(std::vector<ojomatch> &matches);
     void findLicenseId(std::vector<ojomatch> &matches,
       OjosDatabaseHandler &databaseHandler, const int groupId,
       const int userId);
+    static bool getFileContent(const std::string& filePath,
+        icu::UnicodeString& out);
 };
 
 #endif /* SRC_OJO_AGENT_OJOAGENT_HPP_ */

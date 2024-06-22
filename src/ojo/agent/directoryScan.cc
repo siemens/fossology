@@ -47,7 +47,7 @@ void scanDirectory(const bool json, const string &directoryPath)
   {
     cout << "[" << endl;
   }
-#pragma omp parallel shared(printComma)
+#pragma omp parallel  default(none) shared(printComma, filePaths, agentObj, json, stdout, cout, cerr, filePathsSize)
   {
 #pragma omp for
     for (unsigned int i = 0; i < filePathsSize; i++)

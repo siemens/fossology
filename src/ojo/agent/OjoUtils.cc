@@ -102,12 +102,12 @@ void bail(int exitval)
 bool processUploadId(const OjoState &state, int uploadId,
     OjosDatabaseHandler &databaseHandler, bool ignoreFilesWithMimeType)
 {
-  vector<unsigned long> fileIds = databaseHandler.queryFileIdsForUpload(
+  const vector<unsigned long> fileIds = databaseHandler.queryFileIdsForUpload(
       uploadId, state.getAgentId(), ignoreFilesWithMimeType);
   char const *repoArea = "files";
 
   bool errors = false;
-#pragma omp parallel
+#pragma omp parallel default(none) shared(errors, fileIds, state, databaseHandler, repoArea, stdout)
   {
     OjosDatabaseHandler threadLocalDatabaseHandler(databaseHandler.spawn());
 
@@ -187,7 +187,7 @@ bool storeResultInDb(const vector<ojomatch> &matches,
   }
 
   size_t count = 0;
-  if (matches.size() == 0)
+  if (matches.empty())
   {
     OjoDatabaseEntry entry(-1, agent_fk, pfile_fk);
     databaseHandle.insertNoResultInDatabase(entry);
@@ -200,8 +200,8 @@ bool storeResultInDb(const vector<ojomatch> &matches,
     if (entry.license_fk > 0)
     {
       ++count;
-      unsigned long int fl_pk = databaseHandle.saveLicenseToDatabase(entry);
-      if (!(fl_pk > 0) || !databaseHandle.saveHighlightToDatabase(m, fl_pk))
+      const unsigned long int fl_pk = databaseHandle.saveLicenseToDatabase(entry);
+      if (fl_pk <= 0 || !databaseHandle.saveHighlightToDatabase(m, fl_pk))
       {
         databaseHandle.rollback();
         return false;
@@ -303,7 +303,7 @@ bool parseCliOptions(int argc, char **argv, OjoCliOptions &dest,
 
     unsigned long verbosity = vm.count("verbose");
     bool json = vm.count("json") > 0 ? true : false;
-    bool  ignoreFilesWithMimeType = vm.count("ignoreFilesWithMimeType") > 0 ?  true : false;
+    bool ignoreFilesWithMimeType = vm.count("ignoreFilesWithMimeType") > 0 ?  true : false;
 
     dest = OjoCliOptions(verbosity, json, ignoreFilesWithMimeType);
 
@@ -352,8 +352,8 @@ bool parseCliOptions(int argc, char **argv, OjoCliOptions &dest,
  * @param printComma Set true to print comma. Will be set true after first
  *                   data is printed
  */
-void appendToJson(const std::string fileName,
-    const std::pair<string, vector<ojomatch>> resultPair,
+void appendToJson(const std::string& fileName,
+    const std::pair<string, vector<ojomatch>>& resultPair,
     bool &printComma)
 {
   Json::Value result;
@@ -376,13 +376,15 @@ void appendToJson(const std::string fileName,
   {
     vector<ojomatch> resultList = resultPair.second;
     Json::Value results;
-    for (auto m : resultList)
+    for (const auto& m : resultList)
     {
+      std::string content;
+      m.content.toUTF8String(content);
       Json::Value j;
       j["start"] = Json::Value::UInt(m.start);
       j["end"] = Json::Value::UInt(m.end);
       j["len"] = Json::Value::UInt(m.len);
-      j["license"] = m.content;
+      j["license"] = content;
       results.append(j);
     }
     result["file"] = fileName;
@@ -418,8 +420,8 @@ void appendToJson(const std::string fileName,
  * @param fileName   File which was scanned
  * @param resultPair Result pair from scanSingleFile()
  */
-void printResultToStdout(const std::string fileName,
-    const std::pair<string, vector<ojomatch>> resultPair)
+void printResultToStdout(const std::string& fileName,
+    const std::pair<string, vector<ojomatch>>& resultPair)
 {
   if (resultPair.first.empty())
   {
@@ -430,9 +432,11 @@ void printResultToStdout(const std::string fileName,
   ss << fileName << " ::" << endl;
   // Output matches
   vector<ojomatch> resultList = resultPair.second;
-  for (auto m : resultList)
+  for (const auto& m : resultList)
   {
-    ss << "\t[" << m.start << ':' << m.end << "]: '" << m.content << "'" << endl;
+    std::string content;
+    m.content.toUTF8String(content);
+    ss << "\t[" << m.start << ':' << m.end << "]: '" << content << "'" << endl;
   }
   // Thread-Safety: output all matches (collected in ss) at once to cout
   cout << ss.str();

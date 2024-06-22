@@ -8,6 +8,8 @@
 #define SRC_OJO_AGENT_OJOMATCH_HPP_
 
 #include <string>
+#include <utility>
+#include <unicode/unistr.h>
 
 /**
  * @struct ojomatch
@@ -31,7 +33,7 @@ struct ojomatch
    * @var
    * Matched string
    */
-  std::string content;
+  icu::UnicodeString content;
   /**
    * Constructor for ojomatch structure
    * @param s Start of match
@@ -40,8 +42,8 @@ struct ojomatch
    * @param c Content of match
    */
   ojomatch(const long int s, const long int e, const long int l,
-    const std::string c) :
-    start(s), end(e), len(l), content(c)
+    icu::UnicodeString c) :
+    start(s), end(e), len(l), content(std::move(c))
   {
     license_fk = -1;
   }
@@ -49,11 +51,11 @@ struct ojomatch
    * Default constructor for ojomatch structure
    */
   ojomatch() :
-    start(-1), end(-1), len(-1), license_fk(-1), content("")
+    start(-1), end(-1), len(-1), license_fk(-1), content(u"")
   {
   }
 
-  bool operator==(const std::string& matchcontent) const
+  bool operator==(const icu::UnicodeString& matchcontent) const
   {
     if(this->content.compare(matchcontent) == 0)
     {

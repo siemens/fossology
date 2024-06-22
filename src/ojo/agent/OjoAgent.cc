@@ -15,11 +15,11 @@ using namespace std;
  */
 OjoAgent::OjoAgent() :
     regLicenseList(
-        boost::regex(SPDX_LICENSE_LIST, boost::regex_constants::icase)),
+        boost::make_u32regex(SPDX_LICENSE_LIST, boost::regex_constants::icase)),
     regLicenseName(
-        boost::regex(SPDX_LICENSE_NAMES, boost::regex_constants::icase)),
+        boost::make_u32regex(SPDX_LICENSE_NAMES, boost::regex_constants::icase)),
     regDualLicense(
-        boost::regex(SPDX_DUAL_LICENSE, boost::regex_constants::icase))
+        boost::make_u32regex(SPDX_DUAL_LICENSE, boost::regex_constants::icase))
 {
 }
 
@@ -39,20 +39,16 @@ OjoAgent::OjoAgent() :
 vector<ojomatch> OjoAgent::processFile(const string &filePath,
   OjosDatabaseHandler &databaseHandler, const int groupId, const int userId)
 {
-  ifstream stream(filePath);
-  std::stringstream sstr;
-  sstr << stream.rdbuf();
-  if (stream.fail())
+  icu::UnicodeString fileContent;
+  if (!getFileContent(filePath, fileContent))
   {
     throw std::runtime_error(filePath);
   }
-  stream.close();
-  const string fileContent = sstr.str();
   vector<ojomatch> licenseList;
   vector<ojomatch> licenseNames;
 
   scanString(fileContent, regLicenseList, licenseList, 0, false);
-  for (auto m : licenseList)
+  for (const auto& m : licenseList)
   {
     scanString(m.content, regLicenseName, licenseNames, m.start, false);
     scanString(m.content, regDualLicense, licenseNames, m.start, true);
@@ -73,28 +69,24 @@ vector<ojomatch> OjoAgent::processFile(const string &filePath,
  */
 vector<ojomatch> OjoAgent::processFile(const string &filePath)
 {
-  ifstream stream(filePath);
-  std::stringstream sstr;
-  sstr << stream.rdbuf();
-  if (stream.fail())
+  icu::UnicodeString fileContent;
+  if (!getFileContent(filePath, fileContent))
   {
     throw std::runtime_error(filePath);
   }
-  stream.close();
-  const string fileContent = sstr.str();
   vector<ojomatch> licenseList;
   vector<ojomatch> licenseNames;
 
   scanString(fileContent, regLicenseList, licenseList, 0, false);
-  for (auto m : licenseList)
+  for (const auto& m : licenseList)
   {
     scanString(m.content, regLicenseName, licenseNames, m.start, false);
     scanString(m.content, regDualLicense, licenseNames, m.start, true);
   }
 
   // Remove duplicate matches for CLI run
-  vector<ojomatch>::iterator uniqueListIt = std::unique(licenseNames.begin(),
-    licenseNames.end());
+  const auto uniqueListIt =
+    std::unique(licenseNames.begin(), licenseNames.end());
   licenseNames.resize(std::distance(licenseNames.begin(), uniqueListIt));
 
   return licenseNames;
@@ -108,31 +100,43 @@ vector<ojomatch> OjoAgent::processFile(const string &filePath)
  * @param offset      The offset to be added for each match
  * @param isDualTest  True if testing for Dual-license, false otherwise
  */
-void OjoAgent::scanString(const string &text, boost::regex reg,
-    vector<ojomatch> &result, unsigned int offset, bool isDualTest)
+void OjoAgent::scanString(const icu::UnicodeString& text,
+  const boost::u32regex& reg, vector<ojomatch>& result, unsigned int offset,
+  const bool isDualTest)
 {
-  string::const_iterator end = text.end();
-  string::const_iterator pos = text.begin();
+  auto const begin = text.getBuffer();
+  auto pos = begin;
+  auto const end = begin + text.length();
 
   while (pos != end)
   {
     // Find next match
-    boost::smatch res;
-    if (boost::regex_search(pos, end, res, reg))
+    boost::u16match res;
+    if (boost::u32regex_search(pos, end, res, reg))
     {
-      string content = "Dual-license";
+      auto const foundPosStart = res[1].first;
+      auto const foundIndexStart = text.indexOf(*foundPosStart, foundPosStart - begin, end - foundPosStart);
+
+      auto const foundPosEnd = foundPosStart + res[1].length();
+      auto foundIndexEnd = text.indexOf(*foundPosEnd, foundPosEnd - begin, end - foundPosEnd);
+
+      if (foundIndexEnd == -1)
+      {
+        foundIndexEnd = text.countChar32();
+      }
+
+      icu::UnicodeString content = u"Dual-license";
       if (! isDualTest)
       {
-        content = res[1].str();
+        content = icu::UnicodeString(text, foundIndexStart, foundIndexEnd - foundIndexStart);
       }
       // Found match
-      result.push_back(
-          ojomatch(offset + res.position(1),
-              offset + res.position(1) + res.length(1),
-              res.length(1),
-              content));
+      result.emplace_back(offset + foundIndexStart,
+              offset + foundIndexEnd,
+              foundIndexEnd - foundIndexStart,
+              content);
       pos = res[0].second;
-      offset += res.position() + res.length();
+      offset += res.position() + (foundIndexEnd - foundIndexStart);
     }
     else
     {
@@ -150,7 +154,7 @@ void OjoAgent::filterMatches(vector<ojomatch> &matches)
 {
   // Remvoe entries with license_fk < 1
   matches.erase(
-    std::remove_if(matches.begin(), matches.end(), [](ojomatch match)
+    std::remove_if(matches.begin(), matches.end(), [](const ojomatch& match)
     { return match.license_fk <= 0;}), matches.end());
 }
 
@@ -165,9 +169,25 @@ void OjoAgent::findLicenseId(vector<ojomatch> &matches,
   OjosDatabaseHandler &databaseHandler, const int groupId, const int userId)
 {
   // Update license_fk
-  for (size_t i = 0; i < matches.size(); ++i)
+  for (auto & match : matches)
   {
-    matches[i].license_fk = databaseHandler.getLicenseIdForName(
-      matches[i].content, groupId, userId);
+    match.license_fk = databaseHandler.getLicenseIdForName(
+      match.content, groupId, userId);
   }
+}
+
+/**
+ * Read the content of a file.
+ * @param filePath File to read
+ * @param out String to store the file content
+ * @return True if file was read successfully, false otherwise
+ */
+bool OjoAgent::getFileContent(const std::string& filePath,
+                              icu::UnicodeString& out)
+{
+  std::ifstream stream(filePath);
+  std::stringstream sstr;
+  sstr << stream.rdbuf();
+  out = icu::UnicodeString::fromUTF8(sstr.str());
+  return !stream.fail();
 }

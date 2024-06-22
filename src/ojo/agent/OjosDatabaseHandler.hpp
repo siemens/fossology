@@ -54,15 +54,24 @@ struct OjoDatabaseEntry
 };
 
 /**
+ * Generate hash code for the unordered_map
+ */
+struct UnicodeStringHash {
+    std::size_t operator()(const icu::UnicodeString& k) const {
+        return k.hashCode();
+    }
+};
+
+/**
  * @class OjosDatabaseHandler
  * Database handler for OJO agent
  */
 class OjosDatabaseHandler: public fo::AgentDatabaseHandler
 {
   public:
-    OjosDatabaseHandler(fo::DbManager dbManager);
+    OjosDatabaseHandler(const fo::DbManager& dbManager);
     OjosDatabaseHandler(OjosDatabaseHandler &&other) :
-      fo::AgentDatabaseHandler(std::move(other))
+        fo::AgentDatabaseHandler(std::move(other)), licenseRefCache(std::move(other.licenseRefCache))
     {
     }
     ;
@@ -75,20 +84,20 @@ class OjosDatabaseHandler: public fo::AgentDatabaseHandler
     bool saveHighlightToDatabase(const ojomatch &match,
       const unsigned long fl_fk) const;
 
-    unsigned long getLicenseIdForName(std::string const &rfShortName,
+    unsigned long getLicenseIdForName(icu::UnicodeString const &rfShortName,
                                       const int groupId,
                                       const int userId);
 
   private:
     unsigned long getCachedLicenseIdForName (
-      std::string const &rfShortName) const;
-    unsigned long selectOrInsertLicenseIdForName (std::string rfShortname,
-                                                  const int groupId,
-                                                  const int userId);
+      icu::UnicodeString const &rfShortName) const;
+    unsigned long selectOrInsertLicenseIdForName (
+        icu::UnicodeString const &rfShortname, const int groupId,
+        const int userId);
     /**
      * Cached license pairs
      */
-    std::unordered_map<std::string, long> licenseRefCache;
+    std::unordered_map<icu::UnicodeString, long, UnicodeStringHash> licenseRefCache;
 };
 
 #endif // OJOS_AGENT_DATABASE_HANDLER_HPP

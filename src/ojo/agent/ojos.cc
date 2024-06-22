@@ -79,7 +79,7 @@ int main(int argc, char **argv)
       cout << "[" << endl;
     }
 
-#pragma omp parallel shared(printComma)
+#pragma omp parallel default(none) shared(printComma, fileNames, fileError, agentObj, json, fileNamesCount, cerr)
     {
 #pragma omp for
       for (unsigned int argn = 0; argn < fileNamesCount; ++argn)
@@ -114,7 +114,7 @@ int main(int argc, char **argv)
     }
     return fileError ? 1 : 0;
   }
-  else if (directoryToScan.length() > 0)
+  else if (!directoryToScan.empty())
   {
     scanDirectory(json, directoryToScan);
   }
@@ -127,7 +127,11 @@ int main(int argc, char **argv)
 
     while (fo_scheduler_next() != NULL)
     {
-      int uploadId = atoi(fo_scheduler_current());
+      errno = 0;
+      int uploadId = static_cast<int>(strtol(fo_scheduler_current(), nullptr, 10));
+
+      if (errno == EINVAL || errno == ERANGE)
+        uploadId = 0;
 
       if (uploadId == 0)
         continue;

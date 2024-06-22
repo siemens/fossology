@@ -17,8 +17,8 @@ using namespace std;
  * Default constructor for OjosDatabaseHandler
  * @param dbManager DBManager to be used
  */
-OjosDatabaseHandler::OjosDatabaseHandler(DbManager dbManager) :
-    fo::AgentDatabaseHandler(dbManager)
+OjosDatabaseHandler::OjosDatabaseHandler(const DbManager& dbManager) :
+  fo::AgentDatabaseHandler(dbManager)
 {
 }
 
@@ -125,18 +125,15 @@ bool OjosDatabaseHandler::insertNoResultInDatabase(
  * @param ending      The ending string
  * @return True if first string has the ending string at end, false otherwise.
  */
-bool hasEnding(string const &firstString, string const &ending)
+bool hasEnding(icu::UnicodeString const &firstString, icu::UnicodeString const &ending)
 {
-  if (firstString.length() >= ending.length())
+  if (firstString.countChar32() >= ending.countChar32())
   {
     return (0
       == firstString.compare(firstString.length() - ending.length(),
         ending.length(), ending));
   }
-  else
-  {
-    return false;
-  }
+  return false;
 }
 
 /**
@@ -152,22 +149,22 @@ bool hasEnding(string const &firstString, string const &ending)
  * If the agent could not find license in main license, it will create a new one
  * as candidate license.
  *
- * @param rfShortName Short name to be searched.
+ * @param rfShortname Short name to be searched.
  * @param groupId     Group id for candidate license
  * @param userId      User who is running the agent
  * @returns License id, 0 on failure
  */
 unsigned long OjosDatabaseHandler::selectOrInsertLicenseIdForName(
-    string rfShortName, const int groupId, const int userId)
+    icu::UnicodeString const &rfShortname, const int groupId, const int userId)
 {
   bool success = false;
   unsigned long result = 0;
 
-  icu::UnicodeString unicodeCleanShortname = fo::recodeToUnicode(rfShortName);
+  const icu::UnicodeString unicodeCleanShortname = fo::recodeToUnicode(rfShortname);
 
   // Clean shortname to get utf8 string
-  rfShortName = "";
-  unicodeCleanShortname.toUTF8String(rfShortName);
+  std::string unicodeShortName;
+  unicodeCleanShortname.toUTF8String(unicodeShortName);
 
   fo_dbManager_PreparedStatement *searchWithOr = fo_dbManager_PrepareStamement(
       dbManager.getStruct_dbManager(),
@@ -190,30 +187,36 @@ unsigned long OjosDatabaseHandler::selectOrInsertLicenseIdForName(
 
   /* First check similar matches */
   /* Check if the name ends with +, -or-later, -only */
-  if (hasEnding(rfShortName, "+") || hasEnding(rfShortName, "-or-later"))
+  if (hasEnding(unicodeCleanShortname, "+") || hasEnding(unicodeCleanShortname, "-or-later"))
   {
-    string tempShortName(rfShortName);
     /* Convert shortname to lower-case */
-    std::transform(tempShortName.begin(), tempShortName.end(), tempShortName.begin(),
-      ::tolower);
-    string plus("+");
-    string orLater("-or-later");
+    icu::UnicodeString tempShortName(unicodeCleanShortname);
+    tempShortName.toLower();
 
-    unsigned long int plusLast = tempShortName.rfind(plus);
-    unsigned long int orLaterLast = tempShortName.rfind(orLater);
+    icu::UnicodeString const plus(u"+");
+    icu::UnicodeString const orLater(u"-or-later");
+
+    const auto plusLast = tempShortName.lastIndexOf(plus);
+    const auto orLaterLast = tempShortName.lastIndexOf(orLater);
 
     /* Remove last occurrence of + and -or-later (if found) */
-    if (plusLast != string::npos)
+    if (plusLast != -1)
     {
-      tempShortName.erase(plusLast, string::npos);
+      tempShortName.removeBetween(plusLast, tempShortName.length());
     }
-    if (orLaterLast != string::npos)
+    if (orLaterLast != -1)
     {
-      tempShortName.erase(orLaterLast, string::npos);
+      tempShortName.removeBetween(orLaterLast, tempShortName.length());
     }
 
+    std::string tempShortNamePlus;
+    std::string tempShortNameOrLater;
+
+    (tempShortName + plus).toUTF8String(tempShortNamePlus);
+    (tempShortName + orLater).toUTF8String(tempShortNameOrLater);
+
     QueryResult queryResult = dbManager.execPrepared(searchWithOr,
-        (tempShortName + plus).c_str(), (tempShortName + orLater).c_str(),
+        tempShortNamePlus.c_str(), tempShortNameOrLater.c_str(),
         groupId);
 
     success = queryResult && queryResult.getRowCount() > 0;
@@ -224,22 +227,27 @@ unsigned long OjosDatabaseHandler::selectOrInsertLicenseIdForName(
   }
   else
   {
-    string tempShortName(rfShortName);
     /* Convert shortname to lower-case */
-    std::transform(tempShortName.begin(), tempShortName.end(), tempShortName.begin(),
-      ::tolower);
-    string only("-only");
+    icu::UnicodeString tempShortName(unicodeCleanShortname);
+    tempShortName.toLower();
+    icu::UnicodeString const only("-only");
 
-    unsigned long int onlyLast = tempShortName.rfind(only);
+    const auto onlyLast = tempShortName.lastIndexOf(only);
 
     /* Remove last occurrence of -only (if found) */
-    if (onlyLast != string::npos)
+    if (onlyLast != -1)
     {
-      tempShortName.erase(onlyLast, string::npos);
+      tempShortName.removeBetween(onlyLast, tempShortName.length());
     }
 
+    std::string tempShortNameOld;
+    std::string tempShortNameOnly;
+
+    tempShortName.toUTF8String(tempShortNameOld);
+    (tempShortName + only).toUTF8String(tempShortNameOnly);
+
     QueryResult queryResult = dbManager.execPrepared(searchWithOr,
-        tempShortName.c_str(), (tempShortName + only).c_str(), groupId);
+        tempShortNameOld.c_str(), tempShortNameOnly.c_str(), groupId);
 
     success = queryResult && queryResult.getRowCount() > 0;
     if (success)
@@ -294,7 +302,7 @@ unsigned long OjosDatabaseHandler::selectOrInsertLicenseIdForName(
           "SELECT rf_pk FROM selectExisting",
           char*, char*, int, int, int
         ),
-        rfShortName.c_str(), "License by OJO.", 3, groupId, userId);
+        unicodeShortName.c_str(), "License by OJO.", 3, groupId, userId);
 
     success = queryResult && queryResult.getRowCount() > 0;
 
@@ -328,7 +336,7 @@ unsigned long OjosDatabaseHandler::selectOrInsertLicenseIdForName(
  * @sa OjosDatabaseHandler::getCachedLicenseIdForName()
  */
 unsigned long OjosDatabaseHandler::getLicenseIdForName(
-    string const &rfShortName, const int groupId, const int userId)
+    icu::UnicodeString const &rfShortName, const int groupId, const int userId)
 {
   unsigned long licenseId = getCachedLicenseIdForName(rfShortName);
   if (licenseId == 0)
@@ -345,10 +353,9 @@ unsigned long OjosDatabaseHandler::getLicenseIdForName(
  * @returns License id if found, 0 otherwise
  */
 unsigned long OjosDatabaseHandler::getCachedLicenseIdForName(
-    string const &rfShortName) const
+    icu::UnicodeString const &rfShortName) const
 {
-  std::unordered_map<string, long>::const_iterator findIterator =
-    licenseRefCache.find(rfShortName);
+  const auto findIterator = licenseRefCache.find(rfShortName);
   if (findIterator != licenseRefCache.end())
   {
     return findIterator->second;

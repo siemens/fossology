@@ -40,9 +40,9 @@ bool storeResultInDb(const vector<ojomatch> &matches,
   const int pfile_fk);
 bool parseCliOptions(int argc, char **argv, OjoCliOptions &dest,
   std::vector<std::string> &fileNames, std::string &directoryToScan);
-void appendToJson(const std::string fileName,
-    const pair<string, vector<ojomatch>> resultPair, bool &printComma);
-void printResultToStdout(const std::string fileName,
-  const pair<string, vector<ojomatch>> resultPair);
+void appendToJson(const std::string& fileName,
+    const pair<string, vector<ojomatch>>& resultPair, bool &printComma);
+void printResultToStdout(const std::string& fileName,
+  const pair<string, vector<ojomatch>>& resultPair);
 
 #endif // OJOS_AGENT_UTILS_HPP
