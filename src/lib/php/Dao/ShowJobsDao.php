@@ -43,6 +43,13 @@ class ShowJobsDao
   function uploads2Jobs($upload_pks, $page = 0)
   {
     $jobArray = array();
+
+    // only use the uploads the user / group has access to
+    $upload_pks = array_filter($upload_pks, function($upload_pk) {
+      return $upload_pk !== null && $this->uploadDao->isAccessible($upload_pk, Auth::getGroupId());
+    });
+
+    // get count of upload pks, return empty array if count equals 0
     $jobCount = count($upload_pks);
     if ($jobCount == 0) {
       return $jobArray;
@@ -101,19 +108,12 @@ class ShowJobsDao
     $allusers_str = ($allusers == 0) ? "job_user_fk='" . Auth::getUserId() .
       "' and " : "";
 
-    $statementName = __METHOD__ . ".countJobs." . $allusers_str;
-    $sql = "SELECT count(*) AS cnt FROM job WHERE $allusers_str " .
-    "job_queued >= (now() - interval '" . $this->nhours . " hours');";
-
-    $countJobs = $this->dbManager->getSingleRow($sql, [], $statementName)['cnt'];
-    $totalPages = floor($countJobs / $this->maxJobsPerPage);
-
     $statementName = __METHOD__ . "." . $allusers_str;
     $this->dbManager->prepare($statementName,
       "SELECT job_pk, job_upload_fk FROM job " . "WHERE $allusers_str " .
       "job_queued >= (now() - interval '" . $this->nhours . " hours') " .
-      "ORDER BY job_queued DESC OFFSET $1 LIMIT " . $this->maxJobsPerPage);
-    $result = $this->dbManager->execute($statementName, [$offset]);
+      "ORDER BY job_queued DESC");
+    $result = $this->dbManager->execute($statementName);
     while ($row = $this->dbManager->fetchArray($result)) {
       if (! empty($row['job_upload_fk'])) {
         $uploadIsAccessible = $this->uploadDao->isAccessible(
@@ -124,9 +124,16 @@ class ShowJobsDao
       }
       $jobArray[] = $row['job_pk'];
     }
+
+    // calculate total pages for jobs accessible to current group
+    $totalPages = floor(count($jobArray) / $this->maxJobsPerPage);
+
+    // get jobs for current page only
+    $pageJobs = array_slice($jobArray, $offset, $this->maxJobsPerPage);
+
     $this->dbManager->freeResult($result);
 
-    return array($jobArray, $totalPages);
+    return array($pageJobs, $totalPages);
   }  /* myJobs() */
 
   /**
@@ -233,8 +240,7 @@ class ShowJobsDao
    **/
   public function getNumItemsPerSec($itemsprocessed, $numSecs)
   {
-    $filesPerSec = ($numSecs > 0) ? $itemsprocessed/$numSecs : 0;
-    return $filesPerSec;
+    return ($numSecs > 0) ? $itemsprocessed/$numSecs : 0;
   }
 
   /**
@@ -271,13 +277,12 @@ class ShowJobsDao
         $statementName = __METHOD__."$selectCol.$removeType";
         $this->dbManager->prepare($statementName,
         "SELECT $selectCol FROM jobqueue WHERE $removeType jq_job_fk =$1 ORDER BY jq_type DESC");
-        $result = $this->dbManager->execute($statementName, array($job_pk));
       } else {
         $statementName = __METHOD__."$selectCol.$jq_Type";
         $this->dbManager->prepare($statementName,
         "SELECT $selectCol FROM jobqueue WHERE jq_type LIKE '$jq_Type' AND jq_job_fk =$1");
-        $result = $this->dbManager->execute($statementName, array($job_pk));
       }
+      $result = $this->dbManager->execute($statementName, array($job_pk));
       $estimatedArray = array(); // estimate time for each agent
 
       while ($row = $this->dbManager->fetchArray($result)) {
@@ -291,7 +296,7 @@ class ShowJobsDao
           if (!empty($filesPerSec)) {
             $timeOfCompletion = ($itemCount['jq_itemsprocessed'] - $row['jq_itemsprocessed']) / $filesPerSec;
           }
-          array_push($estimatedArray, $timeOfCompletion);
+          $estimatedArray[] = $timeOfCompletion;
         }
       }
       if (empty($estimatedArray)) {
@@ -308,7 +313,7 @@ class ShowJobsDao
 
   /**
    * @brief Return total Job data with time elapsed
-   * @param $job_pk
+   * @param $jq_pk
    * @return array
    */
   public function getDataForASingleJob($jq_pk)
@@ -323,8 +328,8 @@ class ShowJobsDao
   } /* getDataForASingleJob */
 
   /**
-   * @brief Return boolean
-   * @param $jq_pk
+   * @param $jqPk
+   * @return bool
    */
   public function getJobStatus($jqPk)
   {
@@ -342,9 +347,9 @@ class ShowJobsDao
   }
 
   /**
-   * @brief Return array
-   * @param $jobId
    * @param $jqType
+   * @param $jobId
+   * @return array
    */
   public function getItemsProcessedForDecider($jqType, $jobId)
   {

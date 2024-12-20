@@ -20,6 +20,7 @@ abstract class ClearedGetterCommon
 
   /** @var array $fileNameCache */
   private $fileNameCache = array();
+
   /** @var array $fileHashes */
   private $fileHashes = array();
 
@@ -106,16 +107,42 @@ abstract class ClearedGetterCommon
     unset($statement);
   }
 
+  /**
+   * @brief Group the content inside a array
+   * @param array $findings
+   * @return array
+   */
+  protected function groupUserFindings($findings)
+  {
+    $uniqueArray = array();
+    foreach ($findings as $item) {
+      $contentKey = $item['content'];
+      if (!isset($uniqueArray[$contentKey])) {
+        $uniqueArray[$contentKey] = array(
+          "licenseId" => $item["licenseId"],
+          "content" => $item["content"],
+          "text" => $item["text"],
+          "files" => array(),
+          "hash" => array(),
+          "comments" => $item["comments"]
+          );
+      }
+      $uniqueArray[$contentKey]['files'] = array_merge($uniqueArray[$contentKey]['files'], $item['files']);
+      $uniqueArray[$contentKey]['hash'] = array_merge($uniqueArray[$contentKey]['hash'], $item['hash']);
+    }
+    return array_values($uniqueArray);
+  }
+
   protected function groupStatements($ungrupedStatements, $extended, $agentCall, $isUnifiedReport, $objectAgent)
   {
     $statements = array();
     $findings = array();
     $countLoop = 0;
     foreach ($ungrupedStatements as $statement) {
-      $licenseId = $statement['licenseId'];
-      $content = convertToUTF8($statement['content'], false);
+      $licenseId = (array_key_exists('licenseId', $statement)) ? convertToUTF8($statement['licenseId'], false) : '';
+      $content = (array_key_exists('content', $statement)) ? convertToUTF8($statement['content'], false) : '';
       $content = htmlspecialchars($content, ENT_DISALLOWED);
-      $comments = convertToUTF8($statement['comments'], false);
+      $comments = (array_key_exists('comments', $statement)) ? convertToUTF8($statement['comments'], false) : '';
       $fileName = $statement['fileName'];
       $fileHash = $statement['fileHash'];
       if (array_key_exists('acknowledgement', $statement)) {
@@ -125,8 +152,8 @@ abstract class ClearedGetterCommon
       }
 
       if (!array_key_exists('text', $statement)) {
-        $description = $statement['description'];
-        $textfinding = $statement['textfinding'];
+        $description = (array_key_exists('description', $statement)) ? convertToUTF8($statement['description'], false) : '';
+        $textfinding = (array_key_exists('textfinding', $statement)) ? convertToUTF8($statement['textfinding'], false) : '';
 
         if ($description === null) {
           $text = "";
@@ -159,17 +186,17 @@ abstract class ClearedGetterCommon
         }
       } else {
         $singleStatement = array(
-            "licenseId" => $licenseId,
-            "content" => convertToUTF8($content, false),
-            "text" => convertToUTF8($text, false),
-            "files" => array($fileName),
-            "hash" => array($fileHash),
-            "acknowledgement" => array($acknowledgement)
+          "licenseId" => $licenseId,
+          "content" => convertToUTF8($content, false),
+          "text" => convertToUTF8($text, false),
+          "files" => array($fileName),
+          "hash" => array($fileHash),
+          "acknowledgement" => array($acknowledgement)
           );
         if ($extended) {
           $singleStatement["licenseId"] = $licenseId;
           $singleStatement["comments"] = convertToUTF8($comments, false);
-          $singleStatement["risk"] =  $statement['risk'];
+          $singleStatement["risk"] = (array_key_exists('risk', $statement)) ? convertToUTF8($statement['risk'], false) : 0;
         }
 
         if (empty($comments)) {
@@ -181,11 +208,11 @@ abstract class ClearedGetterCommon
 
       if (!empty($statement['textfinding']) && !empty($agentCall) && $agentCall != "license") {
         $findings[] = array(
-            "licenseId" => $licenseId,
-            "content" => convertToUTF8($statement['textfinding'], false),
-            "text" => convertToUTF8($text, false),
-            "files" => array($fileName),
-            "hash" => array($fileHash)
+          "licenseId" => $licenseId,
+          "content" => convertToUTF8($statement['textfinding'], false),
+          "text" => convertToUTF8($text, false),
+          "files" => array($fileName),
+          "hash" => array($fileHash)
           );
         if ($extended) {
           $key = array_search($statement['textfinding'], array_column($findings, 'content'));
@@ -206,11 +233,14 @@ abstract class ClearedGetterCommon
         $actualHeartbeat = (count($statements) + count($findings));
         $objectAgent->heartbeat($actualHeartbeat);
       }
-      return array("userFindings" => $findings, "scannerFindings" => $statements);
+      return array("userFindings" => $this->groupUserFindings($findings), "scannerFindings" => $statements);
     } else {
       $statements = array_merge($findings, $statements);
       if (!empty($objectAgent)) {
         $objectAgent->heartbeat(count($statements));
+      }
+      if ($agentCall != "license") {
+        return array("statements" => $this->groupUserFindings(array_values($statements)));
       }
       return array("statements" => array_values($statements));
     }

@@ -7,6 +7,7 @@
 
  SPDX-License-Identifier: LGPL-2.1-only
 */
+
 use Symfony\Component\HttpFoundation\Session\Session;
 
 /**
@@ -108,6 +109,30 @@ function HumanSize( $bytes )
 }
 
 /**
+ * @brief Convert DateInterval to Human readable format
+ *
+ * If DateInterval is more than 1 year, then return years, else return months,
+ * else return days. If duration is less than 1 day, then return hours and
+ * minutes.
+ * @param DateInterval $duration Duration to convert
+ * @return string Formatted duration
+ */
+function HumanDuration(DateInterval $duration): string
+{
+  $humanDuration = "";
+  if ($duration->y > 0) {
+    $humanDuration .= $duration->y . " y";
+  } elseif ($duration->m > 0) {
+    $humanDuration .= $duration->m . " m";
+  } elseif ($duration->days > 0) {
+    $humanDuration .= $duration->days . " d";
+  } else {
+    $humanDuration .= $duration->h . "h " . $duration->i . "m";
+  }
+  return $humanDuration;
+}
+
+/**
  * \brief Get File Extension (text after last period)
  *
  * \param string $fname File name
@@ -117,8 +142,7 @@ function HumanSize( $bytes )
 function GetFileExt($fname)
 {
   $extpos = strrpos($fname, '.') + 1;
-  $extension = strtolower(substr($fname, $extpos));
-  return $extension;
+  return strtolower(substr($fname, $extpos));
 }
 
 
@@ -293,6 +317,5 @@ function Convert2BrowserTime($server_time)
     $tz = $_SESSION["timezone"];
     $browser_time->setTimeZone(new \DateTimeZone($tz));
   }
-  $time = $browser_time->format('Y-m-d H:i:s');
-  return $time;
+  return $browser_time->format('Y-m-d H:i:s');
 }

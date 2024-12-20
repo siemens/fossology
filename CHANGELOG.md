@@ -4,6 +4,530 @@
 -->
 # Changelog of FOSSology
 
+### 4.4.0 (Jan 15th 2024)
+
+This release adds important corrections to
+[4.4.0-rc2](https://github.com/fossology/fossology/releases/tag/4.4.0-rc2)
+
+The release 4.4.0 introduces a number of corrections to
+[4.3.0](https://github.com/fossology/fossology/releases/tag/4.3.0)
+and major changes to FOSSology, including:
+
+* Major changes from GSoC contributors:
+  * During GSoC 2023, FOSSology saw a major influx in REST API endpoints. Now
+    there are endpoints for almost all information available on UI.
+  * During same operations, we also created the framework changes to allow 2
+    versions of REST API (v1 & v2). This will allow us to unify the REST API in
+    future while still supporting v1.
+  * Another big change was creation of new agent to generate
+    [CycloneDX](https://cyclonedx.org) reports.
+  * We also changed the integration mechanism with
+    [ScanCode](https://scancode-toolkit.readthedocs.io) resulting in major
+    speed improvements in the scan.
+* With this release, we also bring support for Debian Bookworm (12)
+* Support extraction of [Zstandard](https://www.zstd.net) files
+* Support GitHub Actions in the scanner image and generate SPDX reports
+* Multiple fixes in SPDX reports
+* Sync with SPDX License list v3.22
+
+#### Credits to contributors for 4.4.0
+
+From the GIT commit history, we have the following contributors since
+[4.3.0](https://github.com/fossology/fossology/releases/tag/4.3.0):
+
+```
+> Abdelrahman Jamal <abdelrahmanjamal5565@gmail.com>
+> Devesh Negi
+> Divij Sharma <divijs75@gmail.com>
+> dushimsam <dushsam@gmail.com>
+> Gaurav Mishra <mishra.gaurav@siemens.com>
+> Hero2323 <abdelrahmanjamal5565@gmail.com>
+> Igor Mishchuk <igor.mishchuk@carbonhealth.com>
+> Kamal Nayan
+> Kgitman
+> lata <imlata1111@gmail.com>
+> Marc-Etienne Vargenau <marc-etienne.vargenau@nokia.com>
+> mayank-pathakk <mayank234pathak@gmail.com>
+> Nejc Habjan <nejc.habjan@siemens.com>
+> Richard Diederen <richard.diederen@ict.nl>
+> Shaheem Azmal M MD <shaheem.azmal@siemens.com>
+> Simran Nigam <nigamsimran14@gmail.com>
+> soham4abc <sohambanerjee4abc@hotmail.com>
+> srideep-banerjee <banerjee.srideep@gmail.com>
+> Sushant Kumar <sushantmishra02102002@gmail.com>
+```
+
+#### Corrections
+
+* `68dbed209` fix(spdx_ref): use LicenseRef to check ref license
+* `8d990bb05` fix(ui): use group id to get shortname
+* `5a70fbddf` fix(api): read optional agentId, UploadController
+* `24b0e1a67` fix(postinstall): check status of a2ensite
+
+### 4.4.0-rc2 (Jan 8th 2024)
+
+This release adds important corrections to
+[4.4.0-rc1](https://github.com/fossology/fossology/releases/tag/4.4.0-rc1)
+
+The release 4.4.0-rc2 introduces a few corrections to
+[4.4.0-rc1](https://github.com/fossology/fossology/releases/tag/4.4.0-rc1)
+and changes to FOSSology, including:
+
+* fix token generation for user.
+* fix dependencies for bookworm.
+* check if ScanOSS is installed.
+
+#### Credits to contributors for 4.4.0-rc2
+
+From the GIT commit history, we have the following contributors since
+[4.4.0-rc1](https://github.com/fossology/fossology/releases/tag/4.4.0-rc1):
+
+```
+> Devesh Negi <@DEVESH-N2>
+> Divij Sharma <divijs75@gmail.com>
+> Gaurav Mishra <mishra.gaurav@siemens.com>
+> Kgitman <@Kgitman>
+> Richard Diederen <richard.diederen@ict.nl>
+> Shaheem Azmal M MD <shaheem.azmal@siemens.com>
+
+```
+
+#### Features
+
+* `9e9085b1e` feat(api): make cyclonedx report available via the API
+
+#### Corrections
+
+* `3f2bda48d` fix(api): do not check page for empty response
+* `c9b396dc0` fix(view): check if ScanOSS is installed
+* `e712da2c6` fix(token): fix token generation for user
+* `ad5636fdb` fix(action): Ensure proper handeling of enum values in argparse
+* `bef8ca024` fix(licenseRef): make dataype consistent
+* `01c073c89` fix(php): Fix null pointer issue in createClearingDecisions() (#2658)
+* `dff597d00` fix(deb): fix dependencies for bookworm
+* `6761de11d` style(php): Corrected the SQL syntax error in AllDecisionsDao.php
+
+#### Infrastructure
+
+* `9028e7dc8` chore(notice): update both notice and notice.spdx files to latest
+* `23be4848c` chore(notice): update third party notices 4.4.0
+
+### 4.4.0-rc1 (Nov 21st 2023)
+
+This release adds important corrections to
+[4.3.0](https://github.com/fossology/fossology/releases/tag/4.3.0)
+
+The release 4.4.0-rc1 introduces a number of corrections to
+[4.3.0](https://github.com/fossology/fossology/releases/tag/4.3.0)
+and major changes to FOSSology, including:
+
+* Major changes from GSoC contributors:
+  * During GSoC 2023, FOSSology saw a major influx in REST API endpoints. Now
+    there are endpoints for almost all information available on UI.
+  * During same operations, we also created the framework changes to allow 2
+    versions of REST API (v1 & v2). This will allow us to unify the REST API in
+    future while still supporting v1.
+  * Another big change was creation of new agent to generate
+    [CycloneDX](https://cyclonedx.org) reports.
+  * We also changed the integration mechanism with
+    [ScanCode](https://scancode-toolkit.readthedocs.io) resulting in major
+    speed improvements in the scan.
+* With this release, we also bring support for Debian Bookworm (12)
+* Support extraction of [Zstandard](https://www.zstd.net) files
+* Support GitHub Actions in the scanner image and generate SPDX reports
+* Multiple fixes in SPDX reports
+* Sync with SPDX License list v3.22
+
+#### Credits to contributors for 4.4.0-rc1
+
+From the GIT commit history, we have the following contributors since
+[4.3.0](https://github.com/fossology/fossology/releases/tag/4.3.0):
+
+```
+> dushimsam <dushsam@gmail.com>
+> Gaurav Mishra <mishra.gaurav@siemens.com>
+> Hero2323 <abdelrahmanjamal5565@gmail.com>
+> Igor Mishchuk <igor.mishchuk@carbonhealth.com>
+> Kamal Nayan @legendarykamal
+> lata <imlata1111@gmail.com>
+> Marc-Etienne Vargenau <marc-etienne.vargenau@nokia.com>
+> mayank-pathakk <mayank234pathak@gmail.com>
+> Nejc Habjan <nejc.habjan@siemens.com>
+> Shaheem Azmal M MD <shaheem.azmal@siemens.com>
+> Simran Nigam <nigamsimran14@gmail.com>
+> soham4abc <sohambanerjee4abc@hotmail.com>
+> srideep-banerjee <banerjee.srideep@gmail.com>
+> Sushant Kumar <sushantmishra02102002@gmail.com>
+```
+
+#### Features
+
+* `7ed5f9ad9` feat(licenseRef): add new licenses from SPDX
+* `572fdaeda` feat(menu): add new button to indicate system load in banner
+* `f154bfd53` feat(upload): track assignee and closing events
+* `33a581909` feat(bulk): checkbox to select scan for findings only
+* `16f8cffce` feat(conf): support CLIXML conf for a upload
+* `2f16eef42` feat(os): add support for Debian Bookworm (12)
+* `8c28b2f72` feat(api): migrate `/tokens` endpoints to v2
+* `16331926b` feat(dashboard): add new page for upload and folder dashboard
+* `dc47e29b1` feat(unifiedreport): support json format for rows and also html break
+* `bc1cc0d24` feat(api): add 'topitem' endpoint to Upload API
+* `c217a3991` feat(schedule agent): add select2 to search for uploads with name
+* `88d04ec6d` feat(api): unify cx endpoints
+* `4e3e0bfc5` feat(api): added author API endpoints
+* `deeb79e20` feat(api): Export Obligation list as CSV
+* `54f4859e0` feat(api): delete obligation based on id
+* `697960066` feat(api): Import obligation list from CSV
+* `a5f29c38c` feat(api): get all obligations details
+* `8d8573ff8` feat(api): get details of a particular obligation using id
+* `1630e79d0` feat(api): export single license as CSV
+* `94d874dcb` feat(api): The REST API to export licenses-list as CSV
+* `e0220f921` feat(api): api to get the list of obligations
+* `7fb494c4c` feat(api): Get all contents of a specific folder
+* `be9d9cba6` feat(api): get Banner message
+* `bfff708bc` feat(api): Unlink folder contents
+* `524090aed` feat(api): Get removable folder contents
+* `4e213d350` feat(api): update conf data endpoint implemented
+* `d9223a635` feat(api): update customise endpoint
+* `1d6898920` feat(api): Get Customise page data
+* `ce3b009e2` feat(api): Run scheduler based on the given operation's option
+* `3a48ab052` feat(api): Get scheduler options for a given operation
+* `8c45508e6` feat(api): Get active queries for Dashboard overview
+* `9af03d271` feat(api): Get database metrics overview for dashboard
+* `5da361699` feat(api): Suggest license from reference text
+* `f591d2a28` feat(api): Get all server jobs for Admin Dashboard
+* `f878673df` feat(api): Get PHP-Info for the Dasbhoard Overview
+* `e19384ef3` feat(api): Get disk space usage overview
+* `1234f19e0` feat(api): Get the database contents for the overview of Foss. operations
+* `e607bcc45` feat(api): Merge a license into an existing one
+* `7e7e0ebfa` feat(api): verify license as new or variant
+* `7404e6b37` feat(ununpack): support for Zstandard
+* `7e51fed2c` feat(api): Add, Edit, toggle standard-license comment
+* `34af20910` feat(api): Get the summary statistics for all Jobs
+* `f55fed9ac` feat(SETUP-V2): Support Multiple Versions (V1 & V2)
+* `a95d77459` feat(api): get-all standard comments
+* `eccede06d` feat(api): REST API to schedule the bulk-scan
+* `01f73826a` feat(api): Get Customise page data
+* `cbee2ee97` feat(api): Add, edit & delete license decision
+* `0dd1c3e89` feat(api): Add, Edit & toggle admin license acknowledgement
+* `89e7748ae` feat(api): get all agents revisions
+* `e82a0cf8a` feat(api): conf info for upload
+* `c755ff564` feat(api): get a list of scanned licenses for an upload
+* `0bde97682` feat(CycloneDX): Add new agent cyclonedx
+* `7e181f87d` feat(api): Get licenses reuse summary API
+* `309dd70d5` feat(api): get list of license decisions for an item
+* `13d79e23e` feat(api): File info API implemented
+* `e4085b07e` feat(api): get edited licenses list
+* `bf5a8c569` feat(api): Get all licenses-admin acknowlegments
+* `33f75c7f5` feat(api): get the license tree-view of the upload and item
+* `e2370c786` feat(nomos): add more regex to nomos to identify different licenses
+* `ac1897635` feat(api): Update upload-summary API for additional info
+* `08fba9484` feat(api): get all agents for the upload
+* `707094c31` feat(api): API to return total number of copyrights for a file
+* `87e756c63` feat(api): get licenses histogram
+* `670a37de4` feat(api): Get the clearing-progress info for an upload.
+* `76d75929b` feat(api): restore deleted copyrights
+* `3bb66039b` feat(api): REST API to get keywords and hightlight-entries from content
+* `c0e6c8b00` feat(api): Get clearing-history data API
+* `ea3adb358` feat(api): Get list of bulk-history API
+* `e6b086f8d` feat(api): handle three filters to get prev & next item
+* `779e2331a` feat(scanner): generate spdx report
+* `ee2b2f703` feat(api): update file copyright api added
+* `bec422b64` feat(api): delete copyright
+* `22b4c594c` feat(api): copyright info for file
+* `b3351361c` feat(scanner): support github in scanner
+* `b8a3590f3` feat(api): Remove a particular main license from an upload
+* `c36b317cf` feat(api): add the new main license for the upload
+* `f34019cae` feat(api): set the clearing decision for a particular item
+* `9207e349a` feat(api): content negotiation on /openapi
+* `55b06cc2c` feat(api): get the contents of the file
+* `5bcb4f5a6` feat(api): openapi.yaml exposed through api
+* `3f701df9b` feat(api): add pagination to license browser
+* `f4a578b87` feat(api): get main licenses assigned on an upload
+* `992c0b2d1` feat(delete-job-endpoint): Added a delete job endpoint to the Fossology API
+
+#### Corrections
+
+* `a943cb4ad` fix(spdx2): avoid license text duplication in rdf
+* `145318a5f` fix(spdx2): accept null values for arrays
+* `19041f0d9` fix(unifiedreport): replace double quotes with single to fix line breaks
+* `ccad99efa` fix(documentation): update README.md with PHP version
+* `099fe015c` fix(ci): fix build in Debian Buster
+* `6373c574c` fix(api): default values of page and limit
+* `4160f35db` fix(user-edit): handle HttpForbiddenException
+* `249207f8b` fix(user-edit): compare old email and skip email count check
+* `e979e2782` fix(db): change agent_rev to text
+* `9af3fcf9c` fix(php): replace array_push by assignment
+* `ba6506619` fix(php): add missing semicolon
+* `2915b7534` fix(php): remove & to be compatible with PHP 8
+* `a882ff932` fix(php): Factor common code
+* `df39a6744` fix(cylonedx): update for changes in SPDX
+* `e01006b21` fix(spdx): de-duplicate licenses with same SPDX ID
+* `8682ab5c5` fix(php): replace deprecated split by explode
+* `d871f83d6` fix(php): Using ${var} in strings is deprecated
+* `f3b2e0a8b` fix(php) Optional parameter declared before required parameter
+* `7370c2bd6` fix(PSR-12): closing ?> tag MUST be omitted
+* `c10906db7` fix(test): fix REST API testcases
+* `226d38e0d` fix(api): move obligation removal code for rest
+* `0eb928490` fix(api): use ObligationMap instead of Model class
+* `7e630262f` fix(api): extend obligation model don't create new
+* `1e9ef3739` fix(api): use ObligationMap instead of modifying UI
+* `8d6ab4550` fix(dao): use DbManager in SysConfigDao
+* `cdc011348` fix(api): fix ConfController to accept diff values
+* `9ba7b468a` fix(api): fix sysconfig controller and dao
+* `b7b611ecd` fix(api): fix lint error and use UTC where possible
+* `ea4d682fe` fix(test): fix wrong test according to comment
+* `92e1eb44b` fix(cd): Fix release workflow for version
+* `7f7a5c362` fix(delagent): Use bcrypt to check password
+* `a49f6c8d6` fix(clixml): fix deb package name
+* `879e205bf` fix(api): fix linter issues
+* `70aca2a63` fix(automation): update copyright
+* `fb3a5600a` fix(eyeButtonForPasswords): removed external css usage
+* `6bc1ddd05` fix(clixml.php): Fixed the issue of PhP 8 Warning
+
+#### Infrastructure
+
+* `05bf86a9b` deps(composer): update composer/spdx-licenses
+* `c356f1b38` chore(lib): refactor code
+* `ebeeadbdb` chore(ununpack): drop upx support
+* `ce8a51553` test(nomos): add new test files
+* `82f169228` chore(ci): tag scanner image on release
+* `5a4b9b1ff` refactor(api): introduce error handling
+* `8ee16e820` chore(api)!: update minor version; breaking change
+* `f143d709d` chore(api): update API version 20231006
+* `8d44d989b` chore(api): move obligation endpoints from license
+* `7e20bd677` perf(scancode):Improve scanning speed of scancode agent
+* `5764e24c7` perf(api): performance optimization for FolderController
+* `1b16ed786` chore(dao): update FolderDao::removeContent to return bool
+* `1fffdd41b` chore(api): rename endpoint /unlinkable to be unambiguous
+* `b3df71d23` chore(api): update API version 20230929
+* `0b964c3e1` perf(api): refactor /license/suggest for optimization
+* `91a06f86a` doc(php): fix parameter docs
+* `3850bde2e` doc(php): fix parameter docs
+* `3065d249c` chore(gitpod): update gitpod scripts
+* `9847f6ef4` chore(UploadTreeProxy): optimize license file query
+* `3251d494a` chore(pythondeps): preserve proxy env with su
+* `aa7e5b4e8` chore(api): update API version 20230811
+* `b65cb4946` refactor(browse): use join to fetch data from two tables
+* `d11e08ec8` chore(api): update version 20230728
+* `880ed0114` chore(api): update api version
+* `a5afabdc3` refactor(copyright): Refactored some redundant code. Resolved declutter turning text to lowercase. Renamed some variables to be more informative.
+* `4d347d911` chore(css): change look for eye button
+* `33f123f5e` docs(README.md): adding more details about `docker-compose` cmd
+
+### 4.3.0 (Jun 22nd 2023)
+
+This release adds important corrections to
+[4.3.0-rc2](https://github.com/fossology/fossology/releases/tag/4.3.0-rc2)
+
+The release 4.3.0 introduces a number of corrections to
+[4.2.1](https://github.com/fossology/fossology/releases/tag/4.2.1)
+and major changes to FOSSology, including:
+
+* Integration with [ScanOSS](https://scanoss.com/)
+* Add new field SPDX ID for licenses, making FOSSology reports more SPDX
+  compliant.
+  * Same time, fix SPDX reports and update to v2.3
+  * Rename deprecated licenses like GPL-2.0+
+* Update build system to CMake from GNU Make.
+* New option to export and import FOSSology decisions.
+* Several security fixes.
+* New list to define predefined acknowledgements for easy reuse.
+* Consider folder level and package level bulk.
+* Drop Ubuntu Bionic support.
+
+#### Credits to contributors for 4.3.0
+
+From the GIT commit history, we have the following contributors since
+[4.2.1](https://github.com/fossology/fossology/releases/tag/4.2.1):
+
+```
+> Avinal Kumar <avinal.xlvii@gmail.com>
+> dushimsam <dushsam@gmail.com>
+> Gaurav Mishra <mishra.gaurav@siemens.com>
+> hero2323 <abdelrahmanjamal5565@gmail.com>
+> Krishna Mahato <krishhtrishh9304@gmail.com>
+> mayank-pathakk <mayank234pathak@gmail.com>
+> Sanjay Krishna S R <sanjaykrishna1203@gmail.com>
+> scanoss-qg <quique.goni@scanoss.com>
+> Shaheem Azmal M MD <shaheem.azmal@siemens.com>
+> Simran Nigam <nigamsimran14@gmail.com>
+> soham4abc <sohambanerjee4abc@hotmail.com>
+> srideep-banerjee <banerjee.srideep@gmail.com>
+> Toussaint Nicolas <nicolas1.toussaint@orange.com>
+```
+
+#### Features
+
+* `83191c8e9` feat(thirdpartyLicenses): update third notices
+
+#### Corrections
+
+* `753fbbbc9` fix(scanoss): check json-c version for buster
+
+### 4.3.0-rc2 (Jun 13th 2023)
+
+This release adds important corrections to
+[4.3.0-rc1](https://github.com/fossology/fossology/releases/tag/4.3.0-rc1)
+
+The release 4.3.0-rc2 introduces following major corrections to
+[4.3.0-rc1](https://github.com/fossology/fossology/releases/tag/4.3.0-rc1):
+
+* Consider folder level and package level bulk.
+* Drop Ubuntu Bionic support.
+* Replace two single quotes to one in escaped string.
+
+#### Credits to contributors for 4.3.0-rc2
+
+From the GIT commit history, we have the following contributors since
+[4.3.0-rc1](https://github.com/fossology/fossology/releases/tag/4.3.0-rc1):
+
+```
+> Gaurav Mishra <mishra.gaurav@siemens.com>
+> hero2323 <abdelrahmanjamal5565@gmail.com>
+> Shaheem Azmal M MD <shaheem.azmal@siemens.com>
+```
+
+#### Corrections
+
+* `c9abbe0c7` fix(user-edit.php): Fixed editing emails allows for duplicate emails for multiple users.
+* `c9fb01d93` fix(user-add.php): Fixed email can be blank but required.
+* `a3f7d469a` fix(bulkReuse): consider folder level and package level bulk
+* `3a782ceb0` fix(composer.json.in): update slim/psr7 in .in file
+* `97ef64c67` fix(warnings): fix unified report warnings
+* `0d175334d` fix(conf): replace two single quotes to one in escaped string
+* `a3a022c6b` fix(cd): fix release build action
+
+#### Infrastructure
+
+* `c50da8045` chore(scanoss): remove jq
+* `6c393d4e1` chore(composer): update min php to 7.3.31
+* `2cc1b4249` chore(os): drop Ubuntu Bionic support
+* `b8fbcb4e9` chore(deps): bump slim/psr7 from 1.4 to 1.4.1 in /src
+
+### 4.3.0-rc1 (May 9th 2023)
+
+This release adds important corrections to
+[4.2.1](https://github.com/fossology/fossology/releases/tag/4.2.1)
+
+The release 4.3.0-rc1 introduces a number of corrections to
+[4.2.1](https://github.com/fossology/fossology/releases/tag/4.2.1)
+and major changes to FOSSology, including:
+
+* Integration with [ScanOSS](https://scanoss.com/)
+* Add new field SPDX ID for licenses, making FOSSology reports more SPDX
+  compliant.
+  * Same time, fix SPDX reports and update to v2.3
+  * Rename deprecated licenses like GPL-2.0+
+* Update build system to CMake from GNU Make.
+* New option to export and import FOSSology decisions.
+* Several security fixes.
+* New list to define predefined acknowledgements for easy reuse.
+
+#### Credits to contributors for 4.3.0-rc1
+
+From the GIT commit history, we have the following contributors since
+[4.2.1](https://github.com/fossology/fossology/releases/tag/4.2.1):
+
+```
+> Avinal Kumar <avinal.xlvii@gmail.com>
+> dushimsam <dushsam@gmail.com>
+> Gaurav Mishra <mishra.gaurav@siemens.com>
+> Krishna Mahato <krishhtrishh9304@gmail.com>
+> mayank-pathakk <mayank234pathak@gmail.com>
+> Sanjay Krishna S R <sanjaykrishna1203@gmail.com>
+> scanoss-qg <quique.goni@scanoss.com>
+> Shaheem Azmal M MD <shaheem.azmal@siemens.com>
+> Simran Nigam <nigamsimran14@gmail.com>
+> soham4abc <sohambanerjee4abc@hotmail.com>
+> srideep-banerjee <banerjee.srideep@gmail.com>
+> Toussaint Nicolas <nicolas1.toussaint@orange.com>
+```
+
+#### Features
+
+* `e826f5141` feat(docker): update images to Debian 11 (bullseye)
+* `081bc812c` feat(clixml): introduce LinkScanTool
+* `1faf25a60` feat(licenseCsv): export spdx id in license CSV
+* `d62e603d9` feat(deleteFileFromBrowse): Ability to delete file from browse page
+* `bda57059b` feat(viewPasswordInLogin): Eye button to view Password while logging in
+* `0576ef943` feat(scanoss-agent): Initial version of SCANOSS agent for FOSSology
+* `987b2774a` feat(API): POST report/import route for initiating a report import job
+* `de006de77` feat(decision-dump): export-import IPRA data
+* `485bb8856` feat(invertSearch):Added inverse search in Email/Url/Author Page
+* `e40e7ae37` feat(API): /jobs/{id}/history GET route to get the history of all the jobs queued based on an upload
+* `fec0e60da` feat(highlightRows):Highlighted deleted rows on copyright/URL/Author/Email tables
+* `644879dd6` feat(api): update response for candidate delete
+* `a4721ab4a` feat(API): delete admin-license candidate
+* `7ed947d3c` feat(API): get license candidates
+* `0fd6be41c` feat(api): clearing status
+* `2ac466b19` feat(api): change API schema for file uploads
+* `23ff12e3f` feat(API): change group member's permission
+* `d9b2597a7` feat(spdx): validate SPDX ID before adding
+* `a113b816c` feat(spdx): update tag:value format to v2.3
+* `f844ea1d7` feat(spdx): update to v2.3
+* `c173a05ce` feat(nomos): update SPDX license shortnames
+* `738c259c2` feat(spdx-tools): update to new repository
+* `d6aaaf805` feat(license): use spdx identifiers for licenses
+* `c4e702f82` feat(copyright): add new agent IPRA to FOSSology
+* `266299f06` feat(copyright): add new keywords for ECC and keyword agent
+* `7e1b7a801` feat(cmake): include libraries using cmake style
+* `52ac2abad` feat(install): cmake changes for easy-install and vagrantfile
+* `df8ddfe41` feat(eximporter): add file path for upload tree
+* `f9d7e2156` feat(acknowledgements): add new ack dropdown to select saved ack
+* `c5d8c5b78` feat(showjobs): show status link for inprogress jobs
+* `de52028e6` feat(newagent): new agent decision export import
+* `4b9c941c0` feat(buildsystem): Add CMake Build System
+
+#### Corrections
+
+* `24983d146` fix(dao): getLicenseByCondition set statement name on condition
+* `add8abf00` fix(report): check array key exists
+* `d4adf4a09` fix(spdx): create LicenseRef for custom license text
+* `54562ca00` fix(README): Fix broken Travis SVG
+* `fb9d50f8e` fix(api): check if hist has required keys
+* `fc34bb660` fix(clixml): add acknowledgement to reports
+* `e98e22e15` fix(api): jti not required for oauth tokens
+* `9540a9cbd` fix(adminLicensecandidate): replace while loop with foreach and correct variables
+* `5ba11350b` fix(rest): swap upload and folder id to create job
+* `01019b5f4` fix(dumpExport): create pfile table always
+* `8c729eee8` fix(import): ignore missing utree in dump import
+* `1295ea11d` fix(clixml): use license full name in clixml report
+* `d1bd7b55d` fix(api): unify dump and report import
+* `ada5f201a` fix(search): fix search endpoint
+* `56ba70bb0` fix(manualCopyright):Made Disabled Manual Copyrights Visible in UI
+* `73c471438` fix(api): change response of job history
+* `e40e7ae37` feat(API): /jobs/{id}/history GET route to get the history of all the jobs queued based on an upload
+* `62212dbed` fix(decisionImporter): deduplicate file
+* `5bf20e3ef` fix(obligationsGetter): separate licenses
+* `963faaae1` fix(unifiedreport): fix warnings of unified report agent
+* `7f4df1597` fix(spdx-rdf): use CDATA for attributionText
+* `affc84466` fix(core-schema): fix index to match DB
+* `14723b5d3` fix(api): add new model LicenseCandidate for admin endpoint
+* `eb5d5e0bd` fix(api): add new model FileLicenses for REST API
+* `4c7be95ca` fix(API): merge multiple upload-api calls into one.
+* `bd38495bc` fix(api): check user permission before editing groups
+* `b7a6a9c15` fix(unifiedReport): fix table distortion for component link
+* `523d832fc` fix(ci): add missing dependency to runner image
+* `7bd7ecba6` fix(spdx): add license text for valid RDF
+* `f5eb9ea13` fix(security) fix inaproppriate encoding for output context Added `ENT_HTML5 | ENT_QUOTES` to ensure that all characters are properly encoded on output
+* `d10d972e5` fix(security) fix Reflected XSS vulnerability, where input data was displayed directly on the web page
+* `29604025e` fix(security) Sanitized  external command parameter with `escapeshellarg` as untrusted string may contain malicious system-level commands engineered by an attacker
+* `bd2fb8f2e` fix(security) Replaced cryptographically insecure PHP rand() function with built-in for PHP random_int() with secure pseudo-random number generator
+* `58fec86e2` fix(build): various build fixes
+* `47066a32c` fix(oauth): update username if oauth email matches
+* `1fcc19be9` fix(licenseRef): show only active licenses in bulk and user decisions
+* `5d39fab5a` Fix(api): Fixed filesearch request
+* `5dafd15a5` fix(conf): add escape string and fetch raw content
+
+#### Infrastructure
+
+* `3149e444d` chore(deps): bump guzzlehttp/psr7 from 2.4.3 to 2.5.0 in /src
+* `df2fb2716` chore(scancode): fix the version to 31.2.4
+* `34fd909db` chore(cmake): do not cache git version
+* `c443aebca` chore(build): fix building of monkbulk package
+* `14f8ea382` chore(Makefile): remove old Makefiles
+
 ### 4.2.1 (Nov 15th 2022)
 
 This release is for the quick hot-fix on [4.2.0](https://github.com/fossology/fossology/releases/tag/4.2.0).

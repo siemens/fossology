@@ -12,12 +12,17 @@
 
 namespace Fossology\UI\Api\Test\Controllers;
 
-use Mockery as M;
-use Symfony\Component\Yaml\Parser;
-use Fossology\UI\Api\Helper\DbHelper;
-use Fossology\UI\Api\Helper\RestHelper;
 use Fossology\UI\Api\Controllers\InfoController;
+use Fossology\UI\Api\Helper\DbHelper;
 use Fossology\UI\Api\Helper\ResponseHelper;
+use Fossology\UI\Api\Helper\RestHelper;
+use Fossology\UI\Api\Models\ApiVersion;
+use Mockery as M;
+use Slim\Psr7\Factory\StreamFactory;
+use Slim\Psr7\Headers;
+use Slim\Psr7\Request;
+use Slim\Psr7\Uri;
+use Symfony\Component\Yaml\Parser;
 
 /**
  * @class InfoControllerTest
@@ -82,7 +87,7 @@ class InfoControllerTest extends \PHPUnit\Framework\TestCase
   /**
    * Helper function to get JSON array from response
    *
-   * @param Response $response
+   * @param ResponseHelper $response
    * @return array Decoded response
    */
   private function getResponseJson($response)
@@ -91,7 +96,19 @@ class InfoControllerTest extends \PHPUnit\Framework\TestCase
     return json_decode($response->getBody()->getContents(), true);
   }
 
-  public function testGetInfo()
+  public function testGetInfoV1()
+  {
+    $this->testGetInfo(ApiVersion::V1);
+  }
+  public function testGetInfoV2()
+  {
+    $this->testGetInfo();
+  }
+  /**
+   * @param $version
+   * @return void
+   */
+  private function testGetInfo($version = ApiVersion::V2)
   {
     $yaml = new Parser();
     $yamlDocArray = $yaml->parseFile(self::YAML_LOC);
@@ -123,7 +140,7 @@ class InfoControllerTest extends \PHPUnit\Framework\TestCase
     $expectedResponse = (new ResponseHelper())->withJson(array(
       "name" => $apiTitle,
       "description" => $apiDescription,
-      "version" => $apiVersion,
+      "version" => $version == APiVersion::V1 ? $apiVersion : "2.0.0",
       "security" => $security,
       "contact" => $apiContact,
       "license" => [
@@ -132,11 +149,58 @@ class InfoControllerTest extends \PHPUnit\Framework\TestCase
       ],
       "fossology" => $fossInfo
     ), 200);
-    $actualResponse = $this->infoController->getInfo(null,
-      new ResponseHelper(), []);
+    $request = new Request("POST", new Uri("HTTP", "localhost"), new Headers(),
+      [], [], (new StreamFactory())->createStream());
+    $request = $request->withAttribute(ApiVersion::ATTRIBUTE_NAME,$version);
+    $actualResponse = $this->infoController->getInfo($request,
+      new ResponseHelper());
     $this->assertEquals($expectedResponse->getStatusCode(),
       $actualResponse->getStatusCode());
     $this->assertEquals($this->getResponseJson($expectedResponse),
       $this->getResponseJson($actualResponse));
+  }
+
+  public function testGetOpenApiJson()
+  {
+    $requestHeadersJson = new Headers();
+    $requestHeadersJson->setHeader('Accept', "application/vnd.oai.openapi+json");
+    $body = (new StreamFactory())->createStream();
+    $requestJson = new Request("GET", new Uri("HTTP", "localhost"),
+      $requestHeadersJson, [], [], $body);
+    $yaml = new Parser();
+    $yamlDocArray = $yaml->parseFile(self::YAML_LOC);
+    $expectedResponseJson = (new ResponseHelper())
+      ->withJson($yamlDocArray, 200)
+      ->withHeader("Content-Disposition", "inline; filename=\"openapi.json\"");
+    $actualResponseJson = $this->infoController->getOpenApi($requestJson,
+      new ResponseHelper());
+    $this->assertEquals($expectedResponseJson->getStatusCode(),
+      $actualResponseJson->getStatusCode());
+    $this->assertEquals($this->getResponseJson($expectedResponseJson),
+      $this->getResponseJson($actualResponseJson));
+    $this->assertEquals(["application/json"],
+      $actualResponseJson->getHeader("Content-Type"));
+  }
+
+  public function testGetOpenApiYaml()
+  {
+    $requestHeadersYaml = new Headers();
+    $requestHeadersYaml->setHeader('Accept', "application/vnd.oai.openapi");
+    $body = (new StreamFactory())->createStream();
+    $requestJson = new Request("GET", new Uri("HTTP", "localhost"),
+      $requestHeadersYaml, [], [], $body);
+    $expectedResponseYaml = (new ResponseHelper())
+      ->withHeader("Content-Type", "application/vnd.oai.openapi;charset=utf-8")
+      ->withHeader("Content-Disposition", "inline; filename=\"openapi.yaml\"")
+      ->withStatus(200);
+    $expectedResponseYaml->getBody()->write(file_get_contents(self::YAML_LOC));
+    $actualResponseYaml = $this->infoController->getOpenApi($requestJson,
+      new ResponseHelper());
+    $this->assertEquals($expectedResponseYaml->getStatusCode(),
+      $actualResponseYaml->getStatusCode());
+    $this->assertEquals($expectedResponseYaml->getBody()->getContents(),
+      $actualResponseYaml->getBody()->getContents());
+    $this->assertEquals(["application/vnd.oai.openapi;charset=utf-8"],
+      $actualResponseYaml->getHeader("Content-Type"));
   }
 }

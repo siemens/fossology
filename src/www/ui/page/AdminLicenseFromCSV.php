@@ -8,14 +8,13 @@
 
 namespace Fossology\UI\Page;
 
+use Fossology\Lib\Application\LicenseCsvImport;
 use Fossology\Lib\Auth\Auth;
 use Fossology\Lib\Plugin\DefaultPlugin;
-use Fossology\UI\Api\Models\Info;
-use Fossology\UI\Api\Models\InfoType;
+use Fossology\UI\Api\Models\ApiVersion;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Fossology\Lib\Application\LicenseCsvImport;
 
 /**
  * \brief Upload a file from the users computer using the UI.
@@ -25,12 +24,13 @@ class AdminLicenseFromCSV extends DefaultPlugin
   const NAME = "admin_license_from_csv";
   const KEY_UPLOAD_MAX_FILESIZE = 'upload_max_filesize';
   const FILE_INPUT_NAME = 'file_input';
+  const FILE_INPUT_NAME_V2 = 'fileInput';
 
   function __construct()
   {
     parent::__construct(self::NAME, array(
-        self::TITLE => "Admin License CSV Import",
-        self::MENU_LIST => "Admin::License Admin::CSV Import",
+        self::TITLE => "Admin License Import",
+        self::MENU_LIST => "Admin::License Admin::License Import",
         self::REQUIRES_LOGIN => true,
         self::PERMISSION => Auth::PERM_ADMIN
     ));
@@ -54,6 +54,7 @@ class AdminLicenseFromCSV extends DefaultPlugin
 
     $vars[self::KEY_UPLOAD_MAX_FILESIZE] = ini_get(self::KEY_UPLOAD_MAX_FILESIZE);
     $vars['baseUrl'] = $request->getBaseUrl();
+    $vars['license_csv_import'] = true;
 
     return $this->render("admin_license_from_csv.html.twig", $this->mergeWithDefault($vars));
   }
@@ -73,28 +74,33 @@ class AdminLicenseFromCSV extends DefaultPlugin
     } elseif ($uploadedFile->getSize() == 0 && $uploadedFile->getError() == 0) {
       $errMsg = _("Larger than upload_max_filesize ") .
         ini_get(self::KEY_UPLOAD_MAX_FILESIZE);
-    } elseif ($uploadedFile->getClientOriginalExtension() != 'csv') {
-      $errMsg = _('Invalid extension ') .
+    } elseif ($uploadedFile->getClientOriginalExtension() != 'csv'
+           && $uploadedFile->getClientOriginalExtension() != 'json') {
+      $errMsg = _('Invalid file extension ') .
         $uploadedFile->getClientOriginalExtension() . ' of file ' .
         $uploadedFile->getClientOriginalName();
     }
     if (! empty($errMsg)) {
       return array(false, $errMsg,400);
     }
-    /** @var LicenseCsvImport */
+    /** @var LicenseCsvImport $licenseCsvImport */
     $licenseCsvImport = $this->getObject('app.license_csv_import');
     $licenseCsvImport->setDelimiter($delimiter);
     $licenseCsvImport->setEnclosure($enclosure);
 
-    return array(true,$licenseCsvImport->handleFile($uploadedFile->getRealPath()),200);
+    return array(true,$licenseCsvImport->handleFile($uploadedFile->getRealPath(), $uploadedFile->getClientOriginalExtension()),200);
   }
 
   /**
    * @return string
    */
-  public function getFileInputName()
+  public function getFileInputName($apiVersion = ApiVersion::V1)
   {
-    return $this::FILE_INPUT_NAME;
+    if ($apiVersion == ApiVersion::V2) {
+      return $this::FILE_INPUT_NAME_V2;
+    } else {
+      return $this::FILE_INPUT_NAME;
+    }
   }
 }
 

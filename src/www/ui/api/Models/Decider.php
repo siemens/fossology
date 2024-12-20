@@ -38,6 +38,11 @@ class Decider
    * Scanners matches if Ojo or Reso findings are no contradiction with other findings
    */
   private $ojoDecider;
+  /**
+   * @var string $concludeLicenseType
+   * Use this license type to create conclusions.
+   */
+  private $concludeLicenseType;
 
   /**
    * Decider constructor.
@@ -46,13 +51,17 @@ class Decider
    * @param boolean $bulkReused
    * @param boolean $newScanner
    * @param boolean $ojoDecider
+   * @param string  $concludeLicenseType
    */
-  public function __construct($nomosMonk = false, $bulkReused = false, $newScanner = false, $ojoDecider = false)
+  public function __construct($nomosMonk = false, $bulkReused = false,
+                              $newScanner = false, $ojoDecider = false,
+                              $concludeLicenseType = "")
   {
-    $this->nomosMonk  = $nomosMonk;
-    $this->bulkReused = $bulkReused;
-    $this->newScanner = $newScanner;
-    $this->ojoDecider = $ojoDecider;
+    $this->setNomosMonk($nomosMonk);
+    $this->setBulkReused($bulkReused);
+    $this->setNewScanner($newScanner);
+    $this->setOjoDecider($ojoDecider);
+    $this->setConcludeLicenseType($concludeLicenseType);
   }
 
   /**
@@ -60,23 +69,22 @@ class Decider
    * @param array $deciderArray Associative boolean array
    * @return Decider Current object
    */
-  public function setUsingArray($deciderArray)
+  public function setUsingArray($deciderArray, $version = ApiVersion::V1)
   {
-    if (array_key_exists("nomos_monk", $deciderArray)) {
-      $this->nomosMonk = filter_var($deciderArray["nomos_monk"],
-        FILTER_VALIDATE_BOOLEAN);
+    if (array_key_exists(($version == ApiVersion::V2? "nomosMonk" : "nomos_monk"), $deciderArray)) {
+      $this->setNomosMonk($deciderArray[$version == ApiVersion::V2? "nomosMonk" : "nomos_monk"]);
     }
-    if (array_key_exists("bulk_reused", $deciderArray)) {
-      $this->bulkReused = filter_var($deciderArray["bulk_reused"],
-        FILTER_VALIDATE_BOOLEAN);
+    if (array_key_exists(($version == ApiVersion::V2? "bulkReused" : "bulk_reused"), $deciderArray)) {
+      $this->setBulkReused($deciderArray[$version == ApiVersion::V2? "bulkReused" : "bulk_reused"]);
     }
-    if (array_key_exists("new_scanner", $deciderArray)) {
-      $this->newScanner = filter_var($deciderArray["new_scanner"],
-        FILTER_VALIDATE_BOOLEAN);
+    if (array_key_exists(($version == ApiVersion::V2? "newScanner" : "new_scanner"), $deciderArray)) {
+      $this->setNewScanner($deciderArray[$version == ApiVersion::V2? "newScanner" : "new_scanner"]);
     }
-    if (array_key_exists("ojo_decider", $deciderArray)) {
-      $this->ojoDecider = filter_var($deciderArray["ojo_decider"],
-        FILTER_VALIDATE_BOOLEAN);
+    if (array_key_exists(($version == ApiVersion::V2? "ojoDecider" : "ojo_decider"), $deciderArray)) {
+      $this->setOjoDecider($deciderArray[$version == ApiVersion::V2? "ojoDecider" : "ojo_decider"]);
+    }
+    if (array_key_exists(($version == ApiVersion::V2? "concludeLicenseType" : "conclude_license_type"), $deciderArray)) {
+      $this->setConcludeLicenseType($deciderArray[$version == ApiVersion::V2? "concludeLicenseType" : "conclude_license_type"]);
     }
     return $this;
   }
@@ -114,6 +122,14 @@ class Decider
     return $this->ojoDecider;
   }
 
+  /**
+   * @return string
+   */
+  public function getConcludeLicenseType()
+  {
+    return $this->concludeLicenseType;
+  }
+
   ////// Setters //////
   /**
    * @param boolean $nomosMonk
@@ -148,16 +164,39 @@ class Decider
   }
 
   /**
+   * @param string $concludeLicenseType
+   */
+  public function setConcludeLicenseType($concludeLicenseType)
+  {
+    if ($concludeLicenseType !== null) {
+      $this->concludeLicenseType = trim($concludeLicenseType);
+    } else {
+      $this->concludeLicenseType = "";
+    }
+  }
+
+  /**
    * Get decider as an array
    * @return array
    */
-  public function getArray()
+  public function getArray($version = ApiVersion::V1)
   {
-    return [
-      "nomos_monk"  => $this->nomosMonk,
-      "bulk_reused" => $this->bulkReused,
-      "new_scanner" => $this->newScanner,
-      "ojo_decider" => $this->ojoDecider
-    ];
+    if ($version == ApiVersion::V2) {
+      return [
+        "nomosMonk"  => $this->nomosMonk,
+        "bulkReused" => $this->bulkReused,
+        "newScanner" => $this->newScanner,
+        "ojoDecider" => $this->ojoDecider,
+        "concludeLicenseType" => $this->concludeLicenseType
+      ];
+    } else {
+      return [
+        "nomos_monk"  => $this->nomosMonk,
+        "bulk_reused" => $this->bulkReused,
+        "new_scanner" => $this->newScanner,
+        "ojo_decider" => $this->ojoDecider,
+        "conclude_license_type" => $this->concludeLicenseType
+      ];
+    }
   }
 }

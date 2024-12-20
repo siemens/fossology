@@ -19,12 +19,9 @@
 require_once ('./GpTestSuite.php');
 
 list($me, $infile) = $argv;
-$test = & new GpClassTestSuite();
+$test = new GpClassTestSuite();
 if (TextReporter :: inCli())
 {
   exit ($test->run(new TextReporter()) ? 0 : 1);
 }
 $test->run(new HtmlReporter());
-
-
-?>

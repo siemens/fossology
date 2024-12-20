@@ -42,7 +42,7 @@ class agent_copyright_once extends FO_Plugin
    * \brief Analyze one uploaded file.
    * \return string
    */
-  function AnalyzeOne()
+  function AnalyzeOne($getHighlightInfo = false, $tempFileName = null)
   {
     global $Plugins;
     global $SYSCONFDIR;
@@ -52,12 +52,11 @@ class agent_copyright_once extends FO_Plugin
 
     /** @var ui_view $view */
     $view = & $Plugins[plugin_find_id("view") ];
-    $tempFileName = $_FILES['licfile']['tmp_name'];
+    $tempFileName = $getHighlightInfo ? $tempFileName : $_FILES['licfile']['tmp_name'];
     $ui_dir = getcwd();
     $copyright_dir =  "$SYSCONFDIR/mods-enabled/copyright/agent/";
     if (!chdir($copyright_dir)) {
-      $errmsg = _("unable to change working directory to $copyright_dir\n");
-      return $errmsg;
+      return _("unable to change working directory to $copyright_dir\n");
     }
     //$Sys = "./copyright -C $tempFileName -c $SYSCONFDIR";
     $Sys = "./copyright -c $SYSCONFDIR $tempFileName";
@@ -100,7 +99,7 @@ class agent_copyright_once extends FO_Plugin
         if (!empty($match['start'])) {
           $stuff[$match['type'][0]][] = $match['content'][0];
           if ($this->NoHTML) { // For REST API
-            array_push($copyright_array, $match['content'][0]);
+            $copyright_array[] = $match['content'][0];
           } else {
             $highlights[] = new Highlight($match['start'][0], $match['end'][0], $typeToHighlightTypeMap[$match['type'][0]], -1, -1, $match['content'][0]);
           }
@@ -110,6 +109,9 @@ class agent_copyright_once extends FO_Plugin
     }
     pclose($inputFile);
 
+    if ($getHighlightInfo) {
+      return array($copyright_array, $highlights);
+    }
     if ($this->NoHTML) { // For REST API:
       return $copyright_array;
     }
@@ -120,8 +122,7 @@ class agent_copyright_once extends FO_Plugin
       fclose($inputFile);
     }
     if (!chdir($ui_dir)) {
-      $errmsg = _("unable to change back to working directory $ui_dir\n");
-      return $errmsg;
+      return _("unable to change back to working directory $ui_dir\n");
     }
     /* Clean up */
     return ($V);

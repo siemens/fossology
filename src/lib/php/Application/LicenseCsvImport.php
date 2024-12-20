@@ -8,9 +8,9 @@
 namespace Fossology\Lib\Application;
 
 use Fossology\Lib\BusinessRules\LicenseMap;
+use Fossology\Lib\Dao\UserDao;
 use Fossology\Lib\Db\DbManager;
 use Fossology\Lib\Util\ArrayOperation;
-use Fossology\Lib\Dao\UserDao;
 
 /**
  * @file
@@ -48,7 +48,9 @@ class LicenseCsvImport
    * Alias for headers */
   protected $alias = array(
       'shortname'=>array('shortname','Short Name'),
+      'licensetype'=>array('licensetype','License Type'),
       'fullname'=>array('fullname','Long Name'),
+      'spdx_id'=>array('spdx_id', 'SPDX ID'),
       'text'=>array('text','Full Text'),
       'parent_shortname'=>array('parent_shortname','Decider Short Name'),
       'report_shortname'=>array('report_shortname','Regular License Text Short Name'),
@@ -95,7 +97,7 @@ class LicenseCsvImport
    * @return string message Error message, if any. Otherwise
    *         `Read csv: <count> licenses` on success.
    */
-  public function handleFile($filename)
+  public function handleFile($filename, $fileExtension)
   {
     if (!is_file($filename) || ($handle = fopen($filename, 'r')) === false) {
       return _('Internal error');
@@ -103,20 +105,72 @@ class LicenseCsvImport
     $cnt = -1;
     $msg = '';
     try {
-      while (($row = fgetcsv($handle,0,$this->delimiter,$this->enclosure)) !== false) {
-        $log = $this->handleCsv($row);
-        if (!empty($log)) {
-          $msg .= "$log\n";
+      if ($fileExtension == 'csv') {
+        while (($row = fgetcsv($handle,0,$this->delimiter,$this->enclosure)) !== false) {
+          $log = $this->handleCsv($row);
+          if (!empty($log)) {
+            $msg .= "$log\n";
+          }
+          $cnt++;
         }
-        $cnt++;
+        $msg .= _('Read csv').(": $cnt ")._('licenses');
+      } else {
+        $jsonContent = fread($handle, filesize($filename));
+        $data = json_decode($jsonContent, true);
+        if ($data === null && json_last_error() !== JSON_ERROR_NONE) {
+          $msg .= "Error decoding JSON: " . json_last_error_msg()."\n";
+        }
+        foreach ($data as $row) {
+          $log = $this->handleCsvLicense($this->handleRowJson($row));
+          if (!empty($log)) {
+            $msg .= "$log\n";
+          }
+        }
+        $msg .= _('Read json').(":". count($data) ." ")._('licenses');
       }
-      $msg .= _('Read csv').(": $cnt ")._('licenses');
     } catch(\Exception $e) {
       fclose($handle);
       return $msg .= _('Error while parsing file').': '.$e->getMessage();
     }
     fclose($handle);
     return $msg;
+  }
+
+  /**
+   * Handle a single row read from the JSON.
+   * If the key matches values from alias array then replace it with key
+   * @param array $row
+   * @return array $newArray
+   */
+  function handleRowJson($row)
+  {
+    $defaultValues = array(
+      'parent_shortname' => null,
+      'report_shortname' => null,
+      'url' => '',
+      'notes' => '',
+      'source' => '',
+      'risk' => 0,
+      'group' => null,
+      'spdx_id' => null
+     );
+    $newArray = array();
+    foreach ($row as $key => $value) {
+      $newKey = $key;
+      foreach ($this->alias as $aliasKey => $aliasValues) {
+        if (in_array($key, $aliasValues)) {
+          $newKey = $aliasKey;
+          break;
+        }
+      }
+      $newArray[$newKey] = $value;
+    }
+    foreach ($defaultValues as $key => $defaultValue) {
+      if (!array_key_exists($key, $newArray)) {
+        $newArray[$key] = $defaultValue;
+      }
+    }
+    return $newArray;
   }
 
   /**
@@ -138,7 +192,8 @@ class LicenseCsvImport
     }
     foreach (array('parent_shortname' => null, 'report_shortname' => null,
       'url' => '', 'notes' => '', 'source' => '', 'risk' => 0,
-      'group' => null) as $optNeedle=>$defaultValue) {
+      'group' => null, 'spdx_id' => null, 'licensetype' => "Permisssive"
+      ) as $optNeedle=>$defaultValue) {
       $mRow[$optNeedle] = $defaultValue;
       if ($this->headrow[$optNeedle]!==false && array_key_exists($this->headrow[$optNeedle], $row)) {
         $mRow[$optNeedle] = $row[$this->headrow[$optNeedle]];
@@ -157,6 +212,7 @@ class LicenseCsvImport
   private function handleHeadCsv($row)
   {
     $headrow = array();
+    $row[0] = trim($row[0], "\xEF\xBB\xBF");  // Remove BOM
     foreach (array('shortname','fullname','text') as $needle) {
       $col = ArrayOperation::multiSearch($this->alias[$needle], $row);
       if (false === $col) {
@@ -165,7 +221,7 @@ class LicenseCsvImport
       $headrow[$needle] = $col;
     }
     foreach (array('parent_shortname', 'report_shortname', 'url', 'notes',
-      'source', 'risk', 'group') as $optNeedle) {
+      'source', 'risk', 'group', 'spdx_id', 'licensetype') as $optNeedle) {
       $headrow[$optNeedle] = ArrayOperation::multiSearch($this->alias[$optNeedle], $row);
     }
     return $headrow;
@@ -181,7 +237,7 @@ class LicenseCsvImport
   {
     $stmt = __METHOD__ . '.getOldLicense';
     $oldLicense = $this->dbManager->getSingleRow('SELECT ' .
-      'rf_shortname, rf_fullname, rf_text, rf_url, rf_notes, rf_source, rf_risk ' .
+      'rf_shortname, rf_fullname, rf_spdx_id, rf_text, rf_url, rf_notes, rf_source, rf_risk, rf_licensetype ' .
       'FROM license_ref WHERE rf_pk = $1', array($rfPk), $stmt);
 
     $stmt = __METHOD__ . '.getOldMapping';
@@ -221,7 +277,13 @@ class LicenseCsvImport
       $extraParams[] = "rf_fullname=$" . count($param);
       $log .= ", updated fullname";
     }
-    if (!empty($row['text']) && $row['text'] != $oldLicense['rf_text']) {
+    if (!empty($row['spdx_id']) && $row['spdx_id'] != $oldLicense['rf_spdx_id']) {
+      $param[] = $row['spdx_id'];
+      $stmt .= '.spId';
+      $extraParams[] = "rf_spdx_id=$" . count($param);
+      $log .= ", updated SPDX ID";
+    }
+    if (!empty($row['text']) && $row['text'] != $oldLicense['rf_text'] && $row['text'] != LicenseMap::TEXT_MAX_CHAR_LIMIT) {
       $param[] = $row['text'];
       $stmt .= '.text';
       $extraParams[] = "rf_text=$" . count($param) . ",rf_md5=md5($" .
@@ -251,6 +313,12 @@ class LicenseCsvImport
       $stmt .= '.updRisk';
       $extraParams[] = "rf_risk=$".count($param);
       $log .= ', updated the risk level';
+    }
+    if (!empty($row['licensetype']) && $row['licensetype'] != $oldLicense['rf_licensetype']) {
+      $param[] = $row['licensetype'];
+      $stmt .= '.types';
+      $extraParams[] = "rf_licensetype=$".count($param);
+      $log .= ', updated the licensetype';
     }
     if (count($param) > 1) {
       $sql .= join(",", $extraParams);
@@ -428,7 +496,9 @@ class LicenseCsvImport
     $stmtInsert = __METHOD__ . '.insert.' . $tableName;
     $columns = array(
       "rf_shortname" => $row['shortname'],
+      "rf_licensetype" => $row['licensetype'],
       "rf_fullname"  => $row['fullname'],
+      "rf_spdx_id"   => $row['spdx_id'],
       "rf_text"      => $row['text'],
       "rf_md5"       => md5($row['text']),
       "rf_detector_type" => 1,

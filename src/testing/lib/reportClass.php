@@ -294,7 +294,7 @@ class TestReport {
 	* Parse the data and then put all the data into one big array and then let
 	* smarty display it
 	*
-	* @param array $data the data array to add to
+	* @param array $results the data array to add to
 	* @param array $moData the data array to glob onto the other array
 	*
 	* @return array the first parameter globed together with the second.
@@ -311,18 +311,18 @@ class TestReport {
 			}
 
 			$suiteName = $this->parseSuiteName($moData[$suite]);
-			array_push($results, $suiteName);
+			$results[] = $suiteName;
 			//print "parsed suite name:$suiteName\n";
 
 			$pfe_results = $this->parseResults($moData[$suite +1]);
-			$pfe = split(':', $pfe_results);
-			array_push($results, $pfe[0]);
-			array_push($results, $pfe[1]);
-			array_push($results, $pfe[2]);
+			$pfe = explode(':', $pfe_results);
+			$results[] = $pfe[0];
+			$results[] = $pfe[1];
+			$results[] = $pfe[2];
 			//print "<pre>BD-GD: resutlts are:</pre>\n"; print "<pre>"; print_r($results) . "</pre>\n";
 
 			$etime = $this->parseElapseTime($moData[$suite +2]);
-			array_push($results, $etime);
+			$results[] = $etime;
 			//print "The elapse time was:$etime\n\n";
 		}
 		return ($results);
@@ -359,7 +359,7 @@ class TestReport {
 	 * read the results file and parse it.
 	 *
 	 * @param resource $FD opened file resource.
-	 * @return $array array of all of the results
+	 * @return array array of all of the results
 	 *
 	 * @todo rename this to parsePassFailResults
 	 *
@@ -378,17 +378,17 @@ class TestReport {
 
 		while($line = $this->getResult($FD)){
 			//$line = getResult($FD);
-			$resultParts = split(';',$line);
-			list($lKey,$licenseType) = split('=',$resultParts[0]);
-			list($fnKey,$fileName)   = split('=',$resultParts[1]);
+			$resultParts = explode(';',$line);
+			list($lKey,$licenseType) = explode('=',$resultParts[0]);
+			list($fnKey,$fileName)   = explode('=',$resultParts[1]);
 			$FileName[] = rtrim($fileName,'.txt');
 			$LicenseType[$licenseType] = $FileName;
-			//print "PLR: before = split results is:{$resultParts[1]}\n<br>";
-			list($fnKey,$std) = split('=',$resultParts[1]);
+			//print "PLR: before = explode results is:{$resultParts[1]}\n<br>";
+			list($fnKey,$std) = explode('=',$resultParts[1]);
 			$VettedName[]     = str_replace(',',",<br>",$std);
-			list($pKey,$pass) = split('=',$resultParts[2]);
+			list($pKey,$pass) = explode('=',$resultParts[2]);
 			$results[]        = str_replace(',',",<br>",$pass);
-			list($fKey,$fail) = split('=',$resultParts[3]);
+			list($fKey,$fail) = explode('=',$resultParts[3]);
 			$results[]        = str_replace(',',",<br>",$fail);
 		}
 		$All[] = $LicenseType;
@@ -497,8 +497,8 @@ class TestReport {
 		$pat = '.+took\s(.*?)\sto\srun$';
 		$matches = preg_match("/$pat/", $string, $matched);
 		//print "the array looks like:\n"; print_r($matched) . "\n";
-		$parts = split(' ', $matched[1]);
-		//print "split array looks like:\n"; print_r($parts) . "\n";
+		$parts = explode(' ', $matched[1]);
+		//print "explode array looks like:\n"; print_r($parts) . "\n";
 		//$time = 'infinity';
 		$sizep = count($parts);
 		$etime = NULL;
@@ -534,4 +534,3 @@ class TestReport {
 		return(array($suiteName,$results));
 	}
 }
-?>

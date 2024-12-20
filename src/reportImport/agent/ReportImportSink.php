@@ -1,6 +1,6 @@
 <?php
 /*
- SPDX-FileCopyrightText: © 2015-2017 Siemens AG
+ SPDX-FileCopyrightText: © 2015-2017,2024 Siemens AG
 
  SPDX-License-Identifier: GPL-2.0-only
 */
@@ -8,10 +8,8 @@ namespace Fossology\ReportImport;
 
 use Fossology\Lib\Dao\ClearingDao;
 use Fossology\Lib\Dao\CopyrightDao;
-use Fossology\Lib\Data\License;
-use Fossology\Lib\Dao\UserDao;
 use Fossology\Lib\Dao\LicenseDao;
-use Fossology\ReportImport\ReportImportHelper;
+use Fossology\Lib\Dao\UserDao;
 use Fossology\Lib\Data\Clearing\ClearingEventTypes;
 use Fossology\Lib\Data\DecisionScopes;
 use Fossology\Lib\Data\DecisionTypes;
@@ -53,6 +51,7 @@ class ReportImportSink
    * @param $userDao
    * @param $licenseDao
    * @param $clearingDao
+   * @param $copyrightDao
    * @param $dbManager
    * @param $groupId
    * @param $userId
@@ -138,6 +137,10 @@ class ReportImportSink
     $licenseShortName = $dataItem->getLicenseId();
     if ($this->configuration->shouldMatchLicenseNameWithSPDX()) {
       $license = $this->licenseDao->getLicenseBySpdxId($licenseShortName, $groupId);
+      if ($license === null) {
+        echo "WARNING: Could not find license with spdx id '$licenseShortName' ... trying ShortName\n";
+        $license = $this->licenseDao->getLicenseByShortName($licenseShortName, $groupId);
+      }
     } else {
       $license = $this->licenseDao->getLicenseByShortName($licenseShortName, $groupId);
     }

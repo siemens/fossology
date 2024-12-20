@@ -12,15 +12,12 @@
 
 namespace Fossology\UI\Api\Controllers;
 
-use Fossology\UI\Api\Helper\ResponseHelper;
-use Psr\Http\Message\ServerRequestInterface;
-use Fossology\UI\Api\Models\Info;
-use Fossology\UI\Api\Models\InfoType;
-use Fossology\UI\Api\Models\SearchResult;
 use Fossology\Lib\Dao\SearchHelperDao;
-use Fossology\Lib\Db\DbManager;
-
-require_once dirname(dirname(__DIR__)) . "/search-helper.php";
+use Fossology\UI\Api\Exceptions\HttpBadRequestException;
+use Fossology\UI\Api\Helper\ResponseHelper;
+use Fossology\UI\Api\Models\SearchResult;
+use Fossology\UI\Api\Models\ApiVersion;
+use Psr\Http\Message\ServerRequestInterface;
 
 /**
  * @class SearchController
@@ -28,7 +25,7 @@ require_once dirname(dirname(__DIR__)) . "/search-helper.php";
  */
 class SearchController extends RestController
 {
-  /** @var SearchHelperDao */
+  /** @var SearchHelperDao $searchHelperDao */
   private $searchHelperDao;
 
   /**
@@ -38,21 +35,37 @@ class SearchController extends RestController
    * @param ResponseHelper $response
    * @param array $args
    * @return ResponseHelper
+   * @throws HttpBadRequestException
    */
   public function performSearch($request, $response, $args)
   {
     $this->searchHelperDao = $this->container->get('dao.searchhelperdao');
+    $apiVersion = ApiVersion::getVersion($request);
 
-    $searchType = $request->getHeaderLine("searchType");
-    $filename = $request->getHeaderLine("filename");
-    $tag = $request->getHeaderLine("tag");
-    $filesizeMin = $request->getHeaderLine("filesizemin");
-    $filesizeMax = $request->getHeaderLine("filesizemax");
-    $license = $request->getHeaderLine("license");
-    $copyright = $request->getHeaderLine("copyright");
-    $uploadId = $request->getHeaderLine("uploadId");
-    $page = $request->getHeaderLine("page");
-    $limit = $request->getHeaderLine("limit");
+    if ($apiVersion == ApiVersion::V2) {
+      $query = $request->getQueryParams();
+      $searchType = $query["searchType"] ?? "";
+      $filename = $query["filename"] ?? "";
+      $tag = $query["tag"] ?? "";
+      $filesizeMin = $query["filesizemin"] ?? "";
+      $filesizeMax = $query["filesizemax"] ?? "";
+      $license = $query["license"] ?? "";
+      $copyright = $query["copyright"] ?? "";
+      $uploadId = $query["uploadId"] ?? "";
+      $page = $query["page"] ?? "";
+      $limit = $query["limit"] ?? "";
+    } else {
+      $searchType = $request->getHeaderLine("searchType");
+      $filename = $request->getHeaderLine("filename");
+      $tag = $request->getHeaderLine("tag");
+      $filesizeMin = $request->getHeaderLine("filesizemin");
+      $filesizeMax = $request->getHeaderLine("filesizemax");
+      $license = $request->getHeaderLine("license");
+      $copyright = $request->getHeaderLine("copyright");
+      $uploadId = $request->getHeaderLine("uploadId");
+      $page = $request->getHeaderLine("page");
+      $limit = $request->getHeaderLine("limit");
+    }
 
     // set searchtype to search allfiles by default
     if (empty($searchType)) {
@@ -69,10 +82,8 @@ class SearchController extends RestController
      */
     if (empty($filename) && empty($tag) && empty($filesizeMin) &&
       empty($filesizeMax) && empty($license) && empty($copyright)) {
-      $returnVal = new Info(400,
-        "Bad Request. At least one parameter, containing a value is required",
-        InfoType::ERROR);
-      return $response->withJson($returnVal->getArray(), $returnVal->getCode());
+      throw new HttpBadRequestException(
+        "At least one parameter, containing a value is required");
     }
 
     /*
@@ -80,10 +91,8 @@ class SearchController extends RestController
      */
     if ((! empty($filesizeMin) && (! is_numeric($filesizeMin) || $filesizeMin < 0)) ||
       (! empty($filesizeMax) && (! is_numeric($filesizeMax) || $filesizeMax < 0))) {
-      $returnVal = new Info(400,
-        "Bad Request. filesizemin and filesizemax need to be positive integers!",
-        InfoType::ERROR);
-      return $response->withJson($returnVal->getArray(), $returnVal->getCode());
+      throw new HttpBadRequestException(
+        "filesizemin and filesizemax need to be positive integers!");
     }
 
     /*
@@ -91,10 +100,8 @@ class SearchController extends RestController
      */
     if ((! ($page==='') && (! is_numeric($page) || $page < 1)) ||
       (! ($limit==='') && (! is_numeric($limit) || $limit < 1))) {
-      $returnVal = new Info(400,
-        "Bad Request. page and limit need to be positive integers!",
-        InfoType::ERROR);
-      return $response->withJson($returnVal->getArray(), $returnVal->getCode());
+      throw new HttpBadRequestException(
+        "page and limit need to be positive integers!");
     }
 
     // set page to 1 by default
@@ -117,17 +124,17 @@ class SearchController extends RestController
     $totalPages = intval(ceil($count / $limit));
 
     $searchResults = [];
-    // rewrite it and add additional information about it's parent upload
-    for ($i = 0; $i < sizeof($results); $i ++) {
+    // rewrite it and add additional information about its parent upload
+    foreach ($results as $result) {
       $currentUpload = $this->dbHelper->getUploads(
         $this->restHelper->getUserId(), $this->restHelper->getGroupId(), 1, 1,
-        $results[$i]["upload_fk"], null, true)[1];
+        $result["upload_fk"], null, true)[1];
       if (! empty($currentUpload)) {
         $currentUpload = $currentUpload[0];
       } else {
         continue;
       }
-      $uploadTreePk = $results[$i]["uploadtree_pk"];
+      $uploadTreePk = $result["uploadtree_pk"];
       $filename = $this->dbHelper->getFilenameFromUploadTree($uploadTreePk);
       $currentResult = new SearchResult($currentUpload, $uploadTreePk, $filename);
       $searchResults[] = $currentResult->getArray();

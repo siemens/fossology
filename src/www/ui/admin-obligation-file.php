@@ -6,7 +6,6 @@
  SPDX-License-Identifier: GPL-2.0-only
 */
 
-use Fossology\Lib\BusinessRules\LicenseMap;
 use Fossology\Lib\BusinessRules\ObligationMap;
 use Fossology\Lib\Db\DbManager;
 use Fossology\Lib\Util\StringOperation;
@@ -490,13 +489,7 @@ class admin_obligation_file extends FO_Plugin
    */
   function Deldb()
   {
-    $stmt = __METHOD__.'.delob';
-    $sql = "DELETE FROM obligation_ref WHERE ob_pk=$1";
-    $this->dbManager->prepare($stmt,$sql);
-    $res = $this->dbManager->execute($stmt,array($_POST['ob_pk']));
-
-    $this->obligationMap->unassociateLicenseFromObligation($_POST['ob_pk']);
-    $this->obligationMap->unassociateLicenseFromObligation($_POST['ob_pk'], 0, true);
+    $this->obligationMap->deleteObligation($_POST['ob_pk']);
 
     return "<p>Obligation has been deleted.</p>";
   }

@@ -13,7 +13,6 @@ use Fossology\Lib\Data\Tree\ItemTreeBounds;
 use Fossology\Lib\Db\DbManager;
 use Fossology\Lib\Proxy\ScanJobProxy;
 use Fossology\Lib\Util\StringOperation;
-use Fossology\Lib\Data\AgentRef;
 use Monolog\Logger;
 
 class CopyrightDao
@@ -162,7 +161,8 @@ class CopyrightDao
 
   /**
    * @param $uploadFk
-   * @param $scope
+   * @param $agentId
+   * @param int $scope
    * @return array $rows
    */
   public function getAllEventEntriesForUpload($uploadFk, $agentId, $scope=1)
@@ -289,9 +289,10 @@ ORDER BY copyright_pk, UT.uploadtree_pk, content DESC";
    * @param $uploadId
    * @param $uploadTreeTableName
    * @param $type
-   * @param $onlyCleared
+   * @param bool $onlyCleared
    * @param $decisionType
    * @param $extrawhere
+   * @param $groupId
    * @return array
    */
   public function getAllEntriesReport($tableName, $uploadId, $uploadTreeTableName, $type=null, $onlyCleared=false, $decisionType=null, $extrawhere=null, $groupId=null)
@@ -347,7 +348,7 @@ ORDER BY copyright_pk, UT.uploadtree_pk, content DESC";
     $statementName .= ".".$joinType."Join";
 
     if ($extrawhere !== null) {
-      $whereClause .= "AND ". $extrawhere;
+      $whereClause .= " AND ". $extrawhere;
       $statementName .= "._".$extrawhere."_";
     }
     $decisionTableKey = $tableNameDecision . "_pk";
@@ -394,7 +395,7 @@ ORDER BY copyright_pk, UT.uploadtree_pk, content DESC";
   {
     $statementName = __METHOD__.$tableName;
     $orderTablePk = $tableName.'_pk';
-    $sql = "SELECT * FROM $tableName where pfile_fk = $1 and is_enabled order by $orderTablePk desc";
+    $sql = "SELECT * FROM $tableName where pfile_fk = $1 order by $orderTablePk desc";
     $params = array($pfileId);
 
     return $this->dbManager->getRows($sql, $params, $statementName);
@@ -478,8 +479,8 @@ ORDER BY copyright_pk, UT.uploadtree_pk, content DESC";
       $latestXpAgentId[] = $selectedScanners['reso'];
     }
     $agentFilter = '';
-    if (!empty($latestAgentId)) {
-      $latestAgentIds = implode(",", $latestAgentId);
+    if (!empty($latestXpAgentId)) {
+      $latestAgentIds = implode(",", $latestXpAgentId);
       $agentFilter = ' AND cp.agent_fk IN ('. $latestAgentIds .')';
     }
 
@@ -538,6 +539,7 @@ WHERE $withHash ( ut.lft BETWEEN $1 AND $2 ) $agentFilter AND ut.upload_fk = $3"
    * - copyright => copyright
    * - ecc       => ecc
    * - keyword   => keyword
+   * - ipra      => ipra
    * - scancode_copyright, scancode_author => scancode
    * - others    => copyright
    * @param string $table Table name
@@ -545,11 +547,157 @@ WHERE $withHash ( ut.lft BETWEEN $1 AND $2 ) $agentFilter AND ut.upload_fk = $3"
    */
   private function getAgentName($table)
   {
-    if (array_search($table, ["ecc", "keyword", "copyright"]) !== false) {
+    if (array_search($table, ["ecc", "keyword", "copyright", "ipra"]) !== false) {
       return $table;
     } else if (array_search($table, ["scancode_copyright", "scancode_author"]) !== false) {
       return "scancode";
     }
     return "copyright";
+  }
+
+  /**
+   * @brief Get table name based on statement type
+   *
+   * - statement => copyright
+   * - ecc       => ecc
+   * - others    => author
+   * - scancode_statement => scancode copyright
+   * - scancode_email => scancode email
+   * - scancode_author => scancode author
+   * - scancode_url => scancode url
+   * @param string $type Result type
+   * @return string Table name
+   */
+  public function getTableName($type)
+  {
+    switch ($type) {
+      case "ipra":
+        $tableName = "ipra";
+        break;
+      case "ecc":
+        $tableName = "ecc";
+        break;
+      case "keyword":
+        $tableName = "keyword";
+        $filter = "none";
+        break;
+      case "statement":
+        $tableName = "copyright";
+        break;
+      case "userfindingcopyright":
+        $tableName = "copyright_decision";
+        break;
+      case "scancode_statement":
+        $tableName = "scancode_copyright";
+        break;
+      case "scancode_email":
+      case "scancode_author":
+      case "scancode_url":
+        $tableName = "scancode_author";
+        break;
+      default:
+        $tableName = "author";
+    }
+    return $tableName;
+  }
+
+  /**
+   * @brief Get total number of copyrights for a uploadtree
+   * @param int     $upload_pk           Upload id to get results from
+   * @param int     $item                Upload tree id of the item
+   * @param string  $uploadTreeTableName Upload tree table to use
+   * @param string  $agentId             Id of the agent who loaded the results
+   * @param string  $type                Type of the statement (statement, url, email, author or ecc)
+   * @param boolean $activated           True to get activated copyrights, else false
+   * @return integer Number of total Records
+   */
+  public function getTotalCopyrights($upload_pk, $item, $uploadTreeTableName, $agentId, $type, $activated = true)
+  {
+    $tableName = $this->getTableName($type);
+    $tableNameEvent = $tableName . '_event';
+    list($left, $right) = $this->uploadDao->getLeftAndRight($item, $uploadTreeTableName);
+    $sql_upload = "";
+    if ('uploadtree_a' == $uploadTreeTableName) {
+      $sql_upload = " AND UT.upload_fk=$5 ";
+    }
+    $activatedClause = "ce.is_enabled = 'false'";
+    if ($activated) {
+      $activatedClause = "ce.is_enabled IS NULL OR ce.is_enabled = 'true'";
+    }
+    $params = array($left, $right, $type, "{" . $agentId . "}", $upload_pk);
+    $join = " INNER JOIN license_file AS LF on cp.pfile_fk=LF.pfile_fk ";
+    $unorderedQuery = "FROM $tableName AS cp " .
+    "INNER JOIN $uploadTreeTableName AS UT ON cp.pfile_fk = UT.pfile_fk " .
+    "LEFT JOIN $tableNameEvent AS ce ON ce." . $tableName . "_fk = cp." . $tableName . "_pk " .
+    "AND ce.upload_fk = $5 AND ce.uploadtree_fk = UT.uploadtree_pk " .
+    $join .
+      "WHERE cp.content!='' " .
+      "AND ( UT.lft  BETWEEN  $1 AND  $2 ) " .
+      "AND cp.type = $3 " .
+      "AND cp.agent_fk = ANY($4::int[]) " .
+      "AND ($activatedClause)" .
+      $sql_upload;
+    $grouping = " GROUP BY mcontent ";
+    $countAllQuery = "SELECT count(*) FROM (SELECT
+    (CASE WHEN (ce.content IS NULL OR ce.content = '') THEN cp.content ELSE ce.content END) AS mcontent
+    $unorderedQuery$grouping) as K";
+    $iTotalRecordsRow = $this->dbManager->getSingleRow($countAllQuery, $params, __METHOD__, $tableName . "count.all" . ($activated ? '' : '_deactivated'));
+    return $iTotalRecordsRow['count'];
+  }
+
+  /**
+   * @brief get user copyright findings for a uploadtree
+   * @param int     $upload_pk           Upload id to get results from
+   * @param int     $item                Upload tree id of the item
+   * @param string  $uploadTreeTableName Upload tree table to use
+   * @param string  $type                Type of the statement (statement, url, email, author or ecc)
+   * @param boolean $activated           True to get activated copyrights, else false
+   * @return array[][] Array of table records, total records
+   */
+  public function getUserCopyrights($upload_pk, $item, $uploadTreeTableName, $type, $activated = true, $offset = null , $limit = null)
+  {
+    $tableName = $this->getTableName($type);
+    list($left, $right) = $this->uploadDao->getLeftAndRight($item, $uploadTreeTableName);
+
+    $sql_upload = "";
+    if ('uploadtree_a' == $uploadTreeTableName) {
+      $sql_upload = " AND UT.upload_fk=$3 ";
+    }
+
+    $params = array($left, $right, $upload_pk);
+    $orderString = 'ORDER BY copyright_count desc, textfinding desc';
+
+    $activatedClause = "cd.is_enabled = 'false'";
+    if ($activated) {
+      $activatedClause = "cd.is_enabled IS NULL OR cd.is_enabled = 'true'";
+    }
+
+    $unorderedQuery = "FROM $tableName AS cd " .
+        "INNER JOIN $uploadTreeTableName AS UT ON cd.pfile_fk = UT.pfile_fk " .
+        "WHERE cd.textfinding!='' " .
+        "AND ( UT.lft  BETWEEN  $1 AND  $2 ) " .
+        "AND cd.user_fk IS NOT NULL " .
+        "AND ($activatedClause)" .
+        $sql_upload;
+    $grouping = " GROUP BY cd.textfinding, cd.hash ";
+
+    $countAllQuery = "SELECT count(*) FROM (SELECT
+    (CASE WHEN (cd.textfinding IS NULL OR cd.textfinding = '') THEN '' ELSE cd.textfinding END) AS mcontent
+    $unorderedQuery GROUP BY cd.textfinding) as K;";
+    $iTotalRecordsRow = $this->dbManager->getSingleRow($countAllQuery, $params, __METHOD__ . $tableName . "count.all" . ($activated ? '' : '_deactivated'));
+    $iTotalRecords = $iTotalRecordsRow['count'];
+
+    $range = "";
+    $params[] = $offset;
+    $range .= ' OFFSET $' . count($params);
+    $params[] = $limit;
+    $range .= ' LIMIT $' . count($params);
+
+    $sql = "SELECT cd.textfinding AS content, cd.hash AS hash, COUNT(*) AS copyright_count " .
+    "$unorderedQuery $grouping $orderString $range";
+    $statement = __METHOD__ . $tableName . $uploadTreeTableName . ($activated ? '' : '_deactivated');
+    $rows = $this->dbManager->getRows($sql, $params, $statement);
+
+    return array($rows, $iTotalRecords);
   }
 }

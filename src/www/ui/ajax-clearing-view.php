@@ -155,10 +155,10 @@ class AjaxClearingView extends FO_Plugin
    * @param $groupId
    * @param $uploadId
    * @param $uploadTreeId
-   * @internal param $itemTreeBounds
    * @return string
+   *@internal param $itemTreeBounds
    */
-  protected function doClearings($orderAscending, $groupId, $uploadId, $uploadTreeId)
+  public function doClearings($orderAscending, $groupId, $uploadId, $uploadTreeId)
   {
     $itemTreeBounds = $this->uploadDao->getItemTreeBoundsFromUploadId($uploadTreeId, $uploadId);
     $aaData = $this->getCurrentSelectedLicensesTableData($itemTreeBounds,
@@ -277,7 +277,7 @@ class AjaxClearingView extends FO_Plugin
    * @param boolean $orderAscending
    * @return array
    */
-  protected function getCurrentSelectedLicensesTableData(ItemTreeBounds $itemTreeBounds, $groupId, $orderAscending)
+  public function getCurrentSelectedLicensesTableData(ItemTreeBounds $itemTreeBounds, $groupId, $orderAscending)
   {
     $uploadTreeId = $itemTreeBounds->getItemId();
     $uploadId = $itemTreeBounds->getUploadId();
@@ -358,8 +358,7 @@ class AjaxClearingView extends FO_Plugin
       }
     }
 
-    $valueTable = array_values($this->sortByKeys($table, $orderAscending));
-    return $valueTable;
+    return array_values($this->sortByKeys($table, $orderAscending));
   }
 
   /**
@@ -416,8 +415,7 @@ class AjaxClearingView extends FO_Plugin
     ksort($arrayToBeSortedByKeys, SORT_STRING);
 
     if ($orderAscending) {
-      $arrayToBeSortedByKeys = array_reverse($arrayToBeSortedByKeys);
-      return $arrayToBeSortedByKeys;
+      return array_reverse($arrayToBeSortedByKeys);
     }
     return $arrayToBeSortedByKeys;
   }

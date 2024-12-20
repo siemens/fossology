@@ -14,14 +14,14 @@
 
 namespace Fossology\UI\Api\Middlewares;
 
-use Fossology\UI\Api\Models\Info;
-use Fossology\UI\Api\Models\InfoType;
+use Fossology\UI\Api\Exceptions\HttpBadRequestException;
+use Fossology\UI\Api\Exceptions\HttpForbiddenException;
 use Fossology\UI\Api\Helper\AuthHelper;
-use Fossology\UI\Api\Helper\ResponseHelper;
+use Fossology\UI\Api\Helper\CorsHelper;
+use Fossology\UI\Api\Models\ApiVersion;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Server\RequestHandlerInterface as RequestHandler;
-
 
 /**
  * @class RestAuthMiddleware
@@ -32,25 +32,37 @@ class RestAuthMiddleware
   /**
    * Check authentication for all calls, except for /auth, /tokens
    *
-   * @param  Request        $request  PSR7 request
-   * @param  RequestHandler $response PSR-15 request handler
+   * @param Request $request PSR7 request
+   * @param RequestHandler $handler PSR-15 request handler
    *
    * @return ResponseInterface
+   * @throws HttpForbiddenException If the token does not have required scope
+   * @throws HttpBadRequestException If the token is not valid
    */
   public function __invoke(Request $request, RequestHandler $handler) : ResponseInterface
   {
-    global $SysConf;
     $requestUri = $request->getUri();
+    $requestPath = strtolower($requestUri->getPath());
+    $authFreePaths = ["/info", "/openapi", "/health"];
+
+    $isPassThroughPath = false;
+    // path is /repo/api/v2/<endpoint>, we need to get only the endpoint part
+    $parts = explode("/", $requestPath, 5);
+    $endpoint = "/".end($parts);
+    foreach ($authFreePaths as $authFreePath) {
+      if ( $endpoint === $authFreePath ) {
+        $isPassThroughPath = true;
+        break;
+      }
+    }
+
     if (stristr($request->getMethod(), "options") !== false) {
       $response = $handler->handle($request);
-    } elseif (stristr($requestUri->getPath(), "/version") !== false) {
-      $response = $handler->handle($request);
-    } elseif (stristr($requestUri->getPath(), "/info") !== false) {
-      $response = $handler->handle($request);
-    } elseif (stristr($requestUri->getPath(), "/health") !== false) {
+    } elseif ($isPassThroughPath) {
       $response = $handler->handle($request);
     } elseif (stristr($requestUri->getPath(), "/tokens") !== false &&
-      stristr($request->getMethod(), "post") !== false) {
+        stristr($requestUri->getPath(), "/users/tokens") === false &&
+        stristr($request->getMethod(), "post") !== false) {
       $response = $handler->handle($request);
     } else {
       /** @var AuthHelper $authHelper */
@@ -63,43 +75,29 @@ class RestAuthMiddleware
       }
       $userId = -1;
       $tokenScope = false;
-      $tokenValid = $authHelper->verifyAuthToken($jwtToken, $userId,
-        $tokenScope);
-      if ($tokenValid === true && (stristr($request->getMethod(), "get") === false &&
-          stristr($tokenScope, "write") === false)) {
+      $authHelper->verifyAuthToken($jwtToken, $userId, $tokenScope);
+      if (stristr($request->getMethod(), "get") === false &&
+          stristr($tokenScope, "write") === false) {
         /*
          * If the request method is not GET and token scope is not write,
          * do not allow the request to pass through.
          */
-        $tokenValid = new Info(403, "Do not have required scope.", InfoType::ERROR);
+        throw new HttpForbiddenException("Do not have required scope.");
       }
-      if ($tokenValid === true) {
-        $groupName = "";
-        $groupName = strval($request->getHeaderLine('groupName'));
-        if (!empty($groupName)) { // if request contains groupName
-          $userHasGroupAccess = $authHelper->userHasGroupAccess($userId, $groupName);
-          if ($userHasGroupAccess === true) {
-            $authHelper->updateUserSession($userId, $tokenScope, $groupName);
-            $response = $handler->handle($request);
-          } else { // no group access or group does not exist
-            $response = new ResponseHelper();
-            $response = $response->withJson($userHasGroupAccess->getArray(),
-              $userHasGroupAccess->getCode());
-          }
-        } else { // no groupName passed, use defult groupId saved in DB
-          $authHelper->updateUserSession($userId, $tokenScope);
-          $response = $handler->handle($request);
-        }
+      if (ApiVersion::getVersion($request) == ApiVersion::V2) {
+        $queryParameters = $request->getQueryParams();
+        $groupName = $queryParameters['groupName'] ?? "";
       } else {
-        $response = new ResponseHelper();
-        $response = $response->withJson($tokenValid->getArray(),
-          $tokenValid->getCode());
+        $groupName = $request->getHeaderLine('groupName');
       }
+      if (!empty($groupName)) { // if request contains groupName
+        $authHelper->userHasGroupAccess($userId, $groupName);
+        $authHelper->updateUserSession($userId, $tokenScope, $groupName);
+      } else { // no groupName passed, use default groupId saved in DB
+        $authHelper->updateUserSession($userId, $tokenScope);
+      }
+      $response = $handler->handle($request);
     }
-    return $response
-      ->withHeader('Access-Control-Allow-Origin', $SysConf['SYSCONFIG']['CorsOrigins'])
-      ->withHeader('Access-Control-Expose-Headers', 'Look-at, X-Total-Pages, Retry-After')
-      ->withHeader('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, Accept, Origin, Authorization, action, active, copyright, Content-Type, description, filename, filesizemax, filesizemin, folderDescription, folderId, folderName, groupName, ignoreScm, applyGlobal, license, limit, name, page, parent, parentFolder, public, reportFormat, searchType, tag, upload, uploadDescription, uploadId, uploadType')
-      ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+    return CorsHelper::addCorsHeaders($response);
   }
 }

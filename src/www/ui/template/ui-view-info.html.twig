@@ -116,10 +116,44 @@
         <td>{{ "Added by"|trans }}</td>
         <td>{{ fileUploadUser|e }}</td>
       </tr>
+        {% set count = count + 1 %}
+      <tr>
+        <td align="right">{{ count }}</td>
+        <td>{{ "Assigned to"|trans }}</td>
+        <td>{{ fileAssigneeUser|e }}</td>
+      </tr>
+        {% set count = count + 1 %}
+      <tr>
+        <td align="right">{{ count }}</td>
+        <td>{{ "Assigned on"|trans }}</td>
+        <td>{{ fileAssigneeUserOn|e }}</td>
+      </tr>
+        {% set count = count + 1 %}
+      <tr>
+        <td align="right">{{ count }}</td>
+        <td>{{ "Clearing Duration"|trans }}</td>
+        <td>{{ fileClearingDuration|e }}</td>
+      </tr>
     {% else %}
       <tr><td colspan="3">{{ "File does not exist in database"|trans }}</td></tr>
     {% endif %}
   </table><br />
+
+  {% if scanossInfo == 1 %}
+    <h2>{{ "SCANOSS Matching Info"|trans }}</h2>
+    <table class="table" border="1">
+      <tr>
+        <th width="5%">{{ "Item"|trans }}</th>
+        <th>{{ "Value"|trans }}</th>
+      </tr>
+      <tr><td>{{ "Match type"|trans }}</td> <td>{{ matchType|e }}</td></tr>
+      <tr><td>{{ "Line range"|trans }}</td> <td>{{ lineRange|e }}</td></tr>
+      <tr><td>{{ "URL"|trans }}</td> <td> <a href={{ url|e }}> {{ url|e }} </a> </td></tr>
+      <tr><td>{{ "PURL"|trans }}</td><td>{{ purl|e }}</td></tr>
+      <tr><td>{{ "Path"|trans }}</td><td>{{ path|e }}</td></tr>
+      </table> 
+  {% endif %}
+
 
   {% if reusedPackageList is not empty %}
     <h2>{{ "Reused component"|trans }}</h2>

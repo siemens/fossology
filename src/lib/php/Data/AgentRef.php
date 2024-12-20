@@ -21,9 +21,10 @@ class AgentRef
     'ninka' => 'Nk',
     'reportImport' => 'I',
     'ojo' => 'O',
-    'scancode' => 'S',
+    'scancode' => 'Sc',
     'spasht' => 'Sp',
-    'reso' => 'Rs'
+    'reso' => 'Rs',
+    'scanoss' => 'So'
   );
   /**
    * @var int

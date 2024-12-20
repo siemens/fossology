@@ -43,7 +43,9 @@ class LicenseMainGetter extends ClearedGetterCommon
         'licenseId' => $originLicenseId,
         'risk' => $allLicenseCols->getRisk(),
         'content' => $licenseMap->getProjectedSpdxId($originLicenseId),
-        'text' => $allLicenseCols->getText()
+        'text' => $allLicenseCols->getText(),
+        'name' => $licenseMap->getProjectedShortname($originLicenseId,
+            $allLicenseCols->getShortName())
       );
     }
     return $allStatements;
@@ -56,6 +58,7 @@ class LicenseMainGetter extends ClearedGetterCommon
     if (!$extended) {
       for ($i=0; $i<=count($statements); $i++) {
         unset($statements[$i]['risk']);
+        unset($statements[$i]['licenseId']);
       }
     }
     return array("statements" => array_values($statements));

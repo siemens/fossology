@@ -11,6 +11,7 @@ use Fossology\Lib\Db\DbManager;
 use Fossology\Lib\Dao\UserDao;
 use Fossology\Lib\Dao\ClearingDao;
 use Fossology\Lib\Dao\LicenseDao;
+use Fossology\Lib\Data\LicenseRef;
 use Fossology\Lib\Data\DecisionTypes;
 use Fossology\Lib\BusinessRules\LicenseMap;
 use Fossology\Lib\Data\Package\ComponentType;
@@ -214,11 +215,33 @@ class ui_report_conf extends FO_Plugin
         $tableRowsUnifiedReport .= '</tr>';
       }
     }
+
+    $tableRowsClixmlReport = "";
+    $clixmlColumns = array();
+    if (!empty($row['ri_clixmlcolumns'])) {
+      $clixmlColumns = (array) json_decode($row['ri_clixmlcolumns'], true);
+    } else {
+      $clixmlColumns = UploadDao::CLIXML_REPORT_HEADINGS;
+    }
+    foreach ($clixmlColumns as $name => $clixmlReportColumns) {
+      foreach ($clixmlReportColumns as $columnName => $isenabled) {
+        $tableRowsClixmlReport .= '<tr>';
+        $tableRowsClixmlReport .= '<td><input class="form-control" type="text" style="width:95%" name="'.$name.'[]" value="'.$columnName.'" readonly></td>';
+        $checked = '';
+        if ($isenabled) {
+          $checked = 'checked';
+        }
+        $tableRowsClixmlReport .= '<td style="vertical-align:middle"><input class="browse-upload-checkbox view-license-rc-size" type="checkbox" style="width:95%" name="'.$name.'[]" '.$checked.'></td>';
+        $tableRowsClixmlReport .= '</tr>';
+      }
+    }
+
     if (!empty($row['ri_globaldecision'])) {
       $vars['applyGlobal'] = "checked";
     }
     $vars['tableRows'] = $tableRows;
     $vars['tableRowsUnifiedReport'] = $tableRowsUnifiedReport;
+    $vars['tableRowsClixmlReport'] = $tableRowsClixmlReport;
     $vars['scriptBlock'] = $this->createScriptBlock();
 
     return $vars;
@@ -255,16 +278,18 @@ class ui_report_conf extends FO_Plugin
     $groupedObligations = array();
     foreach ($allObligations as $obligations) {
       $groupBy = $obligations['ob_topic'];
+      $licenseName = LicenseRef::convertToSpdxId($obligations['rf_shortname'],
+        $obligations['rf_spdx_id']);
       if (array_key_exists($groupBy, $groupedObligations)) {
         $currentLicenses = &$groupedObligations[$groupBy]['license'];
-        if (!in_array($obligations['rf_shortname'], $currentLicenses)) {
-          $currentLicenses[] = $obligations['rf_shortname'];
+        if (!in_array($licenseName, $currentLicenses)) {
+          $currentLicenses[] = $licenseName;
         }
       } else {
         $groupedObligations[$groupBy] = array(
          "topic" => $obligations['ob_topic'],
          "text" => $obligations['ob_text'],
-         "license" => array($obligations['rf_shortname'])
+         "license" => array($licenseName)
         );
       }
     }
@@ -273,7 +298,7 @@ class ui_report_conf extends FO_Plugin
 
   /**
    * @param array $listParams
-   * @return $cbSelectionList
+   * @return string
    */
   protected function getCheckBoxSelectionList($listParams)
   {
@@ -321,7 +346,7 @@ class ui_report_conf extends FO_Plugin
       $columns = "";
       foreach ($this->mapDBColumns as $key => $value) {
         $columns .= $value." = $".$i.", ";
-        $parms[] = pg_escape_string(GetParm($key, PARM_RAW));
+        $parms[] = GetParm($key, PARM_RAW);
         $i++;
       }
       $parms[] = $this->getCheckBoxSelectionList($this->radioListUR);
@@ -331,6 +356,11 @@ class ui_report_conf extends FO_Plugin
         $columnResult = @$_POST[$columnName];
         $unifiedReportColumnsForJson[$columnName] = array($columnResult[0] => isset($columnResult[1]) ? $columnResult[1] : null);
       }
+      $clixmlColumnsForJson = array();
+      foreach (UploadDao::CLIXML_REPORT_HEADINGS as $columnName => $columnValue) {
+        $columnResult = @$_POST[$columnName];
+        $clixmlColumnsForJson[$columnName] = array($columnResult[0] => isset($columnResult[1]) ? $columnResult[1] : null);
+      }
       $checkBoxUrPos = count($parms);
       $parms[] = $this->getCheckBoxSelectionList($this->checkBoxListSPDX);
       $checkBoxSpdxPos = count($parms);
@@ -338,6 +368,8 @@ class ui_report_conf extends FO_Plugin
       $excludeObligationPos = count($parms);
       $parms[] = json_encode($unifiedReportColumnsForJson);
       $unifiedColumnsPos = count($parms);
+      $parms[] = json_encode($clixmlColumnsForJson);
+      $clixmlColumnsPos = count($parms);
       $parms[] = $applyGlobal;
       $applyGlobalPos = count($parms);
       $parms[] = $uploadId;
@@ -348,6 +380,7 @@ class ui_report_conf extends FO_Plugin
                "ri_spdx_selection = $$checkBoxSpdxPos, " .
                "ri_excluded_obligations = $$excludeObligationPos, " .
                "ri_unifiedcolumns = $$unifiedColumnsPos, " .
+               "ri_clixmlcolumns = $$clixmlColumnsPos, " .
                "ri_globaldecision = $$applyGlobalPos " .
                "WHERE upload_fk = $$uploadIdPos;";
       $this->dbManager->getSingleRow($SQL, $parms,

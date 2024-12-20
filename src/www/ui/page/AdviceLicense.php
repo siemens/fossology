@@ -80,7 +80,7 @@ class AdviceLicense extends DefaultPlugin
 
   private function getArrayArrayData($groupId,$canEdit)
   {
-    $sql = "SELECT rf_pk,rf_spdx_id,rf_shortname,rf_fullname,rf_text,rf_url,rf_notes,marydone FROM license_candidate WHERE group_fk=$1";
+    $sql = "SELECT rf_pk,rf_spdx_id,rf_shortname,rf_fullname,rf_text,rf_url,rf_notes,marydone,user_name FROM license_candidate lc INNER JOIN users ON lc.rf_user_fk_created=users.user_pk WHERE lc.group_fk=$1";
     /** @var DbManager */
     $dbManager = $this->getObject('db.manager');
     $dbManager->prepare($stmt = __METHOD__, $sql);
@@ -91,6 +91,7 @@ class AdviceLicense extends DefaultPlugin
         htmlentities($row['rf_shortname']), htmlentities($row['rf_fullname']),
         '<div style="overflow-y:scroll;max-height:150px;margin:0;">' . nl2br(htmlentities($row['rf_text'])) . '</div>',
         htmlentities($row['rf_url']),
+        htmlentities($row['user_name']),
         $this->bool2checkbox($dbManager->booleanFromDb($row['marydone']))
       );
       if ($canEdit) {
@@ -140,8 +141,9 @@ class AdviceLicense extends DefaultPlugin
   /**
    * @param Request $request
    * @param array $oldRow
-   * @throws \Exception
+   * @param $userId
    * @return array $newRow
+   * @throws \Exception
    */
   private function saveInput(Request $request, $oldRow, $userId)
   {
@@ -183,6 +185,9 @@ class AdviceLicense extends DefaultPlugin
       }
     } elseif (empty($spdxId)) {
       $spdxId = null;
+    }
+    if (! empty($spdxId)) {
+      $spdxId = LicenseRef::replaceSpaces($spdxId);
     }
 
     $licenseDao->updateCandidate($oldRow['rf_pk'], $shortname, $fullname,

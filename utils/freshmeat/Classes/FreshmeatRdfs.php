@@ -107,7 +107,7 @@ class FreshmeatRdfs
   *
   * The input file is expected to be in the FreashMeat rdf format.
   *
-  * @param string $xml_file path to xml file in FM rdf format
+  * @param string $rdf_file path to xml file in FM rdf format
   *
   * @return array of projects (see internal notes)
   *
@@ -153,9 +153,7 @@ class FreshmeatRdfs
       );
       foreach ($project->latest_release as $verdata)
       {
-        array_push(& $this->project_info["$project->projectname_short"],
-        $verdata->latest_release_version
-                   );
+        $this->project_info["$project->projectname_short"][] = $verdata->latest_release_version;
       }
     }
     ksort($this->project_info);
@@ -172,4 +170,3 @@ class FreshmeatRdfs
     }
   }
 }
-?>

@@ -232,7 +232,8 @@ class LicenseDao
   /**
    * @param ItemTreeBounds $itemTreeBounds
    * @param int $selectedAgentId
-   * @param array $mask
+   * @param bool $includeSubfolders
+   * @param array $nameRange
    * @return array
    */
   public function getLicenseIdPerPfileForAgentId(ItemTreeBounds $itemTreeBounds, $selectedAgentId, $includeSubfolders=true, $nameRange=array())
@@ -287,10 +288,11 @@ class LicenseDao
 
   /**
    * @param ItemTreeBounds $itemTreeBounds
-   * @param array(int) $selectedAgentIds
-   * @param bool $includeSubFolders
+   * @param int[] $selectedAgentIds
+   * @param bool $includeSubfolders
    * @param String $excluding
    * @param bool $ignore ignore files without license
+   * @param bool $includeTreeId Include tree id in the response array?
    * @return array
    */
   public function getLicensesPerFileNameForAgentId(ItemTreeBounds $itemTreeBounds,
@@ -298,7 +300,8 @@ class LicenseDao
                                                    $includeSubfolders=true,
                                                    $excluding='',
                                                    $ignore=false,
-                                                   &$clearingDecisionsForLicList = array())
+                                                   &$clearingDecisionsForLicList = array(),
+                                                   $includeTreeId=false)
   {
     $uploadTreeTableName = $itemTreeBounds->getUploadTreeTableName();
     $statementName = __METHOD__ . '.' . $uploadTreeTableName;
@@ -355,7 +358,8 @@ ORDER BY lft asc
     $rgtStack = array($row['rgt']);
     $lastLft = $row['lft'];
     $path = implode('/', $pathStack);
-    $this->addToLicensesPerFileName($licensesPerFileName, $path, $row, $ignore, $clearingDecisionsForLicList);
+    $this->addToLicensesPerFileName($licensesPerFileName, $path, $row,
+      $ignore, $clearingDecisionsForLicList, $includeTreeId);
     while ($row = $this->dbManager->fetchArray($result)) {
       if (!empty($excluding) && false!==strpos("/$row[ufile_name]/", $excluding)) {
         $lastLft = $row['rgt'] + 1;
@@ -367,7 +371,8 @@ ORDER BY lft asc
 
       $this->updateStackState($pathStack, $rgtStack, $lastLft, $row);
       $path = implode('/', $pathStack);
-      $this->addToLicensesPerFileName($licensesPerFileName, $path, $row, $ignore, $clearingDecisionsForLicList);
+      $this->addToLicensesPerFileName($licensesPerFileName, $path, $row,
+        $ignore, $clearingDecisionsForLicList, $includeTreeId);
     }
     $this->dbManager->freeResult($result);
     return array_reverse($licensesPerFileName);
@@ -381,14 +386,17 @@ ORDER BY lft asc
         array_pop($rgtStack);
       }
       if ($row['lft'] > $lastLft) {
-        array_push($pathStack, $row['ufile_name']);
-        array_push($rgtStack, $row['rgt']);
+        $pathStack[] = $row['ufile_name'];
+        $rgtStack[] = $row['rgt'];
         $lastLft = $row['lft'];
       }
     }
   }
 
-  private function addToLicensesPerFileName(&$licensesPerFileName, $path, $row, $ignore, &$clearingDecisionsForLicList = array())
+  private function addToLicensesPerFileName(&$licensesPerFileName, $path, $row,
+                                            $ignore,
+                                            &$clearingDecisionsForLicList = array(),
+                                            $includeTreeId=false)
   {
     if (($row['ufile_mode'] & (1 << 29)) == 0) {
       if ($row['rf_shortname']) {
@@ -399,6 +407,9 @@ ORDER BY lft asc
       }
     } else if (!$ignore) {
       $licensesPerFileName[$path] = false;
+    }
+    if ($includeTreeId) {
+      $licensesPerFileName[$path]['uploadtree_pk'][] = $row['uploadtree_pk'];
     }
   }
 
@@ -498,25 +509,27 @@ ORDER BY lft asc
         $param, __METHOD__ . ".$condition.only");
     if (false === $row && isset($groupId)) {
       $userId = (isset($_SESSION) && array_key_exists('UserId', $_SESSION)) ? $_SESSION['UserId'] : 0;
+      $statementName = __METHOD__ . ".$condition";
       if (!empty($userId)) {
         $param[] = $userId;
         $extraCondition = "AND group_fk IN (SELECT group_fk FROM group_user_member WHERE user_fk=$".count($param).")";
+        $statementName .= ".userId";
       }
       if (is_int($groupId) && empty($userId)) {
         $param[] = $groupId;
         $extraCondition = "AND group_fk=$".count($param);
+        $statementName .= ".groupId";
       }
       $row = $this->dbManager->getSingleRow(
         "SELECT rf_pk, rf_shortname, rf_spdx_id, rf_fullname, rf_text, rf_url, rf_risk, rf_detector_type FROM license_candidate WHERE $condition $extraCondition",
-        $param, __METHOD__ . ".$condition.group");
+        $param, $statementName);
     }
     if (false === $row) {
       return null;
     }
-    $license = new License(intval($row['rf_pk']), $row['rf_shortname'],
+    return new License(intval($row['rf_pk']), $row['rf_shortname'],
       $row['rf_fullname'], $row['rf_risk'], $row['rf_text'], $row['rf_url'],
       $row['rf_detector_type'], $row['rf_spdx_id']);
-    return $license;
   }
 
   /**
@@ -556,11 +569,12 @@ ORDER BY lft asc
    * @param bool[] $licenseRemovals
    * @param string $refText
    * @param bool $ignoreIrrelevant Ignore irrelevant files while scanning
+   * @param bool $scanOnlyFindings scan the files with license findings only
    * @param string $delimiters Delimiters for bulk scan,
    *                           null or "DEFAULT" for default values
    * @return int lrp_pk on success or -1 on fail
    */
-  public function insertBulkLicense($userId, $groupId, $uploadTreeId, $licenseRemovals, $refText, $ignoreIrrelevant=true, $delimiters=null)
+  public function insertBulkLicense($userId, $groupId, $uploadTreeId, $licenseRemovals, $refText, $ignoreIrrelevant=true, $delimiters=null, $scanFindingsOnly=false)
   {
     if (strcasecmp($delimiters, "DEFAULT") === 0) {
       $delimiters = null;
@@ -568,12 +582,13 @@ ORDER BY lft asc
       $delimiters = StringOperation::replaceUnicodeControlChar($delimiters);
     }
     $licenseRefBulkIdResult = $this->dbManager->getSingleRow(
-        "INSERT INTO license_ref_bulk (user_fk, group_fk, uploadtree_fk, rf_text, ignore_irrelevant, bulk_delimiters)
-      VALUES ($1,$2,$3,$4,$5,$6) RETURNING lrb_pk",
+        "INSERT INTO license_ref_bulk (user_fk, group_fk, uploadtree_fk, rf_text, ignore_irrelevant, bulk_delimiters, scan_findings)
+      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING lrb_pk",
         array($userId, $groupId, $uploadTreeId,
           StringOperation::replaceUnicodeControlChar($refText),
           $this->dbManager->booleanToDb($ignoreIrrelevant),
-          $delimiters),
+          $delimiters,
+          $this->dbManager->booleanToDb($scanFindingsOnly)),
         __METHOD__ . '.getLrb'
     );
     if ($licenseRefBulkIdResult === false) {
@@ -730,5 +745,21 @@ ORDER BY lft asc
       $this->dbManager->freeResult($result);
       return $ObligationRef;
     }
+  }
+
+  /**
+   * Get type of license.
+   * @param int $licenseId License to get type for
+   * @return string|null License Type if found, null otherwise.
+   */
+  public function getLicenseType($licenseId)
+  {
+    $sql = "SELECT rf_licensetype FROM license_ref WHERE rf_pk = $1;";
+    $result = $this->dbManager->getSingleRow($sql, [$licenseId],
+      __METHOD__ . ".getLicenseType");
+    if (!empty($result)) {
+      return $result["rf_licensetype"];
+    }
+    return null;
   }
 }

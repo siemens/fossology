@@ -13,15 +13,14 @@
 namespace Fossology\UI\Api\Models;
 
 use Fossology\Lib\Auth\Auth;
-use Fossology\UI\Api\Models\Info;
-use Fossology\UI\Api\Models\InfoType;
+use Fossology\UI\Api\Exceptions\HttpForbiddenException;
+use Fossology\UI\Api\Exceptions\HttpNotFoundException;
 use Symfony\Component\HttpFoundation\Request;
-use Fossology\Lib\Dao\UserDao;
 
 if (!class_exists("AgentAdder", false)) {
-  require_once dirname(dirname(__DIR__)) . "/agent-add.php";
+  require_once dirname(__DIR__, 2) . "/agent-add.php";
 }
-require_once dirname(dirname(dirname(dirname(__DIR__)))) . "/lib/php/common-folders.php";
+require_once dirname(__DIR__, 4) . "/lib/php/common-folders.php";
 
 /**
  * @class ScanOptions
@@ -83,25 +82,33 @@ class ScanOptions
    * current settings.
    * @param integer $folderId Folder with the upload
    * @param integer $uploadId Upload to be scanned
-   * @return Fossology::UI::Api::Models::Info
+   * @param boolean $newUpload If true, do not check if the folder contains the
+   *                           upload. Should be false for existing uploads.
+   * @return \Fossology\UI\Api\Models\Info
+   * @throws HttpNotFoundException  If the folder does not contain the upload
+   * @throws HttpForbiddenException If the user does not have write access to the upload
    */
-  public function scheduleAgents($folderId, $uploadId)
+  public function scheduleAgents($folderId, $uploadId , $newUpload = true)
   {
     $uploadsAccessible = FolderListUploads_perm($folderId, Auth::PERM_WRITE);
-    $found = false;
-    foreach ($uploadsAccessible as $singleUpload) {
-      if ($singleUpload['upload_pk'] == $uploadId) {
-        $found = true;
-        break;
+
+    if (! $newUpload) {
+      $found = false;
+      foreach ($uploadsAccessible as $singleUpload) {
+        if ($singleUpload['upload_pk'] == $uploadId) {
+          $found = true;
+          break;
+        }
       }
-    }
-    if ($found === false) {
-      return new Info(404, "Folder id $folderId does not have upload id ".
-        "$uploadId or you do not have write access to the folder.", InfoType::ERROR);
+      if ($found === false) {
+        throw new HttpNotFoundException(
+          "Folder id $folderId does not have upload id " .
+          "$uploadId or you do not have write access to the folder.");
+      }
     }
 
     $paramAgentRequest = new Request();
-    $agentsToAdd = $this->prepareAgents();
+    $agentsToAdd = $this->prepareAgents($paramAgentRequest);
     $this->prepareReuser($paramAgentRequest);
     $this->prepareDecider($paramAgentRequest);
     $this->prepareScancode($paramAgentRequest);
@@ -109,23 +116,32 @@ class ScanOptions
     if (is_numeric($returnStatus)) {
       return new Info(201, $returnStatus, InfoType::INFO);
     } else {
-      return new Info(403, $returnStatus, InfoType::ERROR);
+      throw new HttpForbiddenException($returnStatus);
     }
   }
 
   /**
    * Prepare agentsToAdd string based on Analysis settings.
+   * @param Request $request Request object to manipulate
    * @return string[]
    */
-  private function prepareAgents()
+  private function prepareAgents(Request &$request)
   {
     $agentsToAdd = [];
     foreach ($this->analysis->getArray() as $agent => $set) {
       if ($set === true) {
         if ($agent == "copyright_email_author") {
           $agentsToAdd[] = "agent_copyright";
+          $request->request->set("Check_agent_copyright", 1);
+        } elseif ($agent == "patent") {
+          $agentsToAdd[] = "agent_ipra";
+          $request->request->set("Check_agent_ipra", 1);
+        } elseif ($agent == "package") {
+          $agentsToAdd[] = "agent_pkgagent";
+          $request->request->set("Check_agent_pkgagent", 1);
         } else {
           $agentsToAdd[] = "agent_$agent";
+          $request->request->set("Check_agent_$agent", 1);
         }
       }
     }
@@ -179,6 +195,11 @@ class ScanOptions
     }
     if ($this->decider->getOjoDecider() === true) {
       $deciderRules[] = 'ojoNoContradiction';
+    }
+    if (! empty($this->decider->getConcludeLicenseType())) {
+      $deciderRules[] = 'licenseTypeConc';
+      $request->request->set('licenseTypeConc',
+          $this->decider->getConcludeLicenseType());
     }
     $request->request->set('deciderRules', $deciderRules);
     if ($this->analysis->getNomos()) {

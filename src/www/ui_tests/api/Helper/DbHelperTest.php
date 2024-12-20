@@ -19,9 +19,11 @@ if (session_status() == PHP_SESSION_NONE) {
 require_once dirname(dirname(dirname(dirname(__DIR__)))) .
   '/lib/php/Plugin/FO_Plugin.php';
 
+use Fossology\Lib\Dao\UploadDao;
 use Mockery as M;
 use Fossology\Lib\Db\ModernDbManager;
 use Fossology\UI\Api\Helper\DbHelper;
+use Fossology\UI\Api\Helper\RestHelper;
 use Fossology\Lib\Auth\Auth;
 use Fossology\UI\Api\Models\User;
 use Fossology\Lib\Dao\FolderDao;
@@ -57,16 +59,29 @@ class DbHelperTest extends \PHPUnit\Framework\TestCase
   private $folderDao;
 
   /**
+   * @var UploadDao $uploadDao
+   * UploadDao object to test
+   */
+  private $uploadDao;
+
+  /**
    * @brief Setup test objects
    * @see PHPUnit_Framework_TestCase::setUp()
    */
   protected function setUp() : void
   {
+    global $container;
+    $restHelper = M::mock(RestHelper::class);
+    $container = M::mock('ContainerBuilder');
     $this->dbManager = M::mock(ModernDbManager::class);
     $this->folderDao = M::mock(FolderDao::class);
+    $this->uploadDao = M::mock(UploadDao::class);
 
-    $this->dbHelper = new DbHelper($this->dbManager, $this->folderDao);
+    $this->dbHelper = new DbHelper($this->dbManager, $this->folderDao,
+      $this->uploadDao);
     $this->assertCountBefore = \Hamcrest\MatcherAssert::getCount();
+    $container->shouldReceive('get')->withArgs(array(
+      'helper.restHelper'))->andReturn($restHelper);
   }
 
   /**

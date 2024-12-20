@@ -9,6 +9,7 @@
 namespace Fossology\Lib\Data;
 
 use Fossology\Lib\Dao\LicenseDao;
+use Fossology\Lib\Util\StringOperation;
 
 class LicenseRef
 {
@@ -26,9 +27,14 @@ class LicenseRef
 
   /**
    * @var string
+   * SPDX license ref prefix
+   */
+  const SPDXREF_PREFIX = "LicenseRef-";
+  /**
+   * @var string
    * SPDX license ref prefix to use
    */
-  const SPDXREF_PREFIX = "LicenseRef-fossology-";
+  const SPDXREF_PREFIX_FOSSOLOGY = "LicenseRef-fossology-";
 
   /**
    * @param $licenseId
@@ -103,14 +109,29 @@ class LicenseRef
         strcasecmp($shortname, LicenseDao::VOID_LICENSE) === 0) {
       $spdxLicense = $shortname;
     } elseif (empty($spdxId)) {
-      $spdxLicense = self::SPDXREF_PREFIX . $shortname;
+      $spdxLicense = $shortname;
+      if (! StringOperation::stringStartsWith($shortname, self::SPDXREF_PREFIX)) {
+        $spdxLicense = self::SPDXREF_PREFIX_FOSSOLOGY . $shortname;
+      }
     } else {
       $spdxLicense = $spdxId;
     }
-    if (strpos($spdxLicense, LicenseRef::SPDXREF_PREFIX) !== false) {
+    if (StringOperation::stringStartsWith($spdxLicense, self::SPDXREF_PREFIX)) {
       // License ref can not end with a '+'
       $spdxLicense = preg_replace('/\+$/', '-or-later', $spdxLicense);
     }
-    return $spdxLicense;
+    return self::replaceSpaces($spdxLicense);
+  }
+
+  /**
+   * Replace all spaces with '-' if they are not surrounding 'AND', 'WITH' or
+   * 'OR'
+   * @param string $licenseName SPDX expression
+   * @return string SPDX expression with space replaced with dash
+   */
+  public static function replaceSpaces($licenseName): string
+  {
+    $licenseName = str_replace(' ', '-', $licenseName);
+    return preg_replace('/-(OR|AND|WITH)-(?!later)/i', ' $1 ', $licenseName);
   }
 }

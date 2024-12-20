@@ -16,7 +16,7 @@
   $Schema["TABLE"]["agent"]["agent_name"]["ALTER"] = "ALTER TABLE \"agent\" ALTER COLUMN \"agent_name\" SET NOT NULL";
 
   $Schema["TABLE"]["agent"]["agent_rev"]["DESC"] = "COMMENT ON COLUMN \"agent\".\"agent_rev\" IS 'revision string'";
-  $Schema["TABLE"]["agent"]["agent_rev"]["ADD"] = "ALTER TABLE \"agent\" ADD COLUMN \"agent_rev\" varchar(32)";
+  $Schema["TABLE"]["agent"]["agent_rev"]["ADD"] = "ALTER TABLE \"agent\" ADD COLUMN \"agent_rev\" text";
   $Schema["TABLE"]["agent"]["agent_rev"]["ALTER"] = "ALTER TABLE \"agent\" ALTER COLUMN \"agent_rev\" DROP NOT NULL";
 
   $Schema["TABLE"]["agent"]["agent_desc"]["DESC"] = "COMMENT ON COLUMN \"agent\".\"agent_desc\" IS 'short description'";
@@ -312,6 +312,27 @@
   $Schema["TABLE"]["clearing_event"]["date_added"]["DESC"] = "";
   $Schema["TABLE"]["clearing_event"]["date_added"]["ADD"] = "ALTER TABLE \"clearing_event\" ADD COLUMN \"date_added\" timestamptz DEFAULT now()";
   $Schema["TABLE"]["clearing_event"]["date_added"]["ALTER"] = "ALTER TABLE \"clearing_event\" ALTER COLUMN \"date_added\" SET NOT NULL, ALTER COLUMN \"date_added\" SET DEFAULT now()";
+
+
+  $Schema["TABLE"]["comp_result"]["agent_fk"]["DESC"] = "COMMENT ON COLUMN \"comp_result\".\"agent_fk\" IS 'Agent id'";
+  $Schema["TABLE"]["comp_result"]["agent_fk"]["ADD"] = "ALTER TABLE \"comp_result\" ADD COLUMN \"agent_fk\" int4";
+  $Schema["TABLE"]["comp_result"]["agent_fk"]["ALTER"] = "ALTER TABLE \"comp_result\" ALTER COLUMN \"agent_fk\" SET NOT NULL";
+
+  $Schema["TABLE"]["comp_result"]["pfile_fk"]["DESC"] = "COMMENT ON COLUMN \"comp_result\".\"pfile_fk\" IS 'pfile key'";
+  $Schema["TABLE"]["comp_result"]["pfile_fk"]["ADD"] = "ALTER TABLE \"comp_result\" ADD COLUMN \"pfile_fk\" int4";
+  $Schema["TABLE"]["comp_result"]["pfile_fk"]["ALTER"] = "ALTER TABLE \"comp_result\" ALTER COLUMN \"pfile_fk\" SET NOT NULL";
+
+  $Schema["TABLE"]["comp_result"]["first_rf_fk"]["DESC"] = "COMMENT ON COLUMN \"comp_result\".\"first_rf_fk\" IS 'License1 key'";
+  $Schema["TABLE"]["comp_result"]["first_rf_fk"]["ADD"] = "ALTER TABLE \"comp_result\" ADD COLUMN \"first_rf_fk\" int4";
+  $Schema["TABLE"]["comp_result"]["first_rf_fk"]["ALTER"] = "ALTER TABLE \"comp_result\" ALTER COLUMN \"first_rf_fk\" SET NOT NULL";
+
+  $Schema["TABLE"]["comp_result"]["second_rf_fk"]["DESC"] = "COMMENT ON COLUMN \"comp_result\".\"second_rf_fk\" IS 'License2 key'";
+  $Schema["TABLE"]["comp_result"]["second_rf_fk"]["ADD"] = "ALTER TABLE \"comp_result\" ADD COLUMN \"second_rf_fk\" int4";
+  $Schema["TABLE"]["comp_result"]["second_rf_fk"]["ALTER"] = "ALTER TABLE \"comp_result\" ALTER COLUMN \"second_rf_fk\" SET NOT NULL";
+
+  $Schema["TABLE"]["comp_result"]["result"]["DESC"] = "COMMENT ON COLUMN \"comp_result\".\"result\" IS 'compatibility result'";
+  $Schema["TABLE"]["comp_result"]["result"]["ADD"] = "ALTER TABLE \"comp_result\" ADD COLUMN \"result\" bool";
+  $Schema["TABLE"]["comp_result"]["result"]["ALTER"] = "ALTER TABLE \"comp_result\" ALTER COLUMN \"result\" SET NOT NULL";
 
 
   $Schema["TABLE"]["copyright"]["copyright_pk"]["DESC"] = "";
@@ -1162,6 +1183,10 @@
   $Schema["TABLE"]["license_ref"]["rf_shortname"]["ADD"] = "ALTER TABLE \"license_ref\" ADD COLUMN \"rf_shortname\" text";
   $Schema["TABLE"]["license_ref"]["rf_shortname"]["ALTER"] = "ALTER TABLE \"license_ref\" ALTER COLUMN \"rf_shortname\" SET NOT NULL";
 
+  $Schema["TABLE"]["license_ref"]["rf_licensetype"]["DESC"] = "COMMENT ON COLUMN \"license_ref\".\"rf_licensetype\" IS 'Permissive, Copyleft, Copyright, ...'";
+  $Schema["TABLE"]["license_ref"]["rf_licensetype"]["ADD"] = "ALTER TABLE \"license_ref\" ADD COLUMN \"rf_licensetype\" text";
+  $Schema["TABLE"]["license_ref"]["rf_licensetype"]["ALTER"] = "ALTER TABLE \"license_ref\" ALTER COLUMN \"rf_licensetype\" SET DEFAULT 'PERMISSIVE'";
+
   $Schema["TABLE"]["license_ref"]["rf_text"]["DESC"] = "COMMENT ON COLUMN \"license_ref\".\"rf_text\" IS 'reference License text, or regex'";
   $Schema["TABLE"]["license_ref"]["rf_text"]["ADD"] = "ALTER TABLE \"license_ref\" ADD COLUMN \"rf_text\" text";
   $Schema["TABLE"]["license_ref"]["rf_text"]["ALTER"] = "ALTER TABLE \"license_ref\" ALTER COLUMN \"rf_text\" SET NOT NULL";
@@ -1295,6 +1320,39 @@
   $Schema["TABLE"]["license_ref_bulk"]["bulk_delimiters"]["DESC"] = "COMMENT ON COLUMN \"license_ref_bulk\".\"bulk_delimiters\" IS 'What delimiters to use for scan?'";
   $Schema["TABLE"]["license_ref_bulk"]["bulk_delimiters"]["ADD"] = "ALTER TABLE \"license_ref_bulk\" ADD COLUMN \"bulk_delimiters\" text DEFAULT NULL";
   $Schema["TABLE"]["license_ref_bulk"]["bulk_delimiters"]["ALTER"] = "ALTER TABLE \"license_ref_bulk\" ALTER COLUMN \"bulk_delimiters\" SET DEFAULT true";
+
+  $Schema["TABLE"]["license_ref_bulk"]["scan_findings"]["DESC"] = "COMMENT ON COLUMN \"license_ref_bulk\".\"scan_findings\" IS 'Should i scan only the files with license findings?'";
+  $Schema["TABLE"]["license_ref_bulk"]["scan_findings"]["ADD"] = "ALTER TABLE \"license_ref_bulk\" ADD COLUMN \"scan_findings\" bool DEFAULT false";
+  $Schema["TABLE"]["license_ref_bulk"]["scan_findings"]["ALTER"] = "ALTER TABLE \"license_ref_bulk\" ALTER COLUMN \"scan_findings\" SET NOT NULL, ALTER COLUMN \"scan_findings\" SET DEFAULT false";
+
+
+  $Schema["TABLE"]["license_rules"]["lr_pk"]["DESC"] = "COMMENT ON COLUMN \"license_rules\".\"lr_pk\" IS 'Primary Key'";
+  $Schema["TABLE"]["license_rules"]["lr_pk"]["ADD"] = "ALTER TABLE \"license_rules\" ADD COLUMN \"lr_pk\" int8 DEFAULT nextval('license_rules_lr_pk_seq'::regclass)";
+  $Schema["TABLE"]["license_rules"]["lr_pk"]["ALTER"] = "ALTER TABLE \"license_rules\" ALTER COLUMN \"lr_pk\" SET NOT NULL, ALTER COLUMN \"lr_pk\" SET DEFAULT nextval('license_rules_lr_pk_seq'::regclass)";
+
+  $Schema["TABLE"]["license_rules"]["first_rf_fk"]["DESC"] = "COMMENT ON COLUMN \"license_rules\".\"first_rf_fk\" IS 'License1 id'";
+  $Schema["TABLE"]["license_rules"]["first_rf_fk"]["ADD"] = "ALTER TABLE \"license_rules\" ADD COLUMN \"first_rf_fk\" int8";
+  $Schema["TABLE"]["license_rules"]["first_rf_fk"]["ALTER"] = "ALTER TABLE \"license_rules\" ALTER COLUMN \"first_rf_fk\" DROP NOT NULL";
+
+  $Schema["TABLE"]["license_rules"]["second_rf_fk"]["DESC"] = "COMMENT ON COLUMN \"license_rules\".\"second_rf_fk\" IS 'License2 id'";
+  $Schema["TABLE"]["license_rules"]["second_rf_fk"]["ADD"] = "ALTER TABLE \"license_rules\" ADD COLUMN \"second_rf_fk\" int8";
+  $Schema["TABLE"]["license_rules"]["second_rf_fk"]["ALTER"] = "ALTER TABLE \"license_rules\" ALTER COLUMN \"second_rf_fk\" DROP NOT NULL";
+
+  $Schema["TABLE"]["license_rules"]["first_type"]["DESC"] = "COMMENT ON COLUMN \"license_rules\".\"first_type\" IS 'License1 type'";
+  $Schema["TABLE"]["license_rules"]["first_type"]["ADD"] = "ALTER TABLE \"license_rules\" ADD COLUMN \"first_type\" text";
+  $Schema["TABLE"]["license_rules"]["first_type"]["ALTER"] = "ALTER TABLE \"license_rules\" ALTER COLUMN \"first_type\" DROP NOT NULL";
+
+  $Schema["TABLE"]["license_rules"]["second_type"]["DESC"] = "COMMENT ON COLUMN \"license_rules\".\"second_type\" IS 'License2 type'";
+  $Schema["TABLE"]["license_rules"]["second_type"]["ADD"] = "ALTER TABLE \"license_rules\" ADD COLUMN \"second_type\" text";
+  $Schema["TABLE"]["license_rules"]["second_type"]["ALTER"] = "ALTER TABLE \"license_rules\" ALTER COLUMN \"second_type\" DROP NOT NULL";
+
+  $Schema["TABLE"]["license_rules"]["compatibility"]["DESC"] = "COMMENT ON COLUMN \"license_rules\".\"compatibility\" IS 'Tells whether license1/main_id and license2/sub_id are compatible or not'";
+  $Schema["TABLE"]["license_rules"]["compatibility"]["ADD"] = "ALTER TABLE \"license_rules\" ADD COLUMN \"compatibility\" bool";
+  $Schema["TABLE"]["license_rules"]["compatibility"]["ALTER"] = "ALTER TABLE \"license_rules\" ALTER COLUMN \"compatibility\" SET NOT NULL";
+
+  $Schema["TABLE"]["license_rules"]["comment"]["DESC"] = "COMMENT ON COLUMN \"license_rules\".\"comment\" IS 'Rule Description'";
+  $Schema["TABLE"]["license_rules"]["comment"]["ADD"] = "ALTER TABLE \"license_rules\" ADD COLUMN \"comment\" text";
+  $Schema["TABLE"]["license_rules"]["comment"]["ALTER"] = "ALTER TABLE \"license_rules\" ALTER COLUMN \"comment\" SET NOT NULL";
 
 
   $Schema["TABLE"]["license_set_bulk"]["rf_fk"]["DESC"] = "COMMENT ON COLUMN \"license_set_bulk\".\"rf_fk\" IS 'reference to license_ref* (not only license_ref)'";
@@ -1805,7 +1863,7 @@
   $Schema["TABLE"]["sysconfig"]["ui_label"]["ADD"] = "ALTER TABLE \"sysconfig\" ADD COLUMN \"ui_label\" varchar(60)";
   $Schema["TABLE"]["sysconfig"]["ui_label"]["ALTER"] = "ALTER TABLE \"sysconfig\" ALTER COLUMN \"ui_label\" SET NOT NULL";
 
-  $Schema["TABLE"]["sysconfig"]["vartype"]["DESC"] = "COMMENT ON COLUMN \"sysconfig\".\"vartype\" IS 'variable type.  1=int, 2=text, 3=textarea, 4=password, 5=dropdown'";
+  $Schema["TABLE"]["sysconfig"]["vartype"]["DESC"] = "COMMENT ON COLUMN \"sysconfig\".\"vartype\" IS 'variable type.  1=int, 2=text, 3=textarea, 4=password, 5=dropdown, 6=boolean'";
   $Schema["TABLE"]["sysconfig"]["vartype"]["ADD"] = "ALTER TABLE \"sysconfig\" ADD COLUMN \"vartype\" int4";
   $Schema["TABLE"]["sysconfig"]["vartype"]["ALTER"] = "ALTER TABLE \"sysconfig\" ALTER COLUMN \"vartype\" SET NOT NULL";
 
@@ -2095,6 +2153,19 @@
   $Schema["TABLE"]["uploadtree"]["ufile_name"]["ALTER"] = "ALTER TABLE \"uploadtree\" ALTER COLUMN \"ufile_name\" DROP NOT NULL";
 
 
+  $Schema["TABLE"]["upload_events"]["upload_fk"]["DESC"] = "COMMENT ON COLUMN \"upload_events\".\"upload_fk\" IS 'upload that generated this event'";
+  $Schema["TABLE"]["upload_events"]["upload_fk"]["ADD"] = "ALTER TABLE \"upload_events\" ADD COLUMN \"upload_fk\" int4";
+  $Schema["TABLE"]["upload_events"]["upload_fk"]["ALTER"] = "ALTER TABLE \"upload_events\" ALTER COLUMN \"upload_fk\" SET NOT NULL";
+
+  $Schema["TABLE"]["upload_events"]["event_ts"]["DESC"] = "COMMENT ON COLUMN \"upload_events\".\"event_ts\" IS 'timestamp when event happened'";
+  $Schema["TABLE"]["upload_events"]["event_ts"]["ADD"] = "ALTER TABLE \"upload_events\" ADD COLUMN \"event_ts\" timestamptz DEFAULT now()";
+  $Schema["TABLE"]["upload_events"]["event_ts"]["ALTER"] = "ALTER TABLE \"upload_events\" ALTER COLUMN \"event_ts\" SET NOT NULL, ALTER COLUMN \"event_ts\" SET DEFAULT now()";
+
+  $Schema["TABLE"]["upload_events"]["event_type"]["DESC"] = "COMMENT ON COLUMN \"upload_events\".\"event_type\" IS 'type of event, see Fossology::Lib::Data::Upload::UploadEvents'";
+  $Schema["TABLE"]["upload_events"]["event_type"]["ADD"] = "ALTER TABLE \"upload_events\" ADD COLUMN \"event_type\" int4";
+  $Schema["TABLE"]["upload_events"]["event_type"]["ALTER"] = "ALTER TABLE \"upload_events\" ALTER COLUMN \"event_type\" SET NOT NULL";
+
+
   $Schema["TABLE"]["users"]["user_pk"]["DESC"] = "";
   $Schema["TABLE"]["users"]["user_pk"]["ADD"] = "ALTER TABLE \"users\" ADD COLUMN \"user_pk\" int4 DEFAULT nextval('users_user_pk_seq'::regclass)";
   $Schema["TABLE"]["users"]["user_pk"]["ALTER"] = "ALTER TABLE \"users\" ALTER COLUMN \"user_pk\" SET NOT NULL, ALTER COLUMN \"user_pk\" SET DEFAULT nextval('users_user_pk_seq'::regclass)";
@@ -2264,9 +2335,14 @@
   $Schema["TABLE"]["report_info"]["ri_unifiedcolumns"]["ADD"] = "ALTER TABLE \"report_info\" ADD COLUMN \"ri_unifiedcolumns\" json";
   $Schema["TABLE"]["report_info"]["ri_unifiedcolumns"]["ALTER"] = "ALTER TABLE \"report_info\" ALTER COLUMN \"ri_unifiedcolumns\" DROP NOT NULL";
 
+  $Schema["TABLE"]["report_info"]["ri_clixmlcolumns"]["DESC"] = "COMMENT ON COLUMN \"report_info\".\"ri_clixmlcolumns\" IS 'to edit clixml report file hash columns'";
+  $Schema["TABLE"]["report_info"]["ri_clixmlcolumns"]["ADD"] = "ALTER TABLE \"report_info\" ADD COLUMN \"ri_clixmlcolumns\" json";
+  $Schema["TABLE"]["report_info"]["ri_clixmlcolumns"]["ALTER"] = "ALTER TABLE \"report_info\" ALTER COLUMN \"ri_clixmlcolumns\" DROP NOT NULL";
+
   $Schema["TABLE"]["report_info"]["ri_globaldecision"]["DESC"] = "";
   $Schema["TABLE"]["report_info"]["ri_globaldecision"]["ADD"] = "ALTER TABLE \"report_info\" ADD COLUMN \"ri_globaldecision\" int2 DEFAULT 1";
   $Schema["TABLE"]["report_info"]["ri_globaldecision"]["ALTER"] = "ALTER TABLE \"report_info\" ALTER COLUMN \"ri_globaldecision\" SET NOT NULL, ALTER COLUMN \"ri_globaldecision\" SET DEFAULT 1";
+
 
   $Schema["VIEW"]["license_file_ref"] = "CREATE VIEW \"license_file_ref\" AS SELECT license_ref.rf_fullname, license_ref.rf_shortname, license_ref.rf_pk, license_file.fl_end_byte, license_file.rf_match_pct, license_file.rf_timestamp, license_file.fl_start_byte, license_file.fl_ref_end_byte, license_file.fl_ref_start_byte, license_file.fl_pk, license_file.agent_fk, license_file.pfile_fk FROM (license_file JOIN license_ref ON ((license_file.rf_fk = license_ref.rf_pk)));";
 
@@ -2329,6 +2405,8 @@
   $Schema["SEQUENCE"]["license_file_fl_pk_seq"]["CREATE"] = "CREATE SEQUENCE \"license_file_fl_pk_seq\"";
   $Schema["SEQUENCE"]["license_file_fl_pk_seq"]["UPDATE"] = "SELECT setval('license_file_fl_pk_seq',(SELECT greatest(1,max(fl_pk)) val FROM license_file))";
 
+  $Schema["SEQUENCE"]["license_rules_lr_pk_seq"]["CREATE"] = "CREATE SEQUENCE \"license_rules_lr_pk_seq\"";
+  $Schema["SEQUENCE"]["license_rules_lr_pk_seq"]["UPDATE"] = "SELECT setval('license_rules_lr_pk_seq',(SELECT greatest(1,max(lr_pk)) val FROM license_rules))";
   $Schema["SEQUENCE"]["folder_folder_pk_seq"]["CREATE"] = "CREATE SEQUENCE \"folder_folder_pk_seq\"";
   $Schema["SEQUENCE"]["folder_folder_pk_seq"]["UPDATE"] = "SELECT setval('folder_folder_pk_seq',(SELECT greatest(1,max(folder_pk)) val FROM folder))";
 
@@ -2367,7 +2445,7 @@
 
   $Schema["SEQUENCE"]["license_std_acknowledgement_la_pk_seq"]["CREATE"] = "CREATE SEQUENCE \"license_std_acknowledgement_la_pk_seq\"";
   $Schema["SEQUENCE"]["license_std_acknowledgement_la_pk_seq"]["UPDATE"] = "SELECT setval('license_std_acknowledgement_la_pk_seq',(SELECT greatest(1,max(la_pk)) val FROM license_std_acknowledgement))";
-  
+
   $Schema["SEQUENCE"]["mimetype_mimetype_pk_seq"]["CREATE"] = "CREATE SEQUENCE \"mimetype_mimetype_pk_seq\"";
   $Schema["SEQUENCE"]["mimetype_mimetype_pk_seq"]["UPDATE"] = "SELECT setval('mimetype_mimetype_pk_seq',(SELECT greatest(1,max(mimetype_pk)) val FROM mimetype))";
 
@@ -2539,6 +2617,7 @@
   $Schema["CONSTRAINT"]["license_file_pfile_fk_fkey"] = "ALTER TABLE \"license_file\" ADD CONSTRAINT \"license_file_pfile_fk_fkey\" FOREIGN KEY (\"pfile_fk\") REFERENCES \"pfile\" (\"pfile_pk\") ON UPDATE NO ACTION ON DELETE CASCADE;";
   $Schema["CONSTRAINT"]["license_map_pkpk"] = "ALTER TABLE \"license_map\" ADD CONSTRAINT \"license_map_pkpk\" PRIMARY KEY (\"license_map_pk\");";
   $Schema["CONSTRAINT"]["license_map_rf_fkfk"] = "ALTER TABLE \"license_map\" ADD CONSTRAINT \"license_map_rf_fkfk\" FOREIGN KEY (\"rf_fk\") REFERENCES \"license_ref\" (\"rf_pk\") ON UPDATE NO ACTION ON DELETE NO ACTION;";
+  $Schema["CONSTRAINT"]["license_rules_pkey"] = "ALTER TABLE \"license_rules\" ADD CONSTRAINT \"license_rules_pkey\" PRIMARY KEY (\"lr_pk\");";
   $Schema["CONSTRAINT"]["license_std_comment_user_fk_fkey"] = "ALTER TABLE \"license_std_comment\" ADD CONSTRAINT \"license_std_comment_user_fk_fkey\" FOREIGN KEY (\"user_fk\") REFERENCES \"users\" (\"user_pk\") ON UPDATE SET NULL ON DELETE SET NULL;";
   $Schema["CONSTRAINT"]["license_std_acknowledgement_user_fk_fkey"] = "ALTER TABLE \"license_std_acknowledgement\" ADD CONSTRAINT \"license_std_acknowledgement_user_fk_fkey\" FOREIGN KEY (\"user_fk\") REFERENCES \"users\" (\"user_pk\") ON UPDATE SET NULL ON DELETE SET NULL;";
   $Schema["CONSTRAINT"]["rf_pkpk"] = "ALTER TABLE \"license_ref\" ADD CONSTRAINT \"rf_pkpk\" PRIMARY KEY (\"rf_pk\");";
@@ -2606,13 +2685,14 @@
   $Schema["CONSTRAINT"]["users_default_bucketpool_pk_fkey"] = "ALTER TABLE \"users\" ADD CONSTRAINT \"users_default_bucketpool_pk_fkey\" FOREIGN KEY (\"default_bucketpool_fk\") REFERENCES \"bucketpool\" (\"bucketpool_pk\") ON UPDATE NO ACTION ON DELETE NO ACTION;";
   $Schema["CONSTRAINT"]["users_group_id_fkey"] = "ALTER TABLE \"users\" ADD CONSTRAINT \"users_group_id_fkey\" FOREIGN KEY (\"group_fk\") REFERENCES \"groups\" (\"group_pk\") ON UPDATE NO ACTION ON DELETE NO ACTION;";
   $Schema["CONSTRAINT"]["users_new_upload_group_fk_fkey"] = "ALTER TABLE \"users\" ADD CONSTRAINT \"users_new_upload_group_fk_fkey\" FOREIGN KEY (\"new_upload_group_fk\") REFERENCES \"groups\" (\"group_pk\") ON UPDATE CASCADE ON DELETE RESTRICT;";
+  $Schema["CONSTRAINT"]["upload_events_upload_fk_fkey"] = "ALTER TABLE \"upload_events\" ADD CONSTRAINT \"upload_events_upload_fk_fkey\" FOREIGN KEY (\"upload_fk\") REFERENCES \"upload\" (\"upload_pk\") ON UPDATE NO ACTION ON DELETE CASCADE;";
   $Schema["CONSTRAINT"]["copyright_event_pkey"] = "ALTER TABLE \"copyright_event\" ADD CONSTRAINT \"copyright_event_pkey\" PRIMARY KEY (\"copyright_event_pk\");";
   $Schema["CONSTRAINT"]["copyright_event_upload_fk_fkey"] = "ALTER TABLE \"copyright_event\" ADD CONSTRAINT \"copyright_event_upload_fk_fkey\" FOREIGN KEY (\"upload_fk\") REFERENCES \"upload\" (\"upload_pk\") ON UPDATE NO ACTION ON DELETE CASCADE;";
   $Schema["CONSTRAINT"]["copyright_event_copyright_fk_fkey"] = "ALTER TABLE \"copyright_event\" ADD CONSTRAINT \"copyright_event_copyright_fk_fkey\" FOREIGN KEY (\"copyright_fk\") REFERENCES \"copyright\" (\"copyright_pk\") ON UPDATE NO ACTION ON DELETE CASCADE;";
-    $Schema["CONSTRAINT"]["author_event_pkey"] = "ALTER TABLE \"author_event\" ADD CONSTRAINT \"author_event_pkey\" PRIMARY KEY (\"author_event_pk\");";
+  $Schema["CONSTRAINT"]["author_event_pkey"] = "ALTER TABLE \"author_event\" ADD CONSTRAINT \"author_event_pkey\" PRIMARY KEY (\"author_event_pk\");";
   $Schema["CONSTRAINT"]["author_event_upload_fk_fkey"] = "ALTER TABLE \"author_event\" ADD CONSTRAINT \"author_event_upload_fk_fkey\" FOREIGN KEY (\"upload_fk\") REFERENCES \"upload\" (\"upload_pk\") ON UPDATE NO ACTION ON DELETE CASCADE;";
   $Schema["CONSTRAINT"]["author_event_author_fk_fkey"] = "ALTER TABLE \"author_event\" ADD CONSTRAINT \"author_event_author_fk_fkey\" FOREIGN KEY (\"author_fk\") REFERENCES \"author\" (\"author_pk\") ON UPDATE NO ACTION ON DELETE CASCADE;";
-    $Schema["CONSTRAINT"]["ecc_event_pkey"] = "ALTER TABLE \"ecc_event\" ADD CONSTRAINT \"ecc_event_pkey\" PRIMARY KEY (\"ecc_event_pk\");";
+  $Schema["CONSTRAINT"]["ecc_event_pkey"] = "ALTER TABLE \"ecc_event\" ADD CONSTRAINT \"ecc_event_pkey\" PRIMARY KEY (\"ecc_event_pk\");";
   $Schema["CONSTRAINT"]["ecc_event_upload_fk_fkey"] = "ALTER TABLE \"ecc_event\" ADD CONSTRAINT \"ecc_event_upload_fk_fkey\" FOREIGN KEY (\"upload_fk\") REFERENCES \"upload\" (\"upload_pk\") ON UPDATE NO ACTION ON DELETE CASCADE;";
   $Schema["CONSTRAINT"]["ecc_event_ecc_fk_fkey"] = "ALTER TABLE \"ecc_event\" ADD CONSTRAINT \"ecc_event_ecc_fk_fkey\" FOREIGN KEY (\"ecc_fk\") REFERENCES \"ecc\" (\"ecc_pk\") ON UPDATE NO ACTION ON DELETE CASCADE;";
   $Schema["CONSTRAINT"]["keyword_event_pkey"] = "ALTER TABLE \"keyword_event\" ADD CONSTRAINT \"keyword_event_pkey\" PRIMARY KEY (\"keyword_event_pk\");";
@@ -2637,9 +2717,11 @@
   $Schema["INDEX"]["clearing_event"]["clearing_event_job_fk_idx"] = "CREATE INDEX clearing_event_job_fk_idx ON clearing_event USING btree (job_fk);";
   $Schema["INDEX"]["clearing_event"]["clearing_event_uploadtree_fk_idx"] = "CREATE INDEX clearing_event_uploadtree_fk_idx ON clearing_event USING btree (uploadtree_fk);";
   $Schema["INDEX"]["clearing_event"]["clearing_event_uploadtree_group_fk_idx"] = "CREATE INDEX clearing_event_uploadtree_group_fk_idx ON clearing_event USING btree (uploadtree_fk, group_fk, date_added);";
-  $Schema["INDEX"]["clearing_event"]["clearing_event_pk_removed_idx"] = "CREATE INDEX clearing_event_pk_removed_idx ON clearing_event USING btree(clearing_event_pk, removed, rf_fk) WHERE NOT removed;";
+  $Schema["INDEX"]["clearing_event"]["clearing_event_pk_removed_idx"] = "CREATE INDEX clearing_event_pk_removed_idx ON clearing_event USING btree (clearing_event_pk, removed, rf_fk) WHERE (NOT removed);";
 
-  $Schema["INDEX"]["copyright"]["copyright_pfile_fk_is_enabled_false_idx"] = "CREATE INDEX copyright_pfile_fk_is_enabled_false_idx ON copyright USING btree (pfile_fk, is_enabled) WHERE is_enabled = false;";
+  $Schema["INDEX"]["comp_result"]["comp_result_pfile_fk_agent_fk"] = "CREATE INDEX comp_result_pfile_fk_agent_fk ON comp_result USING btree (pfile_fk, agent_fk);";
+
+  $Schema["INDEX"]["copyright"]["copyright_pfile_fk_is_enabled_false_idx"] = "CREATE INDEX copyright_pfile_fk_is_enabled_false_idx ON copyright USING btree (pfile_fk, is_enabled) WHERE (is_enabled = false);";
   $Schema["INDEX"]["copyright"]["copyright_agent_fk_idx"] = "CREATE INDEX copyright_agent_fk_idx ON copyright USING btree (agent_fk);";
   $Schema["INDEX"]["copyright"]["copyright_pfile_fk_index"] = "CREATE INDEX copyright_pfile_fk_index ON copyright USING btree (pfile_fk);";
   $Schema["INDEX"]["copyright"]["copyright_pfile_hash_idx"] = "CREATE INDEX copyright_pfile_hash_idx ON copyright USING btree (hash, pfile_fk);";
@@ -2653,12 +2735,12 @@
   $Schema["INDEX"]["copyright_spasht"]["copyright_spasht_pfile_fk_index"] = "CREATE INDEX copyright_spasht_pfile_fk_index ON copyright_spasht USING btree (pfile_fk);";
   $Schema["INDEX"]["copyright_spasht"]["copyright_spasht_pfile_hash_index"] = "CREATE INDEX copyright_spasht_pfile_hash_index ON copyright_spasht USING btree (hash, pfile_fk);";
 
-  $Schema["INDEX"]["author"]["author_pfile_fk_is_enabled_false_idx"] = "CREATE INDEX author_pfile_fk_is_enabled_false_idx ON author USING btree (pfile_fk, is_enabled) WHERE is_enabled = false;";
+  $Schema["INDEX"]["author"]["author_pfile_fk_is_enabled_false_idx"] = "CREATE INDEX author_pfile_fk_is_enabled_false_idx ON author USING btree (pfile_fk, is_enabled) WHERE (is_enabled = false);";
   $Schema["INDEX"]["author"]["author_agent_fk_idx"] = "CREATE INDEX author_agent_fk_idx ON author USING btree (agent_fk);";
   $Schema["INDEX"]["author"]["author_pfile_fk_index"] = "CREATE INDEX author_pfile_fk_index ON author USING btree (pfile_fk);";
   $Schema["INDEX"]["author"]["author_pfile_hash_idx"] = "CREATE INDEX author_pfile_hash_idx ON author USING btree (hash, pfile_fk);";
 
-  $Schema["INDEX"]["ecc"]["ecc_pfile_fk_is_enabled_false_idx"] = "CREATE INDEX ecc_pfile_fk_is_enabled_false_idx ON ecc USING btree (pfile_fk, is_enabled) WHERE is_enabled = false;";
+  $Schema["INDEX"]["ecc"]["ecc_pfile_fk_is_enabled_false_idx"] = "CREATE INDEX ecc_pfile_fk_is_enabled_false_idx ON ecc USING btree (pfile_fk, is_enabled) WHERE (is_enabled = false);";
   $Schema["INDEX"]["ecc"]["ecc_agent_fk_index"] = "CREATE INDEX ecc_agent_fk_index ON ecc USING btree (agent_fk);";
   $Schema["INDEX"]["ecc"]["ecc_hash_index"] = "CREATE INDEX ecc_hash_index ON ecc USING btree (hash);";
   $Schema["INDEX"]["ecc"]["ecc_pfile_fk_index"] = "CREATE INDEX ecc_pfile_fk_index ON ecc USING btree (pfile_fk);";
@@ -2669,18 +2751,18 @@
   $Schema["INDEX"]["ecc_decision"]["ecc_decision_user_fk_index"] = "CREATE INDEX ecc_decision_user_fk_index ON ecc_decision USING btree (user_fk);";
   $Schema["INDEX"]["ecc_decision"]["ecc_decision_pfile_hash_index"] = "CREATE INDEX ecc_decision_pfile_hash_index ON ecc_decision USING btree (hash, pfile_fk);";
 
-  $Schema["INDEX"]["ipra"]["ipra_pfile_fk_is_enabled_false_idx"] = "CREATE INDEX ipra_pfile_fk_is_enabled_false_idx ON ipra USING btree (pfile_fk, is_enabled) WHERE is_enabled = false;";
+  $Schema["INDEX"]["ipra"]["ipra_pfile_fk_is_enabled_false_idx"] = "CREATE INDEX ipra_pfile_fk_is_enabled_false_idx ON ipra USING btree (pfile_fk, is_enabled) WHERE (is_enabled = false);";
   $Schema["INDEX"]["ipra"]["ipra_agent_fk_index"] = "CREATE INDEX ipra_agent_fk_index ON ipra USING btree (agent_fk);";
   $Schema["INDEX"]["ipra"]["ipra_hash_index"] = "CREATE INDEX ipra_hash_index ON ipra USING btree (hash);";
   $Schema["INDEX"]["ipra"]["ipra_pfile_fk_index"] = "CREATE INDEX ipra_pfile_fk_index ON ipra USING btree (pfile_fk);";
-  $Schema["INDEX"]["ipra"]["ipra_pfile_hash_idx"] = "CREATE INDEX ipra_pfile_hash_idx ON ipra using btree (hash, pfile_fk);";
+  $Schema["INDEX"]["ipra"]["ipra_pfile_hash_idx"] = "CREATE INDEX ipra_pfile_hash_idx ON ipra USING btree (hash, pfile_fk);";
 
   $Schema["INDEX"]["ipra_decision"]["ipra_decision_clearing_decision_type_fk_index"] = "CREATE INDEX ipra_decision_clearing_decision_type_fk_index ON ipra_decision USING btree (clearing_decision_type_fk);";
   $Schema["INDEX"]["ipra_decision"]["ipra_decision_pfile_fk_index"] = "CREATE INDEX ipra_decision_pfile_fk_index ON ipra_decision USING btree (pfile_fk);";
   $Schema["INDEX"]["ipra_decision"]["ipra_decision_user_fk_index"] = "CREATE INDEX ipra_decision_user_fk_index ON ipra_decision USING btree (user_fk);";
   $Schema["INDEX"]["ipra_decision"]["ipra_decision_pfile_hash_index"] = "CREATE INDEX ipra_decision_pfile_hash_index ON ipra_decision USING btree (hash, pfile_fk);";
 
-  $Schema["INDEX"]["keyword"]["keyword_pfile_fk_is_enabled_false_idx"] = "CREATE INDEX keyword_pfile_fk_is_enabled_false_idx ON keyword USING btree (pfile_fk, is_enabled) WHERE is_enabled = false;";
+  $Schema["INDEX"]["keyword"]["keyword_pfile_fk_is_enabled_false_idx"] = "CREATE INDEX keyword_pfile_fk_is_enabled_false_idx ON keyword USING btree (pfile_fk, is_enabled) WHERE (is_enabled = false);";
   $Schema["INDEX"]["keyword"]["keyword_agent_fk_index"] = "CREATE INDEX keyword_agent_fk_index ON keyword USING btree (agent_fk);";
   $Schema["INDEX"]["keyword"]["keyword_hash_index"] = "CREATE INDEX keyword_hash_index ON keyword USING btree (hash);";
   $Schema["INDEX"]["keyword"]["keyword_pfile_fk_index"] = "CREATE INDEX keyword_pfile_fk_index ON keyword USING btree (pfile_fk);";
@@ -2738,6 +2820,8 @@
   $Schema["INDEX"]["uploadtree_a"]["uploadtree_a_upload_fk_lft_idx"] = "CREATE INDEX uploadtree_a_upload_fk_lft_idx ON uploadtree_a USING btree (upload_fk, lft);";
   $Schema["INDEX"]["uploadtree_a"]["uploadtree_a_upload_lft_ufilemode_pfile_idx"] = "CREATE INDEX uploadtree_a_upload_lft_ufilemode_pfile_idx ON uploadtree_a USING btree (upload_fk, lft, ufile_mode, pfile_fk);";
   $Schema["INDEX"]["upload_clearing_license"]["upload_clearing_license_upload_group_idx"] = "CREATE INDEX upload_clearing_license_upload_group_idx ON upload_clearing_license USING btree (upload_fk, group_fk);";
+
+  $Schema["INDEX"]["upload_events"]["upload_events_upload_fk_event_ts_event_type_idx"] = "CREATE INDEX upload_events_upload_fk_event_ts_event_type_idx ON upload_events USING btree (upload_fk, event_ts DESC, event_type);";
 
   $Schema["INDEX"]["copyright_event"]["copyright_event_upload_fk_index"] = "CREATE INDEX copyright_event_upload_fk_index ON copyright_event USING btree (upload_fk);";
   $Schema["INDEX"]["copyright_event"]["copyright_event_uploadtree_fk_index"] = "CREATE INDEX copyright_event_uploadtree_fk_index ON copyright_event USING btree (uploadtree_fk);";

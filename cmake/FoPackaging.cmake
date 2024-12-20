@@ -46,6 +46,8 @@ set(CPACK_COMPONENTS_ALL
     ununpack
     cli
     clixml
+    compatibility
+    cyclonedx
     lib
     common
     maintagent
@@ -98,9 +100,9 @@ set(CPACK_DEBIAN_FOSSOLOGY_PACKAGE_DEPENDS
     fossology-buckets, fossology-mimetype, fossology-delagent,
     fossology-wgetagent")
 set(CPACK_DEBIAN_FOSSOLOGY_PACKAGE_RECOMMENDS
-    "fossology-monk, fossology-monkbulk, fossology-decider,
+    "fossology-cyclonedx, fossology-monk, fossology-monkbulk, fossology-decider,
     fossology-readmeoss, fossology-spdx2, fossology-reportimport,
-    fossology-softwareheritage, fossology-reuser")
+    fossology-softwareheritage, fossology-reuser, fossology-compatibility")
 set(CPACK_DEBIAN_FOSSOLOGY_PACKAGE_CONFLICTS
     "fossology-db (<= 1.4.1), fossology-common (<= 1.4.1)")
 
@@ -118,11 +120,12 @@ This package contains the resources needed by all of the other
 fossology components. This includes admin tools for maintenance.")
 
 set(CPACK_DEBIAN_FOSSOLOGY-COMMON_PACKAGE_DEPENDS
-    "php7.2-pgsql | php7.3-pgsql | php7.4-pgsql | php8.1-pgsql, php-pear,
-    php7.2-cli | php7.3-cli | php7.4-cli | php8.1-cli, php-mbstring,
-    php7.2-json | php7.3-json | php7.4-json | php8.1-json, php-zip, php-xml,
-    php7.2-curl | php7.3-curl | php7.4-curl | php8.1-curl, php-uuid,
-    php7.2-gd | php7.3-gd | php7.4-gd | php8.1-gd")
+    "php7.2-pgsql | php7.3-pgsql | php7.4-pgsql | php8.1-pgsql | php8.2-pgsql | php8.3-pgsql,
+    php-pear, php7.2-cli | php7.3-cli | php7.4-cli | php8.1-cli | php8.2-cli | php8.3-cli,
+    php-mbstring, php7.2-json | php7.3-json | php7.4-json | php-json,
+    php-zip, php-xml,
+    php7.2-curl | php7.3-curl | php7.4-curl | php8.1-curl | php8.2-curl | php8.3-curl, php-uuid,
+    php7.2-gd | php7.3-gd | php7.4-gd | php8.1-gd | php8.2-gd | php8.3-gd")
 
 set(CPACK_DEBIAN_FOSSOLOGY-COMMON_PACKAGE_SECTION "utils")
 set(CPACK_DEBIAN_FOSSOLOGY-COMMON_PACKAGE_CONTROL_EXTRA
@@ -137,8 +140,8 @@ ${FO_PACKAGE_COMMON_DESCRIPTION}
 This package depends on the packages for the web interface.")
 
 set(CPACK_DEBIAN_WWW_PACKAGE_DEPENDS
-    "fossology-common, apache2, php7.2-gd|php7.3-gd|php7.4-gd|php8.1-gd,
-    libapache2-mod-php7.2|libapache2-mod-php7.3|libapache2-mod-php7.4|libapache2-mod-php8.1")
+    "fossology-common, apache2, php7.2-gd|php7.3-gd|php7.4-gd|php8.1-gd|php8.2-gd|php8.3-gd,
+    libapache2-mod-php7.2|libapache2-mod-php7.3|libapache2-mod-php7.4|libapache2-mod-php8.1|libapache2-mod-php8.2|libapache2-mod-php8.3")
 
 set(CPACK_DEBIAN_WWW_PACKAGE_SECTION "utils")
 set(CPACK_DEBIAN_WWW_PACKAGE_RECOMMENDS "fossology-db")
@@ -206,8 +209,8 @@ resources.")
 
 set(CPACK_DEBIAN_FOSSOLOGY-UNUNPACK_PACKAGE_DEPENDS
     "fossology-common, binutils, bzip2, cabextract, cpio, sleuthkit,
-    genisoimage, poppler-utils, rpm, upx-ucl, unrar-free, unzip, p7zip-full,
-    p7zip")
+    genisoimage, poppler-utils, rpm, unrar-free, unzip, p7zip-full, p7zip,
+    zstd")
 
 set(CPACK_DEBIAN_FOSSOLOGY-UNUNPACK_PACKAGE_SECTION "utils")
 else()
@@ -223,8 +226,7 @@ This package contains the ununpack agent program and resources.")
 
 set(CPACK_DEBIAN_UNUNPACK_PACKAGE_DEPENDS
     "fossology-common, binutils, bzip2, cabextract, cpio, sleuthkit,
-    genisoimage, poppler-utils, rpm, upx-ucl, unrar-free, unzip, p7zip-full,
-    p7zip")
+    genisoimage, poppler-utils, rpm, unrar-free, unzip, p7zip-full, p7zip")
 
 set(CPACK_DEBIAN_UNUNPACK_PACKAGE_SECTION "utils")
 
@@ -239,8 +241,7 @@ This package contains the adj2nest agent program and resources.")
 
 set(CPACK_DEBIAN_ADJ2NEST_PACKAGE_DEPENDS
     "fossology-common, binutils, bzip2, cabextract, cpio, sleuthkit,
-    genisoimage, poppler-utils, rpm, upx-ucl, unrar-free, unzip, p7zip-full,
-    p7zip")
+    genisoimage, poppler-utils, rpm, unrar-free, unzip, p7zip-full, p7zip")
 
 set(CPACK_DEBIAN_ADJ2NEST_PACKAGE_SECTION "utils")
 endif()
@@ -295,6 +296,8 @@ set(CPACK_DEBIAN_IPRA_PACKAGE_DEPENDS
     "fossology-common, fossology-copyright, libpcre3")
 
 set(CPACK_DEBIAN_IPRA_PACKAGE_SECTION "utils")
+
+set(CPACK_DEBIAN_KEYWORD_PACKAGE_SECTION "utils")
 
 ## FOSSOLOGY-BUCKETS
 set(CPACK_DEBIAN_BUCKETS_PACKAGE_NAME "fossology-buckets")
@@ -429,7 +432,7 @@ set(CPACK_DEBIAN_OJO_PACKAGE_SECTION "utils")
 
 ## FOSSOLOGY-CLIXML PACKAGE
 set(CPACK_DEBIAN_CLIXML_PACKAGE_NAME "fossology-clixml")
-set(CPACK_DEBIAN_CLIXML_FILE_NAME "fossology-clixml${FO_PACKAGE_VERSION}-1_amd64.deb")
+set(CPACK_DEBIAN_CLIXML_FILE_NAME "fossology-clixml_${FO_PACKAGE_VERSION}-1_amd64.deb")
 set(CPACK_DEBIAN_CLIXML_DESCRIPTION
 "architecture for analyzing software, XML based report generator
 ${FO_PACKAGE_COMMON_DESCRIPTION}
@@ -504,6 +507,32 @@ set(CPACK_DEBIAN_READMEOSS_PACKAGE_DEPENDS
     "fossology-common, fossology-copyright")
 
 set(CPACK_DEBIAN_READMEOSS_PACKAGE_SECTION "utils")
+
+## FOSSOLOGY-COMPATIBILITY PACKAGE
+set(CPACK_DEBIAN_COMPATIBILITY_PACKAGE_NAME "fossology-compatibility")
+set(CPACK_DEBIAN_COMPATIBILITY_FILE_NAME "fossology-compatibility_${FO_PACKAGE_VERSION}-1_amd64.deb")
+set(CPACK_DEBIAN_COMPATIBILITY_DESCRIPTION
+        "architecture for analyzing software, compatibility decider agent
+${FO_PACKAGE_COMMON_DESCRIPTION}
+This package contains the compatibility agent programs and their resources.")
+
+set(CPACK_DEBIAN_COMPATIBILITY_PACKAGE_DEPENDS
+        "fossology-common, fossology-decider, fossology-deciderjob")
+
+set(CPACK_DEBIAN_COMPATIBILITY_PACKAGE_SECTION "utils")
+
+## FOSSOLOGY-CYCLONEDX PACKAGE
+set(CPACK_DEBIAN_CYCLONEDX_PACKAGE_NAME "fossology-cyclonedx")
+set(CPACK_DEBIAN_CYCLONEDX_FILE_NAME "fossology-cyclonedx_${FO_PACKAGE_VERSION}-1_amd64.deb")
+set(CPACK_DEBIAN_CYCLONEDX_DESCRIPTION
+"architecture for analyzing software, cyclonedx generator
+${FO_PACKAGE_COMMON_DESCRIPTION}
+This package contains the cyclonedx agent programs and their resources.")
+
+set(CPACK_DEBIAN_CYCLONEDX_PACKAGE_DEPENDS
+    "fossology-common, fossology-copyright")
+
+set(CPACK_DEBIAN_CYCLONEDX_PACKAGE_SECTION "utils")
 
 ## FOSSOLOGY-RESO PACKAGE
 set(CPACK_DEBIAN_RESO_PACKAGE_NAME "fossology-reso")

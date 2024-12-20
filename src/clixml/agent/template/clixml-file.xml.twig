@@ -20,6 +20,9 @@
     <ComponentHash>{{ generalInformation.componentHash|trim }}</ComponentHash>
     <ComponentReleaseDate>{{ generalInformation.componentReleaseDate|trim }}</ComponentReleaseDate>
     <LinkComponentManagement><![CDATA[{{ generalInformation.linkComponentManagement|trim }}]]></LinkComponentManagement>
+    {%- if generalInformation.linkScanTool is not empty ~%}
+    <LinkScanTool><![CDATA[{{ generalInformation.linkScanTool|trim }}]]></LinkScanTool>
+    {%- endif ~%}
     {%- if generalInformation.componentId is not empty ~%}
     <ComponentId>
       <Type>{{ generalInformation.componentType|trim }}</Type>
@@ -41,7 +44,7 @@
   {%- if licensesMain %}
     {%- for ids in licensesMain %}
       {%~ if ids.textMain %}
-  <License type="global" name="{{ids.contentMain|e}}" spdxidentifier="{{ids.contentMain|e}}">
+  <License type="global" name="{{ids.nameMain|e}}" spdxidentifier="{{ids.contentMain|e}}">
     <Content><![CDATA[{{ ids.textMain }}
 ]]></Content>
     <Files><![CDATA[
@@ -75,22 +78,26 @@
   {%- if licenses %}
     {%- for ids in licenses %}
       {%~ if ids.text %}
-  <License type="{{ids.risk}}" name="{{ids.content|e}}" spdxidentifier="{{ids.content|e}}">
+  <License type="{{ids.risk}}" name="{{ids.name|e}}" spdxidentifier="{{ids.content|e}}">
     <Content><![CDATA[{{ ids.text }}
 ]]></Content>
     <Files><![CDATA[
-    {%- for id in ids.files %}
-      {%- if id %}
-        {{- id -}}
-      {%- endif ~%}
-    {%~ endfor %}
+    {%- if fileOperations.licensepath ~%}
+      {%- for id in ids.files %}
+        {%- if id %}
+          {{- id -}}
+        {%- endif ~%}
+      {%~ endfor %}
+    {%- endif ~%}
 ]]></Files>
     <FileHash><![CDATA[
-    {%- for id in ids.hash %}
-      {%- if id %}
-        {{- id -}}
-      {%- endif ~%}
-    {%~ endfor %}
+    {%- if fileOperations.licensehash ~%}
+      {%- for id in ids.hash %}
+        {%- if id %}
+          {{- id -}}
+        {%- endif ~%}
+      {%~ endfor %}
+    {%- endif ~%}
 ]]></FileHash>
         {%- if ids.acknowledgement is not empty ~%}
     <Acknowledgements><![CDATA[
@@ -137,18 +144,22 @@
     <Content><![CDATA[{{ idc.contentCopy }}
 ]]></Content>
     <Files><![CDATA[
+    {%- if fileOperations.copyrightpath ~%}
       {%- for id in idc.files %}
         {%- if id %}
           {{- id -}}
         {%- endif ~%}
       {%~ endfor %}
+    {%- endif ~%}
 ]]></Files>
     <FileHash><![CDATA[
+    {%- if fileOperations.copyrighthash ~%}
       {%- for id in idc.hash %}
         {%- if id %}
           {{- id -}}
         {%- endif ~%}
       {%~ endfor %}
+    {%- endif ~%}
 ]]></FileHash>
     {%- if idc.comments ~%}
     <Comment><![CDATA[{{ idc.comments }}
@@ -169,18 +180,22 @@
     <Content><![CDATA[{{ idc.contentEcc }}
 ]]></Content>
     <Files><![CDATA[
+    {%- if fileOperations.eccpath ~%}
       {%- for id in idc.files %}
         {%- if id %}
           {{- id -}}
         {%- endif ~%}
       {%~ endfor %}
+    {%- endif ~%}
 ]]></Files>
     <FileHash><![CDATA[
+    {%- if fileOperations.ecchash ~%}
       {%- for id in idc.hash %}
         {%- if id %}
           {{- id -}}
         {%- endif ~%}
       {%~ endfor %}
+    {%- endif ~%}
 ]]></FileHash>
     {%- if idc.commentsEcc ~%}
     <Comment><![CDATA[{{ idc.commentsEcc }}
@@ -200,18 +215,22 @@
     <Content><![CDATA[{{ idc.contentIpra }}
 ]]></Content>
     <Files><![CDATA[
+    {%- if fileOperations.iprapath ~%}
       {%- for id in idc.files %}
         {%- if id %}
           {{- id -}}
         {%- endif ~%}
       {%~ endfor %}
+    {%- endif ~%}
 ]]></Files>
     <FileHash><![CDATA[
+    {%- if fileOperations.iprahash ~%}
       {%- for id in idc.hash %}
         {%- if id %}
           {{- id -}}
         {%- endif ~%}
       {%~ endfor %}
+    {%- endif ~%}
 ]]></FileHash>
     {%- if idc.commentsIpra ~%}
     <Comment><![CDATA[{{ idc.commentsIpra }}

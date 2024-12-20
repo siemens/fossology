@@ -12,17 +12,31 @@
  */
 namespace Fossology\UI\Api\Helper;
 
-use Slim\Psr7\Request;
-use Fossology\UI\Api\Helper\UploadHelper\HelperToUploadFilePage;
-use Fossology\UI\Api\Helper\UploadHelper\HelperToUploadVcsPage;
-use Fossology\UI\Api\Helper\UploadHelper\HelperToUploadUrlPage;
-use Fossology\UI\Api\Helper\UploadHelper\HelperToUploadSrvPage;
-use Fossology\UI\Api\Models\UploadSummary;
+use Fossology\Lib\Dao\ClearingDao;
+use Fossology\Lib\Data\DecisionTypes;
+use Fossology\Lib\Data\Tree\ItemTreeBounds;
 use Fossology\Lib\Db\DbManager;
+use Fossology\Lib\Exception;
 use Fossology\Lib\Proxy\ScanJobProxy;
 use Fossology\Lib\Proxy\UploadTreeProxy;
-use Fossology\Lib\Dao\AgentDao;
+use Fossology\UI\Api\Exceptions\HttpBadRequestException;
+use Fossology\UI\Api\Exceptions\HttpForbiddenException;
+use Fossology\UI\Api\Exceptions\HttpNotFoundException;
+use Fossology\UI\Api\Helper\UploadHelper\HelperToUploadFilePage;
+use Fossology\UI\Api\Helper\UploadHelper\HelperToUploadSrvPage;
+use Fossology\UI\Api\Helper\UploadHelper\HelperToUploadUrlPage;
+use Fossology\UI\Api\Helper\UploadHelper\HelperToUploadVcsPage;
+use Fossology\UI\Api\Models\Analysis;
+use Fossology\UI\Api\Models\Decider;
+use Fossology\UI\Api\Models\FileLicenses;
 use Fossology\UI\Api\Models\Findings;
+use Fossology\UI\Api\Models\Info;
+use Fossology\UI\Api\Models\Reuser;
+use Fossology\UI\Api\Models\Scancode;
+use Fossology\UI\Api\Models\ScanOptions;
+use Fossology\UI\Api\Models\UploadSummary;
+use Fossology\UI\Api\Models\ApiVersion;
+use Fossology\UI\Page\BrowseLicense;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use UIExportList;
 
@@ -87,10 +101,63 @@ class UploadHelper
   }
 
   /**
+   * Schedule Analysis after the upload
+   * @param integer $uploadId Upload ID
+   * @param integer $folderId Folder ID
+   * @param array $scanOptionsJSON scanOptions
+   * @param boolean $newUpload Request is for new upload?
+   * @return Info Response
+   * @throws HttpBadRequestException If no parameters are selected for agents
+   * @throws HttpForbiddenException If the user does not have write access to the upload
+   * @throws HttpNotFoundException If the folder does not contain the upload
+   */
+  public function handleScheduleAnalysis($uploadId, $folderId, $scanOptionsJSON,
+                                         $newUpload = false, $apiVersion = ApiVersion::V1)
+  {
+    $parametersSent = false;
+    $analysis = new Analysis();
+
+    if (array_key_exists("analysis", $scanOptionsJSON) && ! empty($scanOptionsJSON["analysis"])) {
+      $analysis->setUsingArray($scanOptionsJSON["analysis"], $apiVersion);
+      $parametersSent = true;
+    }
+
+    $decider = new Decider();
+    if (array_key_exists("decider", $scanOptionsJSON) && ! empty($scanOptionsJSON["decider"])) {
+      $decider->setUsingArray($scanOptionsJSON["decider"], $apiVersion);
+      $parametersSent = true;
+    }
+
+    $scancode = new Scancode();
+    if (array_key_exists("scancode", $scanOptionsJSON) && ! empty($scanOptionsJSON["scancode"])) {
+      $scancode->setUsingArray($scanOptionsJSON["scancode"]);
+      $parametersSent = true;
+    }
+
+    $reuser = new Reuser(0, 'groupName', false, false);
+    try {
+      if (array_key_exists("reuse", $scanOptionsJSON) && ! empty($scanOptionsJSON["reuse"])) {
+        $reuser->setUsingArray($scanOptionsJSON["reuse"], $apiVersion);
+        $parametersSent = true;
+      }
+    } catch (\UnexpectedValueException $e) {
+      throw new HttpBadRequestException($e->getMessage(), $e);
+    }
+
+    if (! $parametersSent) {
+      throw new HttpBadRequestException("No parameters selected for agents!");
+    }
+
+    $scanOptions = new ScanOptions($analysis, $reuser, $decider, $scancode);
+    return $scanOptions->scheduleAgents($folderId, $uploadId, $newUpload);
+  }
+
+
+  /**
    * Get a request from Slim and translate to Symfony request to be
    * processed by FOSSology
    *
-   * @param array|null $request
+   * @param array|null $reqBody
    * @param string $folderId ID of the folder to upload the file
    * @param string $fileDescription Description of file uploaded
    * @param string $isPublic   Upload is `public, private or protected`
@@ -102,7 +169,8 @@ class UploadHelper
    * @see createFileUpload()
    */
   public function createNewUpload($reqBody, $folderId, $fileDescription,
-    $isPublic, $ignoreScm, $uploadType, $applyGlobal = false)
+                                  $isPublic, $ignoreScm, $uploadType,
+                                  $applyGlobal = false)
   {
     $symReq = \Symfony\Component\HttpFoundation\Request::createFromGlobals();
     $uploadedFile = $symReq->files->get($this->uploadFilePage::FILE_INPUT_NAME,
@@ -403,7 +471,7 @@ class UploadHelper
   /**
    * Generate the upload by calling handleRequest of HelperToUploadUrlPage
    * @param array   $urlData         Information from POST
-   * @param string  $folderId        ID of the folder
+   * @param string  $folderName      Name of the folder
    * @param string  $fileDescription Description of the upload
    * @param string  $isPublic        Upload is `public, private or protected`
    * @param integer $ignoreScm       1 if the SCM should be ignored.
@@ -448,7 +516,7 @@ class UploadHelper
   /**
    * Generate the upload by calling handleRequest of HelperToUploadSrvPage
    * @param array   $srvData         Information from POST
-   * @param string  $folderId        ID of the folder
+   * @param string  $folderName      Name of the folder
    * @param string  $fileDescription Description of the upload
    * @param string  $isPublic        Upload is `public, private or protected`
    * @param integer $ignoreScm       1 if the SCM should be ignored.
@@ -531,8 +599,16 @@ class UploadHelper
 
     $mainLicenses = $this->getMainLicenses($dbManager, $uploadId, $groupId);
 
+    /** @var BrowseLicense $uiLicense */
     $uiLicense = $restHelper->getPlugin("license");
     $hist = $uiLicense->getUploadHist($itemTreeBounds);
+    if (!is_array($hist) || !array_key_exists('uniqueLicenseCount', $hist)) {
+      $hist = [];
+      $hist['uniqueLicenseCount'] = 0;
+      $hist['scannerLicenseCount'] = 0;
+      $hist['editedUniqueLicenseCount'] = 0;
+      $hist['editedLicenseCount'] = 0;
+    }
 
     $summary = new UploadSummary();
     $summary->setUploadId($uploadId);
@@ -561,16 +637,16 @@ class UploadHelper
    */
   private function getMainLicenses($dbManager, $uploadId, $groupId)
   {
-    $sql = "SELECT rf_shortname FROM upload_clearing_license ucl, license_ref"
-         . " WHERE ucl.group_fk=$1 AND upload_fk=$2 AND ucl.rf_fk=rf_pk;";
+    $sql = "SELECT rf_shortname FROM license_ref lf JOIN upload_clearing_license ucl"
+            . " ON lf.rf_pk=ucl.rf_fk WHERE upload_fk=$1 AND ucl.group_fk=$2";
     $stmt = __METHOD__.'.collectMainLicenses';
-    $rows = $dbManager->getRows($sql, array($groupId, $uploadId), $stmt);
+    $rows = $dbManager->getRows($sql, array($uploadId, $groupId), $stmt);
     if (empty($rows)) {
       return null;
     }
     $mainLicenses = [];
     foreach ($rows as $row) {
-      array_push($mainLicenses, $row['rf_shortname']);
+      $mainLicenses[] = $row['rf_shortname'];
     }
     return $mainLicenses;
   }
@@ -586,16 +662,13 @@ class UploadHelper
     global $container;
     $restHelper = $container->get('helper.restHelper');
     $uploadDao = $restHelper->getUploadDao();
-    $agentDao = $container->get('dao.agent');
 
     $uploadTreeTableName = $uploadDao->getUploadtreeTableName($uploadId);
     $parent = $uploadDao->getParentItemBounds($uploadId, $uploadTreeTableName);
 
-    $scanProx = new ScanJobProxy($agentDao, $uploadId);
     /** @var UIExportList $copyrightListObj
      * UIExportList object to get copyright
      */
-
     $copyrightListObj = $restHelper->getPlugin('export-list');
     $copyrightList = $copyrightListObj->getCopyrights($uploadId,
       $parent->getItemId(), $uploadTreeTableName, -1, '');
@@ -629,6 +702,35 @@ class UploadHelper
   }
 
   /**
+   * Get the clearing status for files within an upload
+   * @param ItemTreeBounds $itemTreeBounds ItemTreeBounds object for the uploadtree
+   * @param ClearingDao $clearingDao ClearingDao object
+   * @param integer $groupId groupId of the user
+   * @return string String containing the Clearing status message
+   * @throws Exception In case decision type not found
+   */
+  public function fetchClearingStatus($itemTreeBounds, $clearingDao, $groupId)
+  {
+    $decTypes = new DecisionTypes;
+    if ($itemTreeBounds !== null) {
+      $clearingList = $clearingDao->getFileClearings($itemTreeBounds, $groupId);
+    } else {
+      $clearingList = [];
+    }
+
+    $clearingArray = [];
+    foreach ($clearingList as $clearingDecision) {
+      $clearingArray[] = $clearingDecision->getType();
+    }
+
+    if (empty($clearingArray) || $clearingArray[0] === null) {
+      return "NOASSERTION";
+    } else {
+      return $decTypes->getTypeName($clearingArray[0]);
+    }
+  }
+
+  /**
    * Get the license and copyright list for given upload scanned by provided agents
    * @param integer $uploadId        Upload ID
    * @param array $agents            List of agents to get list from
@@ -638,19 +740,19 @@ class UploadHelper
    * @return array Array containing `filePath`, `agentFindings` and
    * `conclusions` for each upload tree item
    */
-  public function getUploadLicenseList($uploadId, $agents, $printContainers, $boolLicense, $boolCopyright)
+  public function getUploadLicenseList($uploadId, $agents, $printContainers, $boolLicense, $boolCopyright, $page = 0, $limit = 50, $apiVersion=ApiVersion::V1)
   {
     global $container;
     $restHelper = $container->get('helper.restHelper');
     $uploadDao = $restHelper->getUploadDao();
     $agentDao = $container->get('dao.agent');
-
     $uploadTreeTableName = $uploadDao->getUploadtreeTableName($uploadId);
     $parent = $uploadDao->getParentItemBounds($uploadId, $uploadTreeTableName);
-
+    $groupId = $restHelper->getGroupId();
     $scanProx = new ScanJobProxy($agentDao, $uploadId);
     $scanProx->createAgentStatus($agents);
     $agent_ids = $scanProx->getLatestSuccessfulAgentIds();
+    $clearingDao = $container->get("dao.clearing");
 
     /** @var UIExportList $licenseListObj
      * UIExportList object to get licenses
@@ -695,10 +797,18 @@ class UploadHelper
 
         $findings = new Findings($license['agentFindings'],
           $license['conclusions'], $copyrightContent);
-        $responseRow = array();
-        $responseRow['filePath'] = $license['filePath'];
-        $responseRow['findings'] = $findings->getArray();
-        $responseList[] = $responseRow;
+        $uploadTreeTableId = $license['uploadtree_pk'];
+        $uploadtree_tablename = $uploadDao->getUploadtreeTableName($uploadId);
+        if ($uploadTreeTableId!==null) {
+          $itemTreeBounds = $uploadDao->getItemTreeBounds($uploadTreeTableId,$uploadtree_tablename);
+        } else {
+          $itemTreeBounds=null;
+        }
+        $clearingDecision = $this->fetchClearingStatus($itemTreeBounds,
+          $clearingDao, $groupId);
+        $responseRow = new FileLicenses($license['filePath'], $findings,
+          $clearingDecision);
+        $responseList[] = $responseRow->getArray($apiVersion);
       }
     } elseif (!$boolLicense && $boolCopyright) {
       foreach ($copyrightList as $copyFilepath) {
@@ -710,12 +820,13 @@ class UploadHelper
         }
         $findings = new Findings();
         $findings->setCopyright($copyrightContent);
-        $responseRow = array();
-        $responseRow['filePath'] = $copyFilepath['filePath'];
-        $responseRow['copyright'] = $findings->getCopyright();
-        $responseList[] = $responseRow;
+        $responseRow = new FileLicenses($copyFilepath['filePath'], $findings);
+        $responseList[] = $responseRow->getArray($apiVersion);
       }
     }
-    return $responseList;
+    $offset = $page * $limit;
+    $paginatedResponseList = array_slice($responseList, $offset, $limit);
+    $paginatedResponseListSize = sizeof($responseList);
+    return array($paginatedResponseList, $paginatedResponseListSize);
   }
 }

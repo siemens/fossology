@@ -39,4 +39,28 @@ class StringOperation
     return preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/u', $replace,
       $input);
   }
+
+  /**
+   * Polyfill for PHP8's str_starts_with
+   * https://www.php.net/manual/en/function.str-starts-with.php
+   * @param string $haystack String to search in
+   * @param string $needle   String to search for
+   * @return bool True if haystack starts with needle.
+   */
+  public static function stringStartsWith($haystack, $needle)
+  {
+    return strncmp($haystack, $needle, strlen($needle)) === 0;
+  }
+
+  /**
+   * Polyfill for PHP8's str_ends_with
+   * https://www.php.net/manual/en/function.str-ends-with.php
+   * @param string $haystack String to search in
+   * @param string $needle   String to search for
+   * @return bool True if haystack ends with needle.
+   */
+  public static function stringEndsWith($haystack, $needle)
+  {
+    return substr_compare($haystack, $needle, -strlen($needle)) === 0;
+  }
 }

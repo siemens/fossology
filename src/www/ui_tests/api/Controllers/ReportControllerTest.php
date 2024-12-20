@@ -16,6 +16,10 @@ use Fossology\Lib\Dao\UploadDao;
 use Fossology\Lib\Data\Upload\Upload;
 use Fossology\Lib\Db\DbManager;
 use Fossology\UI\Api\Controllers\ReportController;
+use Fossology\UI\Api\Exceptions\HttpBadRequestException;
+use Fossology\UI\Api\Exceptions\HttpForbiddenException;
+use Fossology\UI\Api\Exceptions\HttpNotFoundException;
+use Fossology\UI\Api\Exceptions\HttpServiceUnavailableException;
 use Fossology\UI\Api\Helper\DbHelper;
 use Fossology\UI\Api\Helper\ResponseHelper;
 use Fossology\UI\Api\Helper\RestHelper;
@@ -237,12 +241,13 @@ class ReportControllerTest extends \PHPUnit\Framework\TestCase
    */
   private function getResponseForReport($uploadId, $reportFormat)
   {
+    $GLOBALS["apiBasePath"] = "/repo/api/v1";
     $requestHeaders = new Headers();
     $requestHeaders->setHeader('uploadId', $uploadId);
     $requestHeaders->setHeader('reportFormat', $reportFormat);
     $body = $this->streamFactory->createStream();
     $request = new Request("GET", new Uri("HTTP", "localhost", 80,
-      "/api/v1/report"), $requestHeaders, [], [], $body);
+      "/repo/api/v1/report"), $requestHeaders, [], [], $body);
     $response = new ResponseHelper();
     return $this->reportController->getReport($request, $response, []);
   }
@@ -274,7 +279,7 @@ class ReportControllerTest extends \PHPUnit\Framework\TestCase
     $this->decisionExporterPlugin->shouldReceive('scheduleAgent')
       ->withArgs([$this->groupId, $upload])->andReturn([32, 33]);
 
-    $expectedResponse = new Info(201, "localhost/api/v1/report/32",
+    $expectedResponse = new Info(201, "http://localhost/repo/api/v1/report/32",
       InfoType::INFO);
 
     foreach ($this->reportsAllowed as $reportFormat) {
@@ -296,16 +301,9 @@ class ReportControllerTest extends \PHPUnit\Framework\TestCase
     $uploadId = 3;
     $reportFormat = 'report';
 
-    $expectedResponse = new Info(400,
-      "reportFormat must be from [" . implode(",", $this->reportsAllowed) . "]",
-      InfoType::ERROR);
+    $this->expectException(HttpBadRequestException::class);
 
-    $actualResponse = $this->getResponseForReport($uploadId, $reportFormat);
-
-    $this->assertEquals($expectedResponse->getCode(),
-      $actualResponse->getStatusCode());
-    $this->assertEquals($expectedResponse->getArray(),
-      $this->getResponseJson($actualResponse));
+    $this->getResponseForReport($uploadId, $reportFormat);
   }
 
   /**
@@ -321,15 +319,9 @@ class ReportControllerTest extends \PHPUnit\Framework\TestCase
     $this->uploadDao->shouldReceive('isAccessible')->withArgs([$uploadId,
       $this->groupId])->andReturn(false);
 
-    $expectedResponse = new Info(403, "Upload is not accessible!",
-      InfoType::ERROR);
+    $this->expectException(HttpForbiddenException::class);
 
-    $actualResponse = $this->getResponseForReport($uploadId, $reportFormat);
-
-    $this->assertEquals($expectedResponse->getCode(),
-      $actualResponse->getStatusCode());
-    $this->assertEquals($expectedResponse->getArray(),
-      $this->getResponseJson($actualResponse));
+    $this->getResponseForReport($uploadId, $reportFormat);
   }
 
   /**
@@ -348,15 +340,9 @@ class ReportControllerTest extends \PHPUnit\Framework\TestCase
     $this->uploadDao->shouldReceive('getUpload')->withArgs([$uploadId])
       ->andReturn($upload);
 
-    $expectedResponse = new Info(404, "Upload does not exists!",
-      InfoType::ERROR);
+    $this->expectException(HttpNotFoundException::class);
 
-    $actualResponse = $this->getResponseForReport($uploadId, $reportFormat);
-
-    $this->assertEquals($expectedResponse->getCode(),
-      $actualResponse->getStatusCode());
-    $this->assertEquals($expectedResponse->getArray(),
-      $this->getResponseJson($actualResponse));
+    $this->getResponseForReport($uploadId, $reportFormat);
   }
 
   /**
@@ -365,7 +351,7 @@ class ReportControllerTest extends \PHPUnit\Framework\TestCase
    * -# Generate all mock objects
    * -# Generate a temporary file to be downloaded
    * -# Replicate expected headers
-   * -# Check for acutal headers
+   * -# Check for actual headers
    * -# Check for actual file content
    */
   public function testDownloadReport()
@@ -442,16 +428,10 @@ class ReportControllerTest extends \PHPUnit\Framework\TestCase
     $this->uploadDao->shouldReceive('isAccessible')->withArgs([$uploadId,
       $this->groupId])->andReturn(false);
 
-    $expectedResponse = new Info(403, "Report is not accessible.",
-      InfoType::INFO);
+    $this->expectException(HttpForbiddenException::class);
 
-    $actualResponse = $this->reportController->downloadReport(null,
-      new ResponseHelper(), ["id" => $reportId]);
-
-    $this->assertEquals($expectedResponse->getCode(),
-      $actualResponse->getStatusCode());
-    $this->assertEquals($expectedResponse->getArray(),
-      $this->getResponseJson($actualResponse));
+    $this->reportController->downloadReport(null, new ResponseHelper(),
+      ["id" => $reportId]);
   }
 
   /**
@@ -468,16 +448,10 @@ class ReportControllerTest extends \PHPUnit\Framework\TestCase
         [$reportId], "reportValidity"])
       ->andReturn(["jq_type" => ""]);
 
-    $expectedResponse = new Info(404, "No report scheduled with given job id.",
-            InfoType::ERROR);
+    $this->expectException(HttpNotFoundException::class);
 
-    $actualResponse = $this->reportController->downloadReport(null,
-      new ResponseHelper(), ["id" => $reportId]);
-
-    $this->assertEquals($expectedResponse->getCode(),
-      $actualResponse->getStatusCode());
-    $this->assertEquals($expectedResponse->getArray(),
-      $this->getResponseJson($actualResponse));
+    $this->reportController->downloadReport(null, new ResponseHelper(),
+      ["id" => $reportId]);
   }
 
   /**
@@ -505,16 +479,9 @@ class ReportControllerTest extends \PHPUnit\Framework\TestCase
         [$reportId], "reportFileName"])
       ->andReturn(false);
 
-    $expectedResponse = new Info(503, "Report is not ready. Retry after 10s.",
-      InfoType::INFO);
+    $this->expectException(HttpServiceUnavailableException::class);
 
-    $actualResponse = $this->reportController->downloadReport(null,
-      new ResponseHelper(), ["id" => $reportId]);
-
-    $this->assertEquals($expectedResponse->getCode(),
-      $actualResponse->getStatusCode());
-    $this->assertEquals($expectedResponse->getArray(),
-      $this->getResponseJson($actualResponse));
-    $this->assertEquals('10', $actualResponse->getHeaderLine('Retry-After'));
+    $this->reportController->downloadReport(null, new ResponseHelper(),
+      ["id" => $reportId]);
   }
 }

@@ -50,19 +50,23 @@ namespace Fossology\UI\Api\Controllers
 namespace Fossology\UI\Api\Test\Controllers
 {
 
-  use Mockery as M;
-  use Fossology\UI\Api\Helper\DbHelper;
-  use Fossology\UI\Api\Helper\RestHelper;
-  use Fossology\UI\Api\Controllers\FolderController;
   use Fossology\Lib\Dao\FolderDao;
   use Fossology\Lib\Data\Folder\Folder;
+  use Fossology\UI\Api\Controllers\FolderController;
+  use Fossology\UI\Api\Exceptions\HttpBadRequestException;
+  use Fossology\UI\Api\Exceptions\HttpForbiddenException;
+  use Fossology\UI\Api\Exceptions\HttpNotFoundException;
+  use Fossology\UI\Api\Helper\DbHelper;
+  use Fossology\UI\Api\Helper\ResponseHelper;
+  use Fossology\UI\Api\Helper\RestHelper;
+  use Fossology\UI\Api\Models\ApiVersion;
   use Fossology\UI\Api\Models\Info;
   use Fossology\UI\Api\Models\InfoType;
-  use Fossology\UI\Api\Helper\ResponseHelper;
-  use Slim\Psr7\Request;
+  use Mockery as M;
   use Slim\Psr7\Factory\StreamFactory;
-  use Slim\Psr7\Uri;
   use Slim\Psr7\Headers;
+  use Slim\Psr7\Request;
+  use Slim\Psr7\Uri;
 
   /**
    * @class FolderControllerTest
@@ -201,7 +205,7 @@ namespace Fossology\UI\Api\Test\Controllers
      * Helper function to get pseudo parent id of given folder
      *
      * @param integer $id Folder id to get parent
-     * @return NULL|number
+     * @return int|NULL
      */
     public function getFolderParent($id)
     {
@@ -284,9 +288,9 @@ namespace Fossology\UI\Api\Test\Controllers
 
     /**
      * @test
-     * -# Test to check a 404 response of invalid folder
+     * -# Test to check a 403 response of invalid folder
      * -# Call FolderController::getFolders() for invalid folder
-     * -# Check for a 404 response
+     * -# Check for a 403 response
      */
     public function testGetInvalidFolder()
     {
@@ -295,14 +299,10 @@ namespace Fossology\UI\Api\Test\Controllers
         ->withArgs(array($folderId))->andReturn(false);
       $this->folderDao->shouldReceive('getFolder')
         ->andReturnUsing([$this, 'getFolder']);
-      $expectedResponse = new Info(404, "Folder id $folderId does not exists",
-        InfoType::ERROR);
-      $actualResponse = $this->folderController->getFolders(null,
-        new ResponseHelper(), ['id' => $folderId]);
-      $this->assertEquals($expectedResponse->getCode(),
-        $actualResponse->getStatusCode());
-      $this->assertEquals($expectedResponse->getArray(),
-        $this->getResponseJson($actualResponse));
+      $this->expectException(HttpForbiddenException::class);
+
+      $this->folderController->getFolders(null, new ResponseHelper(),
+        ['id' => $folderId]);
     }
 
     /**
@@ -318,22 +318,36 @@ namespace Fossology\UI\Api\Test\Controllers
         ->withArgs(array($folderId))->andReturn(false);
       $this->folderDao->shouldReceive('getFolder')
         ->andReturnUsing([$this, 'getFolder']);
-      $expectedResponse = new Info(403, "Folder id $folderId is not accessible",
-        InfoType::ERROR);
-      $actualResponse = $this->folderController->getFolders(null,
-        new ResponseHelper(), ['id' => $folderId]);
-      $this->assertEquals($expectedResponse->getCode(),
-        $actualResponse->getStatusCode());
-      $this->assertEquals($expectedResponse->getArray(),
-        $this->getResponseJson($actualResponse));
+      $this->expectException(HttpForbiddenException::class);
+
+      $this->folderController->getFolders(null, new ResponseHelper(),
+        ['id' => $folderId]);
     }
 
     /**
      * @test
-     * -# Check for FolderController::createFolder()
+     * -# Check for FolderController::createFolder() with version 1 attributes
      * -# Check for 201 response with folder id
      */
-    public function testCreateFolder()
+    public function testCreateFolderV1()
+    {
+      $this->testCreateFolder(ApiVersion::V1);
+    }
+    /**
+     * @test
+     * -# Check for FolderController::createFolder() with version 2 attributes
+     * -# Check for 201 response with folder id
+     */
+    public function testCreateFolderV2()
+    {
+      $this->testCreateFolder();
+    }
+
+    /**
+     * @param $version to test
+     * @return void
+     */
+    private  function testCreateFolder($version = ApiVersion::V2)
     {
       $parentFolder = 2;
       $folderName = "root-child1";
@@ -347,12 +361,17 @@ namespace Fossology\UI\Api\Test\Controllers
       $this->folderDao->shouldReceive('getFolderId')
         ->withArgs(array($folderName, $parentFolder))->andReturn($folderId);
       $requestHeaders = new Headers();
-      $requestHeaders->setHeader('parentFolder', $parentFolder);
-      $requestHeaders->setHeader('folderName', $folderName);
-      $requestHeaders->setHeader('folderDescription', $folderDescription);
       $body = $this->streamFactory->createStream();
       $request = new Request("POST", new Uri("HTTP", "localhost"),
         $requestHeaders, [], [], $body);
+      if ($version == ApiVersion::V2) {
+        $request = $request->withQueryParams(['parentFolder'=>$parentFolder, 'folderName'=>$folderName, 'folderDescription'=>$folderDescription]);
+      } else {
+        $request = $request->withHeader('parentFolder', $parentFolder)
+          ->withHeader('folderName', $folderName)
+          ->withHeader('folderDescription', $folderDescription);
+      }
+      $request = $request->withAttribute(ApiVersion::ATTRIBUTE_NAME, $version);
       $response = new ResponseHelper();
       $actualResponse = $this->folderController->createFolder($request,
         $response, []);
@@ -362,13 +381,30 @@ namespace Fossology\UI\Api\Test\Controllers
       $this->assertEquals($expectedResponse->getArray(),
         $this->getResponseJson($actualResponse));
     }
-
     /**
      * @test
-     * -# Check for inaccessible parent on FolderController::createFolder()
+     * -# Check for inaccessible parent on FolderController::createFolder() with version 1 attributes
      * -# Check for 403 response
      */
-    public function testCreateFolderParentNotAccessible()
+    public function testCreateFolderParentNotAccessibleV1()
+    {
+      $this->testCreateFolderParentNotAccessible(ApiVersion::V1);
+    }
+    /**
+     * @test
+     * -# Check for inaccessible parent on FolderController::createFolder() with version 1 attributes
+     * -# Check for 403 response
+     */
+    public function testCreateFolderParentNotAccessibleV2()
+    {
+      $this->testCreateFolderParentNotAccessible();
+    }
+
+    /**
+     * @param $version to test
+     * @return void
+     */
+    private function testCreateFolderParentNotAccessible($version = ApiVersion::V2)
     {
       $parentFolder = 2;
       $folderName = "root-child1";
@@ -376,30 +412,47 @@ namespace Fossology\UI\Api\Test\Controllers
       $this->folderDao->shouldReceive('isFolderAccessible')
         ->withArgs(array($parentFolder, $this->userId))->andReturn(false);
       $requestHeaders = new Headers();
-      $requestHeaders->setHeader('parentFolder', $parentFolder);
-      $requestHeaders->setHeader('folderName', $folderName);
-      $requestHeaders->setHeader('folderDescription', $folderDescription);
       $body = $this->streamFactory->createStream();
       $request = new Request("POST", new Uri("HTTP", "localhost"),
         $requestHeaders, [], [], $body);
+      if ($version == ApiVersion::V2) {
+        $request = $request->withQueryParams(['parentFolder'=>$parentFolder, 'folderName'=>$folderName, 'folderDescription'=>$folderDescription]);
+      } else {
+        $request = $request->withHeader('parentFolder', $parentFolder)
+          ->withHeader('folderName', $folderName)
+          ->withHeader('folderDescription', $folderDescription);
+      }
+      $request = $request->withAttribute(ApiVersion::ATTRIBUTE_NAME, $version);
       $response = new ResponseHelper();
-      $actualResponse = $this->folderController->createFolder($request,
-        $response, []);
-      $expectedResponse = new Info(403, "Parent folder can not be accessed!",
-        InfoType::ERROR);
-      $this->assertEquals($expectedResponse->getCode(),
-        $actualResponse->getStatusCode());
-      $this->assertEquals($expectedResponse->getArray(),
-        $this->getResponseJson($actualResponse));
+      $this->expectException(HttpForbiddenException::class);
+      $this->folderController->createFolder($request, $response, []);
     }
 
     /**
-     * @test
+     * @test FolderController::createFolder() with version 1 attributes
      * -# Check for duplicate folder response from
      *    FolderController::createFolder()
      * -# Check for 200 response
      */
-    public function testCreateFolderDuplicateNames()
+    public function testCreateFolderDuplicateNamesV1()
+    {
+      $this->testCreateFolderDuplicateNames(ApiVersion::V1);
+    }
+    /**
+     * @test FolderController::createFolder() with version 2 attributes
+     * -# Check for duplicate folder response from
+     *    FolderController::createFolder()
+     * -# Check for 200 response
+     */
+    public function testCreateFolderDuplicateNamesV2()
+    {
+      $this->testCreateFolderDuplicateNames();
+    }
+    /**
+     * @param $version to test
+     * @return void
+     */
+    private function testCreateFolderDuplicateNames($version = ApiVersion::V2)
     {
       $parentFolder = 2;
       $folderName = "root-child1";
@@ -416,6 +469,14 @@ namespace Fossology\UI\Api\Test\Controllers
       $body = $this->streamFactory->createStream();
       $request = new Request("POST", new Uri("HTTP", "localhost"),
         $requestHeaders, [], [], $body);
+      if ($version == ApiVersion::V2) {
+        $request = $request->withQueryParams(['parentFolder'=>$parentFolder,'folderName'=>$folderName, 'folderDescription'=>$folderDescription]);
+      } else {
+        $request = $request->withHeader('parentFolder', $parentFolder)
+          ->withHeader('folderName', $folderName)
+          ->withHeader('folderDescription', $folderDescription);
+      }
+      $request = $request->withAttribute(ApiVersion::ATTRIBUTE_NAME, $version);
       $response = new ResponseHelper();
       $actualResponse = $this->folderController->createFolder($request,
         $response, []);
@@ -460,14 +521,10 @@ namespace Fossology\UI\Api\Test\Controllers
       $folderId = 0;
       $this->folderDao->shouldReceive('getFolder')
         ->withArgs(array($folderId))->andReturnNull();
-      $actualResponse = $this->folderController->deleteFolder(null,
-        new ResponseHelper(), ["id" => $folderId]);
-      $expectedResponse = new Info(404, "Folder id not found!",
-        InfoType::ERROR);
-      $this->assertEquals($expectedResponse->getCode(),
-        $actualResponse->getStatusCode());
-      $this->assertEquals($expectedResponse->getArray(),
-        $this->getResponseJson($actualResponse));
+      $this->expectException(HttpNotFoundException::class);
+
+      $this->folderController->deleteFolder(null, new ResponseHelper(),
+        ["id" => $folderId]);
     }
 
     /**
@@ -484,21 +541,36 @@ namespace Fossology\UI\Api\Test\Controllers
       $this->deletePlugin->shouldReceive('Delete')
         ->withArgs(array("2 $folderId", $this->userId))
         ->andReturn($errorText);
-      $actualResponse = $this->folderController->deleteFolder(null,
-        new ResponseHelper(), ["id" => $folderId]);
-      $expectedResponse = new Info(403, $errorText, InfoType::ERROR);
-      $this->assertEquals($expectedResponse->getCode(),
-        $actualResponse->getStatusCode());
-      $this->assertEquals($expectedResponse->getArray(),
-        $this->getResponseJson($actualResponse));
+      $this->expectException(HttpForbiddenException::class);
+
+      $this->folderController->deleteFolder(null, new ResponseHelper(),
+        ["id" => $folderId]);
     }
 
     /**
      * @test
-     * -# Test for FolderController::editFolder()
-     * -# Check for 200 reponse
+     * -# Test for FolderController::editFolder() with version 1 attributes
+     * -# Check for 200 response
      */
-    public function testEditFolder()
+    public function testEditFolderV1()
+    {
+      $this->testEditFolder(APiVersion::V1);
+    }
+    /**
+     * @test
+     * -# Test for FolderController::editFolder() with version 2 attributes
+     * -# Check for 200 response
+     */
+    public function testEditFolderV2()
+    {
+      $this->testEditFolder();
+    }
+
+    /**
+     * @param $version to test
+     * @return void
+     */
+    private function testEditFolder($version = ApiVersion::V2)
     {
       $folderId = 3;
       $folderName = "new name";
@@ -510,11 +582,16 @@ namespace Fossology\UI\Api\Test\Controllers
       $this->folderPropertiesPlugin->shouldReceive('Edit')
         ->withArgs(array($folderId, $folderName, $folderDescription));
       $requestHeaders = new Headers();
-      $requestHeaders->setHeader('name', $folderName);
-      $requestHeaders->setHeader('description', $folderDescription);
       $body = $this->streamFactory->createStream();
       $request = new Request("PATCH", new Uri("HTTP", "localhost"),
         $requestHeaders, [], [], $body);
+      if ($version == ApiVersion::V2) {
+        $request = $request->withQueryParams(['name'=> $folderName, 'description'=>$folderDescription]);
+      } else {
+        $request = $request->withHeader('name', $folderName)
+          ->withHeader('description', $folderDescription);
+      }
+      $request = $request->withAttribute(ApiVersion::ATTRIBUTE_NAME, $version);
       $response = new ResponseHelper();
       $actualResponse = $this->folderController->editFolder($request,
         $response, ["id" => $folderId]);
@@ -528,10 +605,23 @@ namespace Fossology\UI\Api\Test\Controllers
 
     /**
      * @test
-     * -# Check FolderController::editFolder() on non-existing folder
+     * -# Check FolderController::editFolder() on non-existing folder with version 1 attributes
      * -# Check for 404 response
      */
-    public function testEditFolderNotExists()
+    public function testEditFolderNotExistsV1()
+    {
+      $this->testEditFolderNotExists(ApiVersion::V1);
+    }
+    /**
+     * @test
+     * -# Check FolderController::editFolder() on non-existing folder with version 2 attributes
+     * -# Check for 404 response
+     */
+    public function testEditFolderNotExistsV2()
+    {
+      $this->testEditFolderNotExists();
+    }
+    private function testEditFolderNotExists($version = ApiVersion::V2)
     {
       $folderId = 8;
       $folderName = "new name";
@@ -543,22 +633,42 @@ namespace Fossology\UI\Api\Test\Controllers
       $body = $this->streamFactory->createStream();
       $request = new Request("PATCH", new Uri("HTTP", "localhost"),
         $requestHeaders, [], [], $body);
+      if ($version == ApiVersion::V2) {
+        $request = $request->withQueryParams(['name'=> $folderName, 'description'=>$folderDescription]);
+      } else {
+        $request = $request->withHeader('name', $folderName)
+          ->withHeader('description', $folderDescription);
+      }
+      $request = $request->withAttribute(ApiVersion::ATTRIBUTE_NAME, $version);
       $response = new ResponseHelper();
-      $actualResponse = $this->folderController->editFolder($request,
-        $response, ["id" => $folderId]);
-      $expectedResponse = new Info(404, "Folder id not found!", InfoType::ERROR);
-      $this->assertEquals($expectedResponse->getCode(),
-        $actualResponse->getStatusCode());
-      $this->assertEquals($expectedResponse->getArray(),
-        $this->getResponseJson($actualResponse));
-    }
+      $this->expectException(HttpNotFoundException::class);
 
+      $this->folderController->editFolder($request, $response,
+        ["id" => $folderId]);
+    }
     /**
      * @test
-     * -# Test for inaccessible folder on FolderController::editFolder()
+     * -# Test for inaccessible folder on FolderController::editFolder() with version 1 attributes
      * -# Check for 403 response
      */
-    public function testEditFolderNotAccessible()
+    public function testEditFolderNotAccessibleV1()
+    {
+      $this->testEditFolderNotAccessible(APIVersion::V2);
+    }
+    /**
+     * @test
+     * -# Test for inaccessible folder on FolderController::editFolder() with version 2 attributes
+     * -# Check for 403 response
+     */
+    public function testEditFolderNotAccessibleV2()
+    {
+      $this->testEditFolderNotAccessible();
+    }
+    /**
+     * @param $version to test
+     * @return void
+     */
+    private function testEditFolderNotAccessible($version = ApiVersion::V2)
     {
       $folderId = 3;
       $folderName = "new name";
@@ -573,23 +683,43 @@ namespace Fossology\UI\Api\Test\Controllers
       $body = $this->streamFactory->createStream();
       $request = new Request("PATCH", new Uri("HTTP", "localhost"),
         $requestHeaders, [], [], $body);
+      if ($version == ApiVersion::V2) {
+        $request = $request->withQueryParams(['name'=> $folderName, 'description'=>$folderDescription]);
+      } else {
+        $request = $request->withHeader('name', $folderName)
+          ->withHeader('description', $folderDescription);
+      }
+      $request = $request->withAttribute(ApiVersion::ATTRIBUTE_NAME, $version);
       $response = new ResponseHelper();
-      $actualResponse = $this->folderController->editFolder($request,
-        $response, ["id" => $folderId]);
-      $expectedResponse = new Info(403, "Folder is not accessible!",
-        InfoType::ERROR);
-      $this->assertEquals($expectedResponse->getCode(),
-        $actualResponse->getStatusCode());
-      $this->assertEquals($expectedResponse->getArray(),
-        $this->getResponseJson($actualResponse));
+      $this->expectException(HttpForbiddenException::class);
+
+      $this->folderController->editFolder($request, $response,
+        ["id" => $folderId]);
     }
 
     /**
      * @test
-     * -# Test for copy action on FolderController::copyFolder()
+     * -# Test for copy action on FolderController::copyFolder() with version 1 attributes
      * -# Check for 202 response
      */
-    public function testCopyFolder()
+    public function testCopyFolderV1()
+    {
+      $this->testCopyFolder(APiVersion::V1);
+    }
+    /**
+     * @test
+     * -# Test for copy action on FolderController::copyFolder() with version 2 attributes
+     * -# Check for 202 response
+     */
+    public function testCopyFolderV2()
+    {
+      $this->testCopyFolder();
+    }
+    /**
+     * @param $version to test
+     * @return void
+     */
+    private function testCopyFolder($version = ApiVersion::V2)
     {
       $folderId = 3;
       $parentId = 2;
@@ -602,16 +732,25 @@ namespace Fossology\UI\Api\Test\Controllers
       $this->folderDao->shouldReceive('isFolderAccessible')
         ->withArgs(array(M::anyOf($folderId, "$parentId"),
           $this->userId))->andReturn(true);
+      $this->folderDao->shouldReceive('isFolderAccessible')
+        ->withArgs([$parentId,
+          $this->userId])->andReturn(true);
       $this->folderDao->shouldReceive('getFolderContentsId')
         ->withArgs(array($folderId, 1))->andReturn($folderContentPk);
       $this->folderContentPlugin->shouldReceive('copyContent')
         ->withArgs(array([$folderContentPk], $parentId, true))->andReturn("");
+
       $requestHeaders = new Headers();
-      $requestHeaders->setHeader('parent', $parentId);
-      $requestHeaders->setHeader('action', "copy");
       $body = $this->streamFactory->createStream();
       $request = new Request("PUT", new Uri("HTTP", "localhost"),
         $requestHeaders, [], [], $body);
+      if ($version == ApiVersion::V2) {
+        $request = $request->withQueryParams(['parent'=> $parentId, 'action'=>"copy"]);
+      } else {
+        $request = $request->withHeader('parent', $parentId)
+          ->withHeader('action', "copy");
+      }
+      $request = $request->withAttribute(ApiVersion::ATTRIBUTE_NAME, $version);
       $response = new ResponseHelper();
 
       $actualResponse = $this->folderController->copyFolder($request,
@@ -627,10 +766,28 @@ namespace Fossology\UI\Api\Test\Controllers
 
     /**
      * @test
-     * -# Test for move action on FolderController::copyFolder()
+     * -# Test for move action on FolderController::copyFolder() with version 1 attributes
      * -# Check for 202 response
      */
-    public function testMoveFolder()
+    public function testMoveFolderV1()
+    {
+      $this->testMoveFolder(ApiVersion::V1);
+    }
+    /**
+     * @test
+     * -# Test for move action on FolderController::copyFolder() with version 2 attributes
+     * -# Check for 202 response
+     */
+    public function testMoveFolderV2()
+    {
+      $this->testMoveFolder();
+    }
+
+    /**
+     * @param $version to test
+     * @return void
+     */
+    private function testMoveFolder($version = ApiVersion::V2)
     {
       $folderId = 3;
       $parentId = 2;
@@ -643,18 +800,24 @@ namespace Fossology\UI\Api\Test\Controllers
       $this->folderDao->shouldReceive('isFolderAccessible')
         ->withArgs(array(M::anyOf($folderId, "$parentId"),
           $this->userId))->andReturn(true);
+      $this->folderDao->shouldReceive('isFolderAccessible')
+        ->withArgs([$parentId, $this->userId])->andReturn(true);
       $this->folderDao->shouldReceive('getFolderContentsId')
         ->withArgs(array($folderId, 1))->andReturn($folderContentPk);
       $this->folderContentPlugin->shouldReceive('copyContent')
         ->withArgs(array([$folderContentPk], $parentId, false))->andReturn("");
       $requestHeaders = new Headers();
-      $requestHeaders->setHeader('parent', $parentId);
-      $requestHeaders->setHeader('action', "move");
       $body = $this->streamFactory->createStream();
       $request = new Request("PUT", new Uri("HTTP", "localhost"),
         $requestHeaders, [], [], $body);
       $response = new ResponseHelper();
-
+      if ($version == ApiVersion::V2) {
+        $request = $request->withQueryParams(['parent'=>$parentId, 'action'=>'move']);
+      } else {
+        $request = $request->withHeader('parent', $parentId)
+          ->withHeader('action', "move");
+      }
+      $request = $request->withAttribute(ApiVersion::ATTRIBUTE_NAME,$version);
       $actualResponse = $this->folderController->copyFolder($request,
         $response, ["id" => $folderId]);
       $expectedResponse = new Info(202,
@@ -668,10 +831,23 @@ namespace Fossology\UI\Api\Test\Controllers
 
     /**
      * @test
-     * -# Test for invalid folder copy on FolderController::copyFolder()
+     * -# Test for invalid folder copy on FolderController::copyFolder() with version 1 attributes
      * -# Check for 404 response
      */
-    public function testCopyFolderNotFound()
+    public function testCopyFolderNotFoundV1()
+    {
+      $this->testCopyFolderNotFound(APiVersion::V2);
+    }
+    /**
+     * @test
+     * -# Test for invalid folder copy on FolderController::copyFolder() with version 2 attributes
+     * -# Check for 404 response
+     */
+    public function testCopyFolderNotFoundV2()
+    {
+      $this->testCopyFolderNotFound();
+    }
+    private function testCopyFolderNotFound($version = ApiVersion::V2)
     {
       $folderId = 3;
       $parentId = 2;
@@ -679,29 +855,42 @@ namespace Fossology\UI\Api\Test\Controllers
       $this->folderDao->shouldReceive('getFolder')->withArgs(array($folderId))
         ->andReturnNull();
       $requestHeaders = new Headers();
-      $requestHeaders->setHeader('parent', $parentId);
-      $requestHeaders->setHeader('action', "copy");
       $body = $this->streamFactory->createStream();
       $request = new Request("PUT", new Uri("HTTP", "localhost"),
         $requestHeaders, [], [], $body);
+      if ($version == ApiVersion::V2) {
+        $request = $request->withQueryParams(['parent'=>$parentId, 'action'=>'copy']);
+      } else {
+        $request = $request->withHeader('parent', $parentId)
+          ->withHeader('action', "copy");
+      }
+      $request = $request->withAttribute(ApiVersion::ATTRIBUTE_NAME,$version);
       $response = new ResponseHelper();
+      $this->expectException(HttpNotFoundException::class);
 
-      $actualResponse = $this->folderController->copyFolder($request,
-        $response, ["id" => $folderId]);
-      $expectedResponse = new Info(404, "Folder id not found!",
-        InfoType::ERROR);
-      $this->assertEquals($expectedResponse->getCode(),
-        $actualResponse->getStatusCode());
-      $this->assertEquals($expectedResponse->getArray(),
-        $this->getResponseJson($actualResponse));
+      $this->folderController->copyFolder($request, $response,
+        ["id" => $folderId]);
     }
 
     /**
      * @test
-     * -# Test for invalid parent copy on FolderController::copyFolder()
+     * -# Test for invalid parent copy on FolderController::copyFolder() with version 1 attributes
      * -# Check for 404 response
      */
-    public function testCopyParentFolderNotFound()
+    public function testCopyParentFolderNotFoundV1()
+    {
+      $this->testCopyParentFolderNotFound(APiVersion::V1);
+    }
+    /**
+     * @test
+     * -# Test for invalid parent copy on FolderController::copyFolder() with version 2 attributes
+     * -# Check for 404 response
+     */
+    public function testCopyParentFolderNotFoundV2()
+    {
+      $this->testCopyParentFolderNotFound();
+    }
+    private function testCopyParentFolderNotFound($version = ApiVersion::V2)
     {
       $folderId = 3;
       $parentId = 2;
@@ -716,24 +905,44 @@ namespace Fossology\UI\Api\Test\Controllers
       $body = $this->streamFactory->createStream();
       $request = new Request("PUT", new Uri("HTTP", "localhost"),
         $requestHeaders, [], [], $body);
+      if ($version == ApiVersion::V2) {
+        $request = $request->withQueryParams(['parent'=>$parentId, 'action'=>'copy']);
+      } else {
+        $request = $request->withHeader('parent', $parentId)
+          ->withHeader('action', "copy");
+      }
+      $request = $request->withAttribute(ApiVersion::ATTRIBUTE_NAME,$version);
       $response = new ResponseHelper();
+      $this->expectException(HttpNotFoundException::class);
 
-      $actualResponse = $this->folderController->copyFolder($request,
-        $response, ["id" => $folderId]);
-      $expectedResponse = new Info(404, "Parent folder not found!",
-        InfoType::ERROR);
-      $this->assertEquals($expectedResponse->getCode(),
-        $actualResponse->getStatusCode());
-      $this->assertEquals($expectedResponse->getArray(),
-        $this->getResponseJson($actualResponse));
+      $this->folderController->copyFolder($request, $response,
+        ["id" => $folderId]);
     }
 
     /**
      * @test
-     * -# Test for inaccessible folder on FolderController::copyFolder()
+     * -# Test for inaccessible folder on FolderController::copyFolder() with version 1 attributes
      * -# Check for 403 response
      */
-    public function testCopyFolderNotAccessible()
+    public function testCopyFolderNotAccessibleV1()
+    {
+      $this->testCopyFolderNotAccessible(ApiVersion::V1);
+    }
+    /**
+     * @test
+     * -# Test for inaccessible folder on FolderController::copyFolder() with version 2 attributes
+     * -# Check for 403 response
+     */
+    public function testCopyFolderNotAccessibleV2()
+    {
+      $this->testCopyFolderNotAccessible();
+    }
+
+    /**
+     * @param $version to test
+     * @return void
+     */
+    private function testCopyFolderNotAccessible($version = ApiVersion::V2)
     {
       $folderId = 3;
       $parentId = 2;
@@ -743,29 +952,42 @@ namespace Fossology\UI\Api\Test\Controllers
       $this->folderDao->shouldReceive('isFolderAccessible')
         ->withArgs(array($folderId, $this->userId))->andReturn(false);
       $requestHeaders = new Headers();
-      $requestHeaders->setHeader('parent', $parentId);
-      $requestHeaders->setHeader('action', "copy");
       $body = $this->streamFactory->createStream();
       $request = new Request("PUT", new Uri("HTTP", "localhost"),
         $requestHeaders, [], [], $body);
+      if ($version == ApiVersion::V2) {
+        $request = $request->withQueryParams(['parent'=>$parentId, 'action'=>'copy']);
+      } else {
+        $request = $request->withHeader('parent', $parentId)
+          ->withHeader('action', "copy");
+      }
+      $request = $request->withAttribute(ApiVersion::ATTRIBUTE_NAME,$version);
       $response = new ResponseHelper();
+      $this->expectException(HttpForbiddenException::class);
 
-      $actualResponse = $this->folderController->copyFolder($request,
-        $response, ["id" => $folderId]);
-      $expectedResponse = new Info(403, "Folder is not accessible!",
-        InfoType::ERROR);
-      $this->assertEquals($expectedResponse->getCode(),
-        $actualResponse->getStatusCode());
-      $this->assertEquals($expectedResponse->getArray(),
-        $this->getResponseJson($actualResponse));
+      $this->folderController->copyFolder($request, $response,
+        ["id" => $folderId]);
     }
 
     /**
      * @test
-     * -# Test for inaccessible parent folder on FolderController::copyFolder()
+     * -# Test for inaccessible parent folder on FolderController::copyFolder() with version 1 attributes
      * -# Check for 403 response
      */
-    public function testCopyParentFolderNotAccessible()
+    public function testCopyParentFolderNotAccessibleV1()
+    {
+      $this->testCopyParentFolderNotAccessible(ApiVersion::V1);
+    }
+    /**
+     * @test
+     * -# Test for inaccessible parent folder on FolderController::copyFolder() with version 2 attributes
+     * -# Check for 403 response
+     */
+    public function testCopyParentFolderNotAccessibleV2()
+    {
+      $this->testCopyParentFolderNotAccessible();
+    }
+    private function testCopyParentFolderNotAccessible($version = ApiVersion::V2)
     {
       $folderId = 3;
       $parentId = 2;
@@ -777,29 +999,48 @@ namespace Fossology\UI\Api\Test\Controllers
       $this->folderDao->shouldReceive('isFolderAccessible')
         ->withArgs(array("$parentId", $this->userId))->andReturn(false);
       $requestHeaders = new Headers();
-      $requestHeaders->setHeader('parent', $parentId);
-      $requestHeaders->setHeader('action', "copy");
       $body = $this->streamFactory->createStream();
       $request = new Request("PUT", new Uri("HTTP", "localhost"),
         $requestHeaders, [], [], $body);
+      if ($version == ApiVersion::V2) {
+        $request = $request->withQueryParams(['parent'=>$parentId, 'action'=>'copy']);
+      } else {
+        $request = $request->withHeader('parent', $parentId)
+          ->withHeader('action', "copy");
+      }
+      $request = $request->withAttribute(ApiVersion::ATTRIBUTE_NAME,$version);
       $response = new ResponseHelper();
+      $this->expectException(HttpForbiddenException::class);
 
-      $actualResponse = $this->folderController->copyFolder($request,
-        $response, ["id" => $folderId]);
-      $expectedResponse = new Info(403, "Parent folder is not accessible!",
-        InfoType::ERROR);
-      $this->assertEquals($expectedResponse->getCode(),
-        $actualResponse->getStatusCode());
-      $this->assertEquals($expectedResponse->getArray(),
-        $this->getResponseJson($actualResponse));
+      $this->folderController->copyFolder($request, $response,
+        ["id" => $folderId]);
     }
 
     /**
      * @test
-     * -# Test for invalid action on FolderController::copyFolder()
+     * -# Test for invalid action on FolderController::copyFolder() with version 1 attributes
      * -# Check for 400 response
      */
-    public function testCopyFolderInvalidAction()
+    public function testCopyFolderInvalidActionV1()
+    {
+      $this->testCopyFolderInvalidAction(ApiVersion::V1);
+    }
+    /**
+     * @test
+     * -# Test for invalid action on FolderController::copyFolder() with version 2 attributes
+     * -# Check for 400 response
+     */
+    public function testCopyFolderInvalidActionV2()
+    {
+      $this->testCopyFolderInvalidAction();
+    }
+
+
+    /**
+     * @param $version to test
+     * @return void
+     */
+    private function testCopyFolderInvalidAction($version = ApiVersion::V2)
     {
       $folderId = 3;
       $parentId = 2;
@@ -809,22 +1050,24 @@ namespace Fossology\UI\Api\Test\Controllers
       $this->folderDao->shouldReceive('isFolderAccessible')
         ->withArgs(array(M::anyOf($folderId, "$parentId"),
           $this->userId))->andReturn(true);
+      $this->folderDao->shouldReceive('isFolderAccessible')
+        ->withArgs([$parentId,$this->userId])->andReturn(true);
       $requestHeaders = new Headers();
-      $requestHeaders->setHeader('parent', $parentId);
-      $requestHeaders->setHeader('action', "somethingrandom");
       $body = $this->streamFactory->createStream();
       $request = new Request("PUT", new Uri("HTTP", "localhost"),
         $requestHeaders, [], [], $body);
+      if ($version == ApiVersion::V2) {
+        $request = $request->withQueryParams(['parent'=>$parentId, 'action'=>'somethingrandom']);
+      } else {
+        $request = $request->withHeader('parent', $parentId)
+          ->withHeader('action', "somethingrandom");
+      }
+      $request = $request->withAttribute(ApiVersion::ATTRIBUTE_NAME,$version);
       $response = new ResponseHelper();
+      $this->expectException(HttpBadRequestException::class);
 
-      $actualResponse = $this->folderController->copyFolder($request,
-        $response, ["id" => $folderId]);
-      $expectedResponse = new Info(400, "Action can be one of [copy,move]!",
-        InfoType::ERROR);
-      $this->assertEquals($expectedResponse->getCode(),
-        $actualResponse->getStatusCode());
-      $this->assertEquals($expectedResponse->getArray(),
-        $this->getResponseJson($actualResponse));
+      $this->folderController->copyFolder($request, $response,
+        ["id" => $folderId]);
     }
   }
 }

@@ -19,6 +19,7 @@
 namespace Fossology\UI\Api\Test\Models;
 
 use Fossology\UI\Api\Models\Analysis;
+use Fossology\UI\Api\Models\ApiVersion;
 
 /**
  * @class AnalysisTest
@@ -28,26 +29,59 @@ class AnalysisTest extends \PHPUnit\Framework\TestCase
 {
   /**
    * @test
-   * -# Test for Analysis::setUsingArray()
+   * -# Test for Analysis::setUsingArray() when $version is V1
    * -# Check if the Analysis object is updated with actual array values
    */
-  public function testSetUsingArray()
+  public function testSetUsingArrayV1()
   {
-    $analysisArray = [
-      "bucket" => true,
-      "copyright_email_author" => "true",
-      "ecc" => 1,
-      "keyword" => (1==1),
-      "mime" => false,
-      "monk" => "false",
-      "nomos" => 0,
-      "ojo" => (1==2)
-    ];
+    $this->testSetUsingArray(ApiVersion::V1);
+  }
+
+  /**
+   * @test
+   * -# Test for Analysis::setUsingArray() when $version is V2
+   * -# Check if the Analysis object is updated with actual array values
+   */
+  public function testSetUsingArrayV2()
+  {
+    $this->testSetUsingArray(ApiVersion::V2);
+  }
+
+  /**
+   * @param $version version to test
+   * @return void
+   * -# Test for Analysis::setUsingArray() to check if the Analysis object is updated with actual array values
+   */
+  private function testSetUsingArray($version)
+  {
+    if ($version == ApiVersion::V2) {
+      $analysisArray = [
+        "bucket" => true,
+        "copyrightEmailAuthor" => "true",
+        "ecc" => 1,
+        "keyword" => (1==1),
+        "mime" => false,
+        "monk" => "false",
+        "nomos" => 0,
+        "ojo" => (1==2)
+      ];
+    } else {
+      $analysisArray = [
+        "bucket" => true,
+        "copyright_email_author" => "true",
+        "ecc" => 1,
+        "keyword" => (1==1),
+        "mime" => false,
+        "monk" => "false",
+        "nomos" => 0,
+        "ojo" => (1==2)
+      ];
+    }
 
     $expectedObject = new Analysis(true, true, true, true);
 
     $actualObject = new Analysis();
-    $actualObject->setUsingArray($analysisArray);
+    $actualObject->setUsingArray($analysisArray, $version);
 
     $this->assertEquals($expectedObject, $actualObject);
   }
@@ -84,25 +118,64 @@ class AnalysisTest extends \PHPUnit\Framework\TestCase
 
   /**
    * @test
-   * -# Test for Analysis::getArray()
+   * -# Test the data format returned by Analysis::getArray($version) model when $version is V1
    * -# Create expected array
    * -# Create test object and set the values
    * -# Get the array from object and match with expected array
    */
-  public function testDataFormat()
+  public function testDataFormatV1()
   {
-    $expectedArray = [
-      "bucket"    => true,
-      "copyright_email_author" => true,
-      "ecc"       => false,
-      "keyword"   => false,
-      "mimetype"  => true,
-      "monk"      => false,
-      "nomos"     => true,
-      "ojo"       => true,
-      "package"   => false,
-      "reso"      => true
-    ];
+    $this->testDataFormat(ApiVersion::V1);
+  }
+
+  /**
+   * @test
+   * -# Test the data format returned by Analysis::getArray($version) model when $version is V2
+   * -# Create expected array
+   * -# Create test object and set the values
+   * -# Get the array from object and match with expected array
+   */
+  public function testDataFormatV2()
+  {
+    $this->testDataFormat(ApiVersion::V2);
+  }
+
+  /**
+   * @param $version version to test
+   * @return void
+   * -# Test the data format returned by Upload::getArray($version) model
+   */
+  private function testDataFormat($version)
+  {
+    if($version==ApiVersion::V2){
+      $expectedArray = [
+        "bucket"    => true,
+        "copyrightEmailAuthor" => true,
+        "ecc"       => false,
+        "keyword"   => false,
+        "mimetype"  => true,
+        "monk"      => false,
+        "nomos"     => true,
+        "ojo"       => true,
+        "package"   => false,
+        "reso"      => true,
+        "compatibility" => false
+      ];
+    } else{
+      $expectedArray = [
+        "bucket"    => true,
+        "copyright_email_author" => true,
+        "ecc"       => false,
+        "keyword"   => false,
+        "mimetype"  => true,
+        "monk"      => false,
+        "nomos"     => true,
+        "ojo"       => true,
+        "package"   => false,
+        "reso"      => true,
+        "compatibility" => false
+      ];
+    }
     $actualObject = new Analysis();
     $actualObject->setBucket(true);
     $actualObject->setCopyright(true);
@@ -111,6 +184,123 @@ class AnalysisTest extends \PHPUnit\Framework\TestCase
     $actualObject->setOjo(true);
     $actualObject->setReso(true);
 
-    $this->assertEquals($expectedArray, $actualObject->getArray());
+    $this->assertEquals($expectedArray, $actualObject->getArray($version));
+  }
+
+  ////// New Getter and Setter Tests //////
+
+  /**
+   * @test
+   * -# Test getter for bucket
+   */
+  public function testGetBucket()
+  {
+    $analysis = new Analysis(true);
+    $this->assertTrue($analysis->getBucket());
+  }
+
+  /**
+   * @test
+   * -# Test setter for bucket
+   */
+  public function testSetBucket()
+  {
+    $analysis = new Analysis();
+    $analysis->setBucket(true);
+    $this->assertTrue($analysis->getBucket());
+  }
+
+  /**
+   * @test
+   * -# Test getter for copyright
+   */
+  public function testGetCopyright()
+  {
+    $analysis = new Analysis(false, true);
+    $this->assertTrue($analysis->getCopyright());
+  }
+
+  /**
+   * @test
+   * -# Test setter for copyright
+   */
+  public function testSetCopyright()
+  {
+    $analysis = new Analysis();
+    $analysis->setCopyright(true);
+    $this->assertTrue($analysis->getCopyright());
+  }
+
+  /**
+   * @test
+   * -# Test getter for ecc
+   */
+  public function testGetEcc()
+  {
+    $analysis = new Analysis(false, false, true);
+    $this->assertTrue($analysis->getEcc());
+  }
+
+  /**
+   * @test
+   * -# Test setter for ecc
+   */
+  public function testSetEcc()
+  {
+    $analysis = new Analysis();
+    $analysis->setEcc(true);
+    $this->assertTrue($analysis->getEcc());
+  }
+
+  /**
+   * @test
+   * -# Test getter for keyword
+   */
+  public function testGetKeyword()
+  {
+    $analysis = new Analysis(false, false, false, true);
+    $this->assertTrue($analysis->getKeyword());
+  }
+
+  /**
+   * @test
+   * -# Test setter for keyword
+   */
+  public function testSetKeyword()
+  {
+    $analysis = new Analysis();
+    $analysis->setKeyword(true);
+    $this->assertTrue($analysis->getKeyword());
+  }
+
+  /**
+   * @test
+   * -# Test getter for mimetype
+   */
+  public function testGetMime()
+  {
+    $analysis = new Analysis(false, false, false, false, true);
+    $this->assertTrue($analysis->getMime());
+  }
+
+  /**
+   * @test
+   * -# Test setter for mimetype
+   */
+  public function testSetMime()
+  {
+    $analysis = new Analysis();
+    $analysis->setMime(true);
+    $this->assertTrue($analysis->getMime());
+  }
+
+  /**
+   * @test
+   * -# Test getter for monk
+   */
+  public function testGetMonk()
+  {
+    $analysis = new Analysis(false, false, false, false, false, true);
+    $this->assertTrue($analysis->getMonk());
   }
 }

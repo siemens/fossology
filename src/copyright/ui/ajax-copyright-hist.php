@@ -202,7 +202,9 @@ class CopyrightHistogramProcessPost extends FO_Plugin
    */
   private function getTableData($upload, $item, $agent_pk, $type, $listPage, $filter, $activated = true)
   {
-    list ($rows, $iTotalDisplayRecords, $iTotalRecords) = $this->getCopyrights($upload, $item, $this->uploadtree_tablename, $agent_pk, $type, $filter, $activated);
+    $offset = GetParm('iDisplayStart', PARM_INTEGER);
+    $limit = GetParm('iDisplayLength', PARM_INTEGER);
+    list ($rows, $iTotalDisplayRecords, $iTotalRecords) = $this->getCopyrights($upload, $item, $this->uploadtree_tablename, $agent_pk, $type, $filter, $activated, $offset, $limit);
     $aaData = array();
     if (!empty($rows)) {
       $rw = $this->uploadDao->isEditable($upload, Auth::getGroupId());
@@ -226,11 +228,8 @@ class CopyrightHistogramProcessPost extends FO_Plugin
    * @param boolean $activated           True to get activated copyrights, else false
    * @return array[][] Array of table records, filtered records, total records
    */
-  protected function getCopyrights($upload_pk, $item, $uploadTreeTableName, $agentId, $type, $filter, $activated = true)
+  public function getCopyrights($upload_pk, $item, $uploadTreeTableName, $agentId, $type, $filter, $activated = true, $offset = null , $limit = null)
   {
-    $offset = GetParm('iDisplayStart', PARM_INTEGER);
-    $limit = GetParm('iDisplayLength', PARM_INTEGER);
-
     $tableName = $this->getTableName($type);
     $tableNameEvent = $tableName.'_event';
     $orderString = $this->getOrderString();
@@ -322,7 +321,7 @@ count(*) AS copyright_count " .
    * @param string $type Result type
    * @return string Table name
    */
-  private function getTableName($type)
+  public function getTableName($type)
   {
     switch ($type) {
       case "ipra" :
@@ -340,6 +339,9 @@ count(*) AS copyright_count " .
         break;
       case "scancode_statement":
         $tableName = "scancode_copyright";
+        break;
+      case "user_statement":
+        $tableName = "copyright_decision";
         break;
       case "scancode_email":
       case "scancode_author":
@@ -362,9 +364,18 @@ count(*) AS copyright_count " .
 
     $defaultOrder = HistogramBase::returnSortOrder();
 
-    $orderString = $this->dataTablesUtility->getSortingString($_GET, $columnNamesInDatabase, $defaultOrder);
+    return $this->dataTablesUtility->getSortingString($_GET, $columnNamesInDatabase, $defaultOrder);
+  }
 
-    return $orderString;
+  /**
+   * @brief Get Agent ID for an upload
+   * @param integer $upload_pk Upload ID
+   * @param string $copyrightType Copyright Type
+   * @return integer Agent ID
+   */
+  public function getAgentId($upload_pk,$copyrightType)
+  {
+    return (LatestAgentpk($upload_pk, $copyrightType));
   }
 
   /**
@@ -375,10 +386,14 @@ count(*) AS copyright_count " .
   private function addSearchFilter(&$filterParams)
   {
     $searchPattern = GetParm('sSearch', PARM_STRING);
+    $isInverseSearch = GetParm('isInverse', PARM_STRING);
     if (empty($searchPattern)) {
       return '';
     }
     $filterParams[] = "%$searchPattern%";
+    if ($isInverseSearch == 'true') {
+      return 'WHERE mcontent not ilike $'.count($filterParams).' ';
+    }
     return 'WHERE mcontent ilike $'.count($filterParams).' ';
   }
 
@@ -429,7 +444,7 @@ count(*) AS copyright_count " .
   private function fillTableRow($row, $uploadTreeId, $upload, $agentId, $type,$listPage, $filter = "", $activated = true, $rw = true)
   {
     $hash = $row['hash'];
-    $output = array('DT_RowId' => "$upload,$uploadTreeId,$hash,$type" );
+    $output = array('DT_RowId' => "$upload,$uploadTreeId,$hash,$type", "DT_RowClass" => "row$hash");
 
     $link = "<a href='";
     $link .= Traceback_uri();

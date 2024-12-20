@@ -33,7 +33,7 @@ class AjaxFolderContents extends DefaultPlugin
     $this->folderDao = $this->getObject('dao.folder');
   }
 
-  protected function handle(Request $request)
+  public function handle(Request $request)
   {
     $folderId = intval($request->get('folder'));
     $uploadName = $request->get('upload');
@@ -48,12 +48,21 @@ class AjaxFolderContents extends DefaultPlugin
     $childUploads = $this->folderDao->getFolderChildUploads($folderId, Auth::getGroupId());
     foreach ($childUploads as $upload) {
       $uploadStatus = new UploadStatus();
-      $uploadDate = explode(".",$upload['upload_ts'])[0];
+      $uploadDate = explode(".", $upload['upload_ts'])[0];
       $uploadStatus = " (" . $uploadStatus->getTypeName($upload['status_fk']) . ")";
       $results[$upload['foldercontents_pk']] = $upload['upload_filename'] . _(" from ") . Convert2BrowserTime($uploadDate) . $uploadStatus;
     }
 
     if (!$request->get('removable')) {
+      if ($request->get('fromRest')) {
+        return array_map(function($key, $value) {
+          return array(
+            'id' => $key,
+            'content' => $value,
+            'removable' => false
+          );
+        }, array_keys($results), $results);
+      }
       return new JsonResponse($results);
     }
 
@@ -61,9 +70,21 @@ class AjaxFolderContents extends DefaultPlugin
     foreach ($this->folderDao->getRemovableContents($folderId) as $content) {
       $filterResults[$content] = $results[$content];
     }
+
+    if ($request->get('fromRest')) {
+      return array_map(function ($key, $value) {
+        return array(
+          'id' => $key,
+          'content' => $value,
+          'removable' => true
+        );
+      }, array_keys($filterResults), $filterResults);
+    }
+
     if (empty($filterResults)) {
       $filterResults["-1"] = "No removable content found";
     }
+
     return new JsonResponse($filterResults);
   }
 

@@ -20,7 +20,7 @@ class AdminLicenseToCSV extends DefaultPlugin
   {
     parent::__construct(self::NAME, array(
         self::TITLE => "Admin License CSV Export",
-        self::MENU_LIST => "Admin::License Admin::CSV Export",
+        self::MENU_LIST => "Admin::License Admin::CSV Export Marydone",
         self::REQUIRES_LOGIN => true,
         self::PERMISSION => Auth::PERM_ADMIN
     ));

@@ -46,7 +46,7 @@ class AllDecisionsDao
   {
     $extendedQuery = " AND jq_type LIKE 'nomos' OR jq_type LIKE 'monk'".
                      " OR jq_type LIKE 'ojo' OR jq_type LIKE 'copyright'".
-                     " OR jq_type LIKE 'ecc'";
+                     " OR jq_type LIKE 'ecc' OR jq_type LIKE 'ipra'";
     $sql = "SELECT DISTINCT(jq_type) FROM jobqueue INNER JOIN job ON jq_job_fk=job_pk " .
       "WHERE jq_end_bits ='1'".$extendedQuery." AND job_upload_fk=$1;";
     $statementName = __METHOD__ . ".getAllFinishedJobsForUploadId";
@@ -65,12 +65,11 @@ class AllDecisionsDao
   public function getAllAgentEntriesForPfile($uploadId, $groupId, $userId, $skip)
   {
     $uploadTreeTableName = $this->uploadDao->getUploadtreeTableName($uploadId);
-    $allAgentEntriesForPfile = new UploadTreeProxy($uploadId,
+    return new UploadTreeProxy($uploadId,
     array(UploadTreeProxy::OPT_SKIP_THESE => $skip,
       UploadTreeProxy::OPT_GROUP_ID => $groupId),
     $uploadTreeTableName,
     'no_license_uploadtree' . $uploadId);
-    return $allAgentEntriesForPfile;
   }
 
   /**
@@ -122,8 +121,7 @@ class AllDecisionsDao
          " INNER JOIN ".$tableName." ON ".$tableName.".pfile_fk=cd.pfile_fk ".
          " INNER JOIN uploadtree ut ON cd.uploadtree_fk=ut.uploadtree_pk WHERE ut.upload_fk=$1";
     $statementName = __METHOD__ . ".allLicEntriesClearingDecisionForUpload";
-    $rows = $this->dbManager->getRows($sql, array($uploadId), $statementName);
-    return $rows;
+    return $this->dbManager->getRows($sql, array($uploadId), $statementName);
   }
 
   /**
@@ -142,8 +140,7 @@ class AllDecisionsDao
          " LEFT JOIN license_ref_bulk lrb ON jq.jq_args::int=lrb_pk " .
          "WHERE ut.upload_fk=$1";
     $statementName = __METHOD__ . ".allLicEntriesClearingEventForUpload";
-    $rows = $this->dbManager->getRows($sql, array($uploadId), $statementName);
-    return $rows;
+    return $this->dbManager->getRows($sql, array($uploadId), $statementName);
   }
 
   /**
@@ -159,8 +156,7 @@ class AllDecisionsDao
          " INNER JOIN ".$tableName." ON ".$tableName.".pfile_fk=cd.pfile_fk".
          " INNER JOIN uploadtree ut ON cd.uploadtree_fk=ut.uploadtree_pk  WHERE ut.upload_fk=$1";
     $statementName = __METHOD__ . ".allLicEntriesClearingDecisionEventForUpload";
-    $rows = $this->dbManager->getRows($sql, array($uploadId), $statementName);
-    return $rows;
+    return $this->dbManager->getRows($sql, array($uploadId), $statementName);
   }
 
   /**
@@ -169,12 +165,11 @@ class AllDecisionsDao
    */
   public function getAllLicenseRefBulkDataForUpload($uploadId)
   {
-    $columns = "lrb_pk, rf_text, uploadtree_fk, ignore_irrelevant, bulk_delimiters";
+    $columns = "lrb_pk, rf_text, uploadtree_fk, ignore_irrelevant, bulk_delimiters, scan_findings";
     $sql = "SELECT ".$columns." FROM license_ref_bulk lrb ".
          " INNER JOIN uploadtree ut ON lrb.uploadtree_fk=ut.uploadtree_pk WHERE ut.upload_fk=$1";
     $statementName = __METHOD__ . ".allLicEntriesLicenseRefBulkForUpload";
-    $rows = $this->dbManager->getRows($sql, array($uploadId), $statementName);
-    return $rows;
+    return $this->dbManager->getRows($sql, array($uploadId), $statementName);
   }
 
   /**
@@ -188,8 +183,7 @@ class AllDecisionsDao
          " INNER JOIN license_ref_bulk lrb ON lsb.lrb_fk=lrb.lrb_pk ".
          " INNER JOIN uploadtree ut ON lrb.uploadtree_fk=ut.uploadtree_pk WHERE ut.upload_fk=$1";
     $statementName = __METHOD__ . ".allLicEntriesLicenseSetBulkForUpload";
-    $rows = $this->dbManager->getRows($sql, array($uploadId), $statementName);
-    return $rows;
+    return $this->dbManager->getRows($sql, array($uploadId), $statementName);
   }
 
   /**
@@ -202,8 +196,7 @@ class AllDecisionsDao
     $sql = "SELECT $columns FROM highlight_bulk hb INNER JOIN license_ref_bulk lrb ON hb.lrb_fk=lrb.lrb_pk " .
       "INNER JOIN uploadtree ut ON lrb.uploadtree_fk=ut.uploadtree_pk WHERE ut.upload_fk=$1";
     $statementName = __METHOD__ . ".allBulkHighlightDataForUpload";
-    $rows = $this->dbManager->getRows($sql, [$uploadId], $statementName);
-    return $rows;
+    return $this->dbManager->getRows($sql, [$uploadId], $statementName);
   }
 
   /**
@@ -217,8 +210,7 @@ class AllDecisionsDao
     $sql = "SELECT ".$columns." FROM ".$givenTableName." ".
          " INNER JOIN ".$pfileTableName." ON ".$pfileTableName.".pfile_fk=".$givenTableName.".pfile_fk";
     $statementName = __METHOD__ . ".allLicEntries".$givenTableName."ForUpload";
-    $rows = $this->dbManager->getRows($sql, array(), $statementName);
-    return $rows;
+    return $this->dbManager->getRows($sql, array(), $statementName);
   }
 
   /**
@@ -233,8 +225,7 @@ class AllDecisionsDao
     $sql = "SELECT ".$columns." FROM ".$givenTableName." ".
          " INNER JOIN ".$pfileTableName." ON ".$pfileTableName.".pfile_fk=".$givenTableName.".pfile_fk";
     $statementName = __METHOD__ . ".allLicEntries".$givenTableName."ForUpload";
-    $rows = $this->dbManager->getRows($sql, array(), $statementName);
-    return $rows;
+    return $this->dbManager->getRows($sql, array(), $statementName);
   }
 
   /**
@@ -251,8 +242,7 @@ class AllDecisionsDao
          " INNER JOIN uploadtree ut ON ".$givenTableName.".uploadtree_fk=ut.uploadtree_pk".
          " WHERE ".$givenTableName.".upload_fk=$1";
     $statementName = __METHOD__ . ".allLicEntries".$givenTableName."ForUpload";
-    $rows = $this->dbManager->getRows($sql, array($uploadId), $statementName);
-    return $rows;
+    return $this->dbManager->getRows($sql, array($uploadId), $statementName);
   }
 
   /**
@@ -268,12 +258,11 @@ class AllDecisionsDao
       "SELECT lf.* FROM alllicense AS lf " .
       " INNER JOIN clearing_event ce ON ce.rf_fk=lf.rf_pk " .
       " INNER JOIN uploadtree ut ON ce.uploadtree_fk=ut.uploadtree_pk WHERE ut.upload_fk=$1" .
-      "UNION DISTINCT " .
+      " UNION DISTINCT " .
       "SELECT lf.* FROM alllicense AS lf " .
       " INNER JOIN upload_clearing_license ucl ON ucl.rf_fk = lf.rf_pk AND ucl.upload_fk=$1;";
     $statementName = __METHOD__ . ".allLicEntriesLicenseForUpload";
-    $rows = $this->dbManager->getRows($sql, array($uploadId), $statementName);
-    return $rows;
+    return $this->dbManager->getRows($sql, array($uploadId), $statementName);
   }
 
   /**
@@ -287,6 +276,7 @@ class AllDecisionsDao
     $licensePfile = array();
     $copyrightPfile = array();
     $eccPfile = array();
+    $ipPfile = array();
     $licenseAgentNames = array('nomos','monk','ojo');
     $executedAgents = $this->getAllJobTypeForUpload($uploadId);
     foreach ($executedAgents as $agent) {
@@ -299,8 +289,11 @@ class AllDecisionsDao
       } else if ($agent == 'ecc') {
         $executedAgents = array_diff($executedAgents,array('ecc'));
         $eccPfile = $this->getSqlQueryDataPfile($uploadId, $groupId, $userId, 'noEcc');
+      } else if ($agent == 'ipra') {
+        $executedAgents = array_diff($executedAgents,array('ipra'));
+        $ipPfile = $this->getSqlQueryDataPfile($uploadId, $groupId, $userId, 'noIpra');
       }
     }
-    return $licensePfile + $copyrightPfile + $eccPfile;
+    return $licensePfile + $copyrightPfile + $eccPfile + $ipPfile;
   }
 }

@@ -425,8 +425,6 @@ class RunTest
    * This function assumes that the caller is cd'ed into the appropriate
    * directory before being called.
    *
-   * @param string $unitTest the name of the module being tested, e.g. nomos
-   *
    * @return array
    * The array has the folowing format:
    * 'name'=> $unitTest
@@ -562,7 +560,7 @@ class RunTest
   /**
    * \brief check the test output for cunit style failures
    *
-   * @param string $this->makeOutput the test output
+   * @param string $makeString $this->makeOutput the test output
    *
    * @return boolean
    */
@@ -771,4 +769,3 @@ function MakeCover($unitTest)
   }
   return(NULL);
 }
-?>

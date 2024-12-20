@@ -40,15 +40,19 @@ class ChangeLicenseBulk extends DefaultPlugin
    * @param Request $request
    * @return Response
    */
-  protected function handle(Request $request)
+  public function handle(Request $request)
   {
-    $uploadTreeId = intval($request->get('uploadTreeId'));
-    if ($uploadTreeId <= 0) {
+    $uploadTreeId = $request->get('uploadTreeId');
+    $uploadTreeId = strpos($uploadTreeId, ',') !== false
+      ? explode(',', $uploadTreeId)
+      : intval($uploadTreeId);
+
+    if (empty($uploadTreeId)) {
       return new JsonResponse(array("error" => 'bad request'), JsonResponse::HTTP_BAD_REQUEST);
     }
 
     try {
-      $jobQueueId = $this->getJobQueueId($uploadTreeId, $request);
+      $jobQueueId = $this->scheduleBulkScan($uploadTreeId, $request);
     } catch (Exception $ex) {
       $errorMsg = $ex->getMessage();
       return new JsonResponse(array("error" => $errorMsg), JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
@@ -58,6 +62,24 @@ class ChangeLicenseBulk extends DefaultPlugin
     return new JsonResponse(array("jqid" => $jobQueueId));
   }
 
+  /**
+   *
+   * @param int $uploadTreeId
+   * @param Request $request
+   * @return int $jobQueueId
+   */
+  private function scheduleBulkScan($uploadTreeId, Request $request)
+  {
+    if (is_array($uploadTreeId)) {
+      $jqId = array();
+      foreach ($uploadTreeId as $uploadTreePk) {
+        $jqId[] = $this->getJobQueueId($uploadTreePk, $request);
+      }
+      return $jqId;
+    } else {
+      return $this->getJobQueueId($uploadTreeId, $request);
+    }
+  }
   /**
    *
    * @param int $uploadTreeId
@@ -98,6 +120,7 @@ class ChangeLicenseBulk extends DefaultPlugin
     $refText = $request->get('refText');
     $actions = $request->get('bulkAction');
     $ignoreIrrelevantFiles = (intval($request->get('ignoreIrre')) == 1);
+    $scanFindingsOnly = boolval(intval($request->get('scanOnlyFindings')));
     $delimiters = $request->get('delimiters');
 
     $licenseRemovals = array();
@@ -106,7 +129,7 @@ class ChangeLicenseBulk extends DefaultPlugin
     }
     $bulkId = $this->licenseDao->insertBulkLicense($userId, $groupId,
       $uploadTreeId, $licenseRemovals, $refText, $ignoreIrrelevantFiles,
-      $delimiters);
+      $delimiters, $scanFindingsOnly);
 
     if ($bulkId <= 0) {
       throw new Exception('cannot insert bulk reference');

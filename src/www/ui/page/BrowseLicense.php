@@ -14,8 +14,9 @@ use Fossology\Lib\BusinessRules\LicenseMap;
 use Fossology\Lib\Dao\AgentDao;
 use Fossology\Lib\Dao\ClearingDao;
 use Fossology\Lib\Dao\LicenseDao;
-use Fossology\Lib\Dao\UploadDao;
 use Fossology\Lib\Dao\TreeDao;
+use Fossology\Lib\Dao\UploadDao;
+use Fossology\Lib\Data\AgentRef;
 use Fossology\Lib\Data\ClearingDecision;
 use Fossology\Lib\Data\Tree\ItemTreeBounds;
 use Fossology\Lib\Plugin\DefaultPlugin;
@@ -23,7 +24,6 @@ use Fossology\Lib\Proxy\ScanJobProxy;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Fossology\Lib\Data\AgentRef;
 
 /**
  * \file ui-browse-license.php
@@ -120,10 +120,15 @@ class BrowseLicense extends DefaultPlugin
     }
 
     $item = intval($request->get("item"));
+    $this->uploadtree_tablename = $this->uploadDao->getUploadtreeTableName($upload);
+    $itemTreeBounds = $this->uploadDao->getItemTreeBounds($item, $this->uploadtree_tablename);
+    $left = $itemTreeBounds->getLeft();
+    if (empty($left)) {
+      return $this->flushContent(_("Job unpack/adj2nest hasn't completed."));
+    }
 
     $vars['baseuri'] = Traceback_uri();
     $vars['uploadId'] = $upload;
-    $this->uploadtree_tablename = $this->uploadDao->getUploadtreeTableName($upload);
     if ($request->get('show')=='quick') {
       $item = $this->uploadDao->getFatItemId($item,$upload,$this->uploadtree_tablename);
     }
@@ -133,11 +138,6 @@ class BrowseLicense extends DefaultPlugin
       -1, '', '', $this->uploadtree_tablename);
     $vars['licenseArray'] = $this->licenseDao->getLicenseArray();
 
-    $itemTreeBounds = $this->uploadDao->getItemTreeBounds($item, $this->uploadtree_tablename);
-    $left = $itemTreeBounds->getLeft();
-    if (empty($left)) {
-      return $this->flushContent(_("Job unpack/adj2nest hasn't completed."));
-    }
     $histVars = $this->showUploadHist($itemTreeBounds);
     if (is_a($histVars, 'Symfony\\Component\\HttpFoundation\\RedirectResponse')) {
       return $histVars;
@@ -225,7 +225,7 @@ class BrowseLicense extends DefaultPlugin
    * @param ClearingDecision []
    * @return array
    */
-  private function createLicenseHistogram($uploadTreeId, $tagId, ItemTreeBounds $itemTreeBounds, $agentIds, $groupId)
+  public function createLicenseHistogram($uploadTreeId, $tagId, ItemTreeBounds $itemTreeBounds, $agentIds, $groupId)
   {
     $fileCount = $this->uploadDao->countPlainFiles($itemTreeBounds);
     $licenseHistogram = $this->licenseDao->getLicenseHistogram($itemTreeBounds, $agentIds);
@@ -252,7 +252,7 @@ class BrowseLicense extends DefaultPlugin
     $editedNoLicenseFoundCount = array_key_exists(LicenseDao::NO_LICENSE_FOUND, $editedLicensesHist)
             ? $editedLicensesHist[LicenseDao::NO_LICENSE_FOUND]['count'] : 0;
 
-    $vars = array('tableDataJson'=>json_encode($tableData),
+    return array('tableDataJson'=>json_encode($tableData),
         'uniqueLicenseCount'=>$uniqueLicenseCount,
         'fileCount'=>$fileCount,
         'scannerUniqueLicenseCount'=>$scannerUniqueLicenseCount,
@@ -264,8 +264,6 @@ class BrowseLicense extends DefaultPlugin
         'scannerLicenses'=>$licenseHistogram,
         'editedLicenses'=>$editedLicensesHist
         );
-
-    return $vars;
   }
 
   /**
