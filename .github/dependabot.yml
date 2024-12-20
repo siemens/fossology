@@ -1,0 +1,25 @@
+# Dependabot configuration for FOSSology
+# SPDX-License-Identifier: FSFAP
+# SPDX-FileCopyrightText: © FOSSology contributors
+
+version: 2
+updates:
+  # Configuration for composer
+  - package-ecosystem: "composer"
+    directory: "/src"
+    groups:
+      composer:
+        applies-to: security-updates
+
+  - package-ecosystem: "docker"
+    directories:
+      - "/"
+      - "/utils/automation"
+    groups:
+      composer:
+        applies-to: security-updates
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
