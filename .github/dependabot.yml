@@ -10,6 +10,8 @@ updates:
     groups:
       composer:
         applies-to: security-updates
+    schedule: 
+      interval: daily
 
   - package-ecosystem: "docker"
     directories:
@@ -18,8 +20,10 @@ updates:
     groups:
       composer:
         applies-to: security-updates
+    schedule:
+      interval: daily
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: daily
