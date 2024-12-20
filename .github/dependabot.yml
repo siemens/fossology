@@ -10,7 +10,9 @@ updates:
     groups:
       composer:
         applies-to: security-updates
-    schedule: 
+        patterns:
+          - *
+    schedule:
       interval: daily
 
   - package-ecosystem: "docker"
@@ -20,6 +22,8 @@ updates:
     groups:
       composer:
         applies-to: security-updates
+        patterns:
+          - *
     schedule:
       interval: daily
 
