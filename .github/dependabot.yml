@@ -10,8 +10,7 @@ updates:
     groups:
       composer:
         applies-to: security-updates
-        patterns:
-          - "*"
+        patterns: ["*"]
     schedule:
       interval: daily
 
@@ -22,8 +21,7 @@ updates:
     groups:
       composer:
         applies-to: security-updates
-        patterns:
-          - "*"
+        patterns: ["*"]
     schedule:
       interval: daily
 
