@@ -11,7 +11,7 @@ updates:
       composer:
         applies-to: security-updates
         patterns:
-          - *
+          - "*"
     schedule:
       interval: daily
 
@@ -23,7 +23,7 @@ updates:
       composer:
         applies-to: security-updates
         patterns:
-          - *
+          - "*"
     schedule:
       interval: daily
 
