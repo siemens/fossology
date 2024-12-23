@@ -37,11 +37,11 @@ jobs:
       matrix:
         include:
           - language: actions
-            build-mode: autobuild
+            build-mode: none
           - language: c-cpp
             build-mode: manual
           - language: java-kotlin
-            build-mode: none
+            build-mode: autobuild
           - language: javascript-typescript
             build-mode: none
           - language: python
@@ -68,7 +68,7 @@ jobs:
               libjson-c-dev liblocal-lib-perl libspreadsheet-writeexcel-perl \
               libtext-template-perl libgcrypt20-dev lsb-release
           sudo ./utils/fo-installdeps --everything -y
-          sudo apt install -y gcc-8 g++-8
+          sudo apt install -y gcc g++
           mkdir build
           cmake -DCMAKE_BUILD_TYPE=Debug -GNinja -DTESTING=ON -S . -B ./build
           cmake --build build --config Debug --parallel
