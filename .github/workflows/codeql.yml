@@ -40,8 +40,6 @@ jobs:
             build-mode: none
           - language: c-cpp
             build-mode: manual
-          - language: java-kotlin
-            build-mode: autobuild
           - language: javascript-typescript
             build-mode: none
           - language: python
@@ -61,6 +59,7 @@ jobs:
 
       - if: matrix.build-mode == 'manual'
         shell: bash
+        name: Build project
         run: |
           sudo apt update
           sudo apt install -y libboost-system-dev libboost-filesystem-dev \
