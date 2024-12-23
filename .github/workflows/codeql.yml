@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: © FOSSology contributors
+# SPDX-License-Identifier: FSFAP
+#
 # For most projects, this workflow file will not need changing; you simply need
 # to commit it to your repository.
 #
@@ -18,9 +21,6 @@ on:
     branches: [ "master" ]
   schedule:
     - cron: '42 23 * * 1'
-
-paths-ignore:
-  - '**/testdata'
 
 jobs:
   analyze:
@@ -57,6 +57,7 @@ jobs:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
           dependency-caching: true
+          config-file: ./.github/codeql/codeql-config.yml
 
       - if: matrix.build-mode == 'manual'
         shell: bash

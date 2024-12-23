@@ -1,0 +1,5 @@
+# SPDX-FileCopyrightText: © FOSSology contributors
+# SPDX-License-Identifier: FSFAP
+
+paths-ignore:
+  - '**/testdata/**'
