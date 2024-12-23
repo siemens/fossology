@@ -4,27 +4,19 @@
 
 version: 2
 updates:
-  # Configuration for composer
-  - package-ecosystem: "composer"
-    directory: "/src"
-    groups:
-      composer:
-        applies-to: security-updates
-        patterns: ["*"]
-    schedule:
-      interval: daily
-
+  # Update Docker dependencies weekly
   - package-ecosystem: "docker"
     directories:
       - "/"
       - "/utils/automation"
     groups:
-      composer:
+      docker:
         applies-to: security-updates
         patterns: ["*"]
     schedule:
       interval: daily
 
+  # Update GitHub Actions daily
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
