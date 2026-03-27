@@ -57,10 +57,11 @@ class BulkReuser
     $uploadEntry = $uploadDao->getUploadEntry($pUTree['uploadtree_fk']);
     $pUID = intval($uploadEntry['upload_fk']);
     $pTopItem = $uploadDao->getUploadParent($pUID);
+    $uploadTreeTable = $uploadDao->getUploadtreeTableName($uploadId);
     if ($pTopItem == $pUTree['uploadtree_fk']) {
       $topItem = $nTopItem;
     } else {
-      $pfUTree = $this->dbManager->getSingleRow("SELECT uploadtree_pk FROM uploadtree WHERE upload_fk=$1 AND ufile_name=$2 AND ufile_mode=$3",
+      $pfUTree = $this->dbManager->getSingleRow("SELECT uploadtree_pk FROM ". $uploadTreeTable ." WHERE upload_fk=$1 AND ufile_name=$2 AND ufile_mode=$3",
         array($uploadId, $uploadEntry['ufile_name'], $uploadEntry['ufile_mode']), __METHOD__.'getRealUploadtreeEntry');
       if (!empty($pfUTree) && count($pfUTree) <= 1) {
         $topItem = $pfUTree['uploadtree_pk'];

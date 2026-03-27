@@ -95,8 +95,9 @@ class ui_view_info extends FO_Plugin
      * List File Info
      * ********************************
      */
+    $uploadTreeTable = GetUploadtreeTableName($Upload);
     if ($Page == 0) {
-      $sql = "SELECT * FROM uploadtree
+      $sql = "SELECT * FROM ". $uploadTreeTable ."
     INNER JOIN pfile ON uploadtree_pk = $1
     AND pfile_fk = pfile_pk
     LIMIT 1;";
@@ -143,10 +144,11 @@ class ui_view_info extends FO_Plugin
     /**********************************
      List the directory locations where this pfile is found
      **********************************/
+    $uploadTreeTable = GetUploadtreeTableName($Upload);
     $sql = "SELECT * FROM pfile,uploadtree
     WHERE pfile_pk=pfile_fk
     AND pfile_pk IN
-    (SELECT pfile_fk FROM uploadtree WHERE uploadtree_pk = $1)
+    (SELECT pfile_fk FROM ". $uploadTreeTable ." WHERE uploadtree_pk = $1)
     LIMIT $2 OFFSET $3";
     $this->dbManager->prepare(__METHOD__ . "getListOfFiles", $sql);
     $result = $this->dbManager->execute(__METHOD__ . "getListOfFiles", array($Item,$MAX,$offset));
@@ -188,7 +190,8 @@ class ui_view_info extends FO_Plugin
     }
 
     /* display mimetype */
-    $sql = "SELECT * FROM uploadtree where uploadtree_pk = $1";
+    $uploadTreeTable = GetUploadtreeTableName($Upload);
+    $sql = "SELECT * FROM ". $uploadTreeTable ." where uploadtree_pk = $1";
     $this->dbManager->prepare(__METHOD__ . "DisplayMimetype", $sql);
     $result = $this->dbManager->execute(__METHOD__ . "DisplayMimetype", array($Item));
     if (pg_num_rows($result)) {
@@ -358,8 +361,9 @@ class ui_view_info extends FO_Plugin
       $vars['activeScript'] = ActiveHTTPscript("Schedule");
       return ($vars);
     }
+    $uploadTreeTable = GetUploadtreeTableName($Upload);
     $sql = "SELECT mimetype_name
-    FROM uploadtree
+    FROM ". $uploadTreeTable ."
     INNER JOIN pfile ON uploadtree_pk = $1
     AND pfile_fk = pfile_pk
     INNER JOIN mimetype ON pfile_mimetypefk = mimetype_pk;";

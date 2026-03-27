@@ -91,14 +91,15 @@ class copyright_list extends FO_Plugin
     $lft = $row["lft"];
     $rgt = $row["rgt"];
     $upload_pk = $row["upload_fk"];
+    $uploadTreeTable = $this->uploadDao->getUploadtreeTableName($upload_pk);
     $params = [];
 
     if ($type == "copyFindings") {
       $sql = "SELECT textfinding AS content, '$type' AS type, uploadtree_pk, ufile_name, PF, hash
               FROM $tableName,
-              (SELECT uploadtree_pk, pfile_fk AS PF, ufile_name FROM uploadtree
+              (SELECT uploadtree_pk, pfile_fk AS PF, ufile_name FROM ". $uploadTreeTable ." ut
                  WHERE upload_fk=$1
-                   AND uploadtree.lft BETWEEN $2 AND $3) AS SS
+                   AND ut.lft BETWEEN $2 AND $3) AS SS
               WHERE PF=pfile_fk AND hash=$4 ORDER BY uploadtree_pk";
       $params = [
         $upload_pk, $lft, $rgt, $hash
@@ -121,7 +122,7 @@ class copyright_list extends FO_Plugin
 (CASE WHEN (ce.hash IS NULL OR ce.hash = '') THEN cp.hash ELSE ce.hash END) AS hash,
 type, uploadtree_pk, ufile_name, cp.pfile_fk AS PF
                 FROM $tableName AS cp
-              INNER JOIN uploadtree UT ON cp.pfile_fk = ut.pfile_fk
+              INNER JOIN ". $uploadTreeTable ." UT ON cp.pfile_fk = ut.pfile_fk
                 AND ut.upload_fk=$1
                 AND ut.lft BETWEEN $2 AND $3
               LEFT JOIN $eventTable AS ce ON ce.$eventFk = cp.$tablePk

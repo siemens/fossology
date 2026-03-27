@@ -469,14 +469,15 @@ PGresult* checkDuplicateReq(PGconn* pgConn, int uploadPk, int agentPk)
 PGresult* getSelectedPFiles(PGconn* pgConn, int uploadPk, int agentPk, bool ignoreFilesWithMimeType)
 {
   PGresult* result;
+  char* uploadtree_tablename = GetUploadtreeTableName(pgConn, uploadPk);
   char SQL[1024];
 
   snprintf(SQL, sizeof(SQL),
       "SELECT pfile_pk, pfile_sha1 || '.' || pfile_md5 || '.' || pfile_size AS pfilename \
-          FROM (SELECT distinct(pfile_fk) AS PF FROM uploadtree WHERE upload_fk='%d' and (ufile_mode&x'3C000000'::int)=0) as SS \
+          FROM (SELECT distinct(pfile_fk) AS PF FROM %s WHERE upload_fk='%d' and (ufile_mode&x'3C000000'::int)=0) as SS \
           left outer join license_file on (PF=pfile_fk and agent_fk='%d') inner join pfile on PF=pfile_pk \
          WHERE (fl_pk IS null or agent_fk <>'%d')",
-         uploadPk, agentPk, agentPk);
+         uploadtree_tablename, uploadPk, agentPk, agentPk);
   
   if (ignoreFilesWithMimeType)
   {

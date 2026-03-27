@@ -301,8 +301,11 @@ class ReuserAgent extends Agent
     $clearingDecisionsById = $this->mapByClearingId($clearingDecisions);
 
     $clearingDecisionsToImport = array_diff_key($clearingDecisionsById,$currenlyVisibleClearingDecisionsById);
-
-    $sql = "SELECT ut.* FROM uploadtree ur, uploadtree ut WHERE ur.upload_fk=$2"
+    $uploadId = $itemTreeBounds->getUploadId();
+    $uploadTreeTable = $this->uploadDao->getUploadtreeTableName($uploadId);
+    $reuseUploadId = $itemTreeBoundsReused->getUploadId();
+    $reuseUploadTreeTable = $this->uploadDao->getUploadtreeTableName($reuseUploadId);
+    $sql = "SELECT ut.* FROM ". $reuseUploadTreeTable ." ur, ". $uploadTreeTable ." ut WHERE ur.upload_fk=$2"
          . " AND ur.pfile_fk=$3 AND ut.upload_fk=$1 AND ut.ufile_name=ur.ufile_name";
     $stmt = __METHOD__.'.reuseByName';
     $this->dbManager->prepare($stmt, $sql);
@@ -315,8 +318,8 @@ class ReuserAgent extends Agent
         continue;
       }
 
-      $res = $this->dbManager->execute($stmt,array($itemTreeBounds->getUploadId(),
-        $itemTreeBoundsReused->getUploadId(),$clearingDecision->getPfileId()));
+      $res = $this->dbManager->execute($stmt,array($uploadId,
+        $reuseUploadId,$clearingDecision->getPfileId()));
       while ($row = $this->dbManager->fetchArray($res)) {
         $newPath = $treeDao->getRepoPathOfPfile($row['pfile_fk']);
         if (empty($newPath)) {
