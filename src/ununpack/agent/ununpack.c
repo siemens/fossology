@@ -527,6 +527,8 @@ int	main(int argc, char *argv[])
         TotalDirectories,TotalContainers);
     fputs("</xml>\n",ListOutFile);
   }
+  FlushUploadTreeBatch(); /* flush buffered leaf rows */
+
   if (pgConn)
   {
     /* If it completes, mark it! */

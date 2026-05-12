@@ -13,6 +13,52 @@
 #include "externs.h"
 #include "regex.h"
 
+/* ---- uploadtree batch-insert state ---- */
+#define UPLOADTREE_BATCH_SIZE 100  /* leaf uploadtree rows per DB flush */
+
+typedef struct {
+  long  parent_pk;
+  long  pfile_pk;
+  long  ufile_mode;
+  char *ufile_name;  /* heap-allocated; freed in FlushUploadTreeBatch */
+  int   has_parent;
+} UploadTreeBatchEntry;
+
+static UploadTreeBatchEntry UTBatch[UPLOADTREE_BATCH_SIZE];
+static int UTBatchCount = 0;
+
+/**
+ * @brief Free the buffered ufile_name strings and reset the batch counter.
+ * Called after a flush and before any fatal exit so a re-entrant flush
+ * (via SafeExit) sees an empty batch instead of looping.
+ **/
+static void ResetUploadTreeBatch(void)
+{
+  int i;
+  for (i = 0; i < UTBatchCount; i++)
+  {
+    free(UTBatch[i].ufile_name);
+    UTBatch[i].ufile_name = NULL;
+  }
+  UTBatchCount = 0;
+}
+
+/**
+ * @brief Format one batched leaf as a VALUES tuple for the uploadtree INSERT.
+ * @param dst destination buffer
+ * @param cap size of dst
+ * @param e batch entry to format
+ * @return number of characters that would be written (snprintf semantics)
+ **/
+static int FormatUploadTreeRow(char *dst, size_t cap, const UploadTreeBatchEntry *e)
+{
+  if (e->has_parent)
+    return snprintf(dst, cap, "(%ld,%ld,%ld,E'%s',%s)",
+        e->parent_pk, e->pfile_pk, e->ufile_mode, e->ufile_name, Upload_Pk);
+  return snprintf(dst, cap, "(NULL,%ld,%ld,E'%s',%s)",
+      e->pfile_pk, e->ufile_mode, e->ufile_name, Upload_Pk);
+}
+
 /**
  * \brief File mode BITS
  */
@@ -84,6 +130,8 @@ int IsInflatedFile(char *FileName, int InflateSize)
  */
 void	SafeExit	(int rc)
 {
+  /* safe: FlushUploadTreeBatch zeroes UTBatchCount before its own SafeExit */
+  FlushUploadTreeBatch();
   if (pgConn) PQfinish(pgConn);
   fo_scheduler_disconnect(rc);
   exit(rc);
@@ -115,43 +163,91 @@ void RemovePostfix(char *Name)
  */
 void	InitCmd	()
 {
-  int i;
+  int i, j;
   PGresult *result;
+  char *qbuf;
+  size_t qsize;
+  int pos;
+  int first;
 
   /* clear existing indexes */
   for(i=0; CMD[i].Magic != NULL; i++)
-  {
-    CMD[i].DBindex = -1; /* invalid value */
-  }
+    CMD[i].DBindex = -1;
 
-  if (!pgConn) return; /* DB must be open */
+  if (!pgConn) return;
 
-  /* Load them up! */
+  /* fetch all known mimetypes in one query */
+  qsize = 128;
+  for(i=0; CMD[i].Magic != NULL; i++)
+    if (CMD[i].Magic[0] != '\0') qsize += strlen(CMD[i].Magic) + 4; /* ,'...' */
+
+  qbuf = malloc(qsize);
+  if (!qbuf) { LOG_FATAL("OOM in InitCmd"); SafeExit(1); }
+
+  pos = snprintf(qbuf, qsize,
+      "SELECT mimetype_pk,mimetype_name FROM mimetype WHERE mimetype_name = ANY(ARRAY[");
+  first = 1;
   for(i=0; CMD[i].Magic != NULL; i++)
   {
     if (CMD[i].Magic[0] == '\0') continue;
-    ReGetCmd:
+    if (!first) qbuf[pos++] = ',';
+    pos += snprintf(qbuf + pos, qsize - pos, "'%s'", CMD[i].Magic);
+    first = 0;
+  }
+  pos += snprintf(qbuf + pos, qsize - pos, "])");
+
+  result = PQexec(pgConn, qbuf);
+  free(qbuf);
+  if (fo_checkPQresult(pgConn, result, "InitCmd batch SELECT", __FILE__, __LINE__)) SafeExit(1);
+
+  /* match returned rows back to CMD[] entries */
+  for(j=0; j < PQntuples(result); j++)
+  {
+    long pk = atol(PQgetvalue(result,j,0));
+    char *name = PQgetvalue(result,j,1);
+    for(i=0; CMD[i].Magic != NULL; i++)
+      if (CMD[i].Magic[0] != '\0' && strcmp(CMD[i].Magic, name) == 0)
+        CMD[i].DBindex = pk;
+  }
+  PQclear(result);
+
+  /* insert any mimetypes not yet in the DB */
+  for(i=0; CMD[i].Magic != NULL; i++)
+  {
+    const char *sqlstate;
+    if (CMD[i].Magic[0] == '\0' || CMD[i].DBindex != -1) continue;
+
     memset(SQL,'\0',MAXSQL);
-    snprintf(SQL,MAXSQL,"SELECT mimetype_pk FROM mimetype WHERE mimetype_name = '%s';",CMD[i].Magic);
-    result =  PQexec(pgConn, SQL); /* SELECT */
-    if (fo_checkPQresult(pgConn, result, SQL, __FILE__, __LINE__)) SafeExit(1);
-    else if (PQntuples(result) > 0) /* if there is a value */
+    snprintf(SQL,MAXSQL,"INSERT INTO mimetype (mimetype_name) VALUES ('%s') RETURNING mimetype_pk",
+        CMD[i].Magic);
+    result = PQexec(pgConn, SQL);
+    if (PQresultStatus(result) == PGRES_TUPLES_OK)
     {
       CMD[i].DBindex = atol(PQgetvalue(result,0,0));
       PQclear(result);
+      continue;
     }
-    else /* No value, so add it */
+    sqlstate = result ? PQresultErrorField(result, PG_DIAG_SQLSTATE) : NULL;
+    if (sqlstate && strncmp("23505", sqlstate, 5) == 0)
     {
+      /* Another process inserted simultaneously -- SELECT to get the pk */
       PQclear(result);
       memset(SQL,'\0',MAXSQL);
-      snprintf(SQL,MAXSQL,"INSERT INTO mimetype (mimetype_name) VALUES ('%s');",CMD[i].Magic);
-      result =  PQexec(pgConn, SQL); /* INSERT INTO mimetype */
-      if (fo_checkPQcommand(pgConn, result, SQL, __FILE__ ,__LINE__)) SafeExit(2);
-      else
-      {
-        PQclear(result);
-        goto ReGetCmd;
-      }
+      snprintf(SQL,MAXSQL,"SELECT mimetype_pk FROM mimetype WHERE mimetype_name = '%s'",
+          CMD[i].Magic);
+      result = PQexec(pgConn, SQL);
+      if (fo_checkPQresult(pgConn, result, SQL, __FILE__, __LINE__)) SafeExit(2);
+      if (PQntuples(result) > 0)
+        CMD[i].DBindex = atol(PQgetvalue(result,0,0));
+      PQclear(result);
+    }
+    else
+    {
+      /* Unexpected INSERT failure (not a duplicate) -- log and abort */
+      LOG_ERROR("Error inserting mimetype '%s': %s", CMD[i].Magic,
+          result ? PQresultErrorMessage(result) : "no result");
+      if (result) PQclear(result);
+      SafeExit(2);
     }
   }
 } /* InitCmd() */
@@ -1123,96 +1219,106 @@ void	DebugContainerInfo	(ContainerInfo *CI)
 int	DBInsertPfile	(ContainerInfo *CI, char *Fuid)
 {
   PGresult *result;
-  char *Val; /* string result from SQL query */
-  long tempMimeType; ///< Temporary storage for mimetype fk from DB
-  char *tempSha256; ///< Temporary storage for pfile_sha256 from DB
+  long tempMimeType;
+  char sha256copy[65];
+  int needsMimeUpdate, needsSha256Update;
 
-  /* idiot checking */
   if (!Fuid || (Fuid[0] == '\0')) return(1);
 
-  /* Check if the pfile exists */
   memset(SQL,'\0',MAXSQL);
   snprintf(SQL,MAXSQL,"SELECT pfile_pk,pfile_mimetypefk,pfile_sha256 FROM pfile "
       "WHERE pfile_sha1 = '%.40s' AND pfile_md5 = '%.32s' AND pfile_size = '%s';",
       Fuid,Fuid+41,Fuid+140);
-  result =  PQexec(pgConn, SQL); /* SELECT */
+  result = PQexec(pgConn, SQL);
   if (fo_checkPQresult(pgConn, result, SQL, __FILE__, __LINE__)) SafeExit(12);
 
-  /* add it if it was not found */
   if (PQntuples(result) == 0)
   {
-    /* blindly insert to pfile table in database (don't care about dups) */
-    /* If TWO ununpacks are running at the same time, they could both
-        create the same pfile at the same time. Ignore the dup constraint. */
+    /* pfile not found -- insert it */
     PQclear(result);
     memset(SQL,'\0',MAXSQL);
     if (CMD[CI->PI.Cmd].DBindex > 0)
     {
       snprintf(SQL,MAXSQL,"INSERT INTO pfile (pfile_sha1,pfile_md5,pfile_sha256,pfile_size,pfile_mimetypefk) "
-               "VALUES ('%.40s','%.32s','%.64s','%s','%ld');",
+               "VALUES ('%.40s','%.32s','%.64s','%s','%ld') RETURNING pfile_pk",
           Fuid,Fuid+41,Fuid+74,Fuid+140,CMD[CI->PI.Cmd].DBindex);
     }
     else
     {
-      snprintf(SQL,MAXSQL,"INSERT INTO pfile (pfile_sha1,pfile_md5,pfile_sha256,pfile_size) VALUES ('%.40s','%.32s','%.64s','%s');",
+      snprintf(SQL,MAXSQL,"INSERT INTO pfile (pfile_sha1,pfile_md5,pfile_sha256,pfile_size) "
+               "VALUES ('%.40s','%.32s','%.64s','%s') RETURNING pfile_pk",
           Fuid,Fuid+41,Fuid+74,Fuid+140);
     }
-    result =  PQexec(pgConn, SQL); /* INSERT INTO pfile */
-    // ignore duplicate constraint failure (23505), report others
-    if ((result==0) || ((PQresultStatus(result) != PGRES_COMMAND_OK) &&
-        (strncmp("23505", PQresultErrorField(result, PG_DIAG_SQLSTATE),5))))
+    result = PQexec(pgConn, SQL);
+    if (PQresultStatus(result) == PGRES_TUPLES_OK)
     {
-      LOG_ERROR("Error inserting pfile, %s.", SQL);
-      SafeExit(13);
+      CI->pfile_pk = atol(PQgetvalue(result,0,0));
+      if (Verbose) LOG_DEBUG("pfile_pk = %ld",CI->pfile_pk);
+      PQclear(result);
+      return(1);
     }
-    PQclear(result);
-
-    /* Now find the pfile_pk.  Since it might be a dup, we cannot rely
-       on currval(). */
+    /* INSERT failed -- check for duplicate (two ununpacks running in parallel) */
+    {
+      const char *sqlstate = result ? PQresultErrorField(result, PG_DIAG_SQLSTATE) : NULL;
+      if (sqlstate && strncmp("23505", sqlstate, 5) == 0)
+      {
+        PQclear(result);
+      }
+      else
+      {
+        LOG_ERROR("Error inserting pfile, %s.", SQL);
+        if (result) PQclear(result);
+        SafeExit(13);
+      }
+    }
+    /* race: find pk inserted by concurrent process */
     memset(SQL,'\0',MAXSQL);
     snprintf(SQL,MAXSQL,"SELECT pfile_pk,pfile_mimetypefk,pfile_sha256 FROM pfile "
         "WHERE pfile_sha1 = '%.40s' AND pfile_md5 = '%.32s' AND pfile_sha256 = '%.64s' AND pfile_size = '%s';",
         Fuid,Fuid+41,Fuid+74,Fuid+140);
-    result =  PQexec(pgConn, SQL);  /* SELECT */
+    result = PQexec(pgConn, SQL);
     if (fo_checkPQresult(pgConn, result, SQL, __FILE__, __LINE__)) SafeExit(14);
   }
 
-  /* Now *DB contains the pfile_pk information */
-  Val = PQgetvalue(result,0,0);
-  if (Val)
-  {
-    CI->pfile_pk = atol(Val);
-    if (Verbose) LOG_DEBUG("pfile_pk = %ld",CI->pfile_pk);
-    tempMimeType = atol(PQgetvalue(result,0,1));
-    tempSha256 = PQgetvalue(result,0,2);
-    /* For backwards compatibility... Do we need to update the mimetype? */
-    if ((CMD[CI->PI.Cmd].DBindex > 0) &&
-        ((tempMimeType != CMD[CI->PI.Cmd].DBindex)))
-    {
-      PQclear(result);
-      memset(SQL,'\0',MAXSQL);
-      snprintf(SQL,MAXSQL,"UPDATE pfile SET pfile_mimetypefk = '%ld' WHERE pfile_pk = '%ld';",
-          CMD[CI->PI.Cmd].DBindex, CI->pfile_pk);
-      result =  PQexec(pgConn, SQL); /* UPDATE pfile */
-      if (fo_checkPQcommand(pgConn, result, SQL, __FILE__ ,__LINE__)) SafeExit(16);
-    }
-    /* Update the SHA256 for the pfile if it does not exists */
-    if (strncasecmp(tempSha256, Fuid+74, 64) != 0)
-    {
-      PQclear(result);
-      memset(SQL,'\0',MAXSQL);
-      snprintf(SQL,MAXSQL,"UPDATE pfile SET pfile_sha256 = '%.64s' WHERE pfile_pk = '%ld';",
-          Fuid+74, CI->pfile_pk);
-      result =  PQexec(pgConn, SQL); /* UPDATE pfile */
-      if (fo_checkPQcommand(pgConn, result, SQL, __FILE__ ,__LINE__)) SafeExit(16);
-    }
-    PQclear(result);
-  }
-  else
+  if (PQntuples(result) == 0)
   {
     PQclear(result);
     CI->pfile_pk = -1;
     return(0);
+  }
+
+  CI->pfile_pk = atol(PQgetvalue(result,0,0));
+  if (Verbose) LOG_DEBUG("pfile_pk = %ld",CI->pfile_pk);
+  tempMimeType = atol(PQgetvalue(result,0,1));
+  strncpy(sha256copy, PQgetvalue(result,0,2), 64);
+  sha256copy[64] = '\0';
+  PQclear(result);
+
+  /* combine into one UPDATE when both are needed */
+  needsMimeUpdate = (CMD[CI->PI.Cmd].DBindex > 0) && (tempMimeType != CMD[CI->PI.Cmd].DBindex);
+  needsSha256Update = (strncasecmp(sha256copy, Fuid+74, 64) != 0);
+
+  if (needsMimeUpdate || needsSha256Update)
+  {
+    memset(SQL,'\0',MAXSQL);
+    if (needsMimeUpdate && needsSha256Update)
+    {
+      snprintf(SQL,MAXSQL,"UPDATE pfile SET pfile_mimetypefk = '%ld', pfile_sha256 = '%.64s' WHERE pfile_pk = '%ld';",
+          CMD[CI->PI.Cmd].DBindex, Fuid+74, CI->pfile_pk);
+    }
+    else if (needsMimeUpdate)
+    {
+      snprintf(SQL,MAXSQL,"UPDATE pfile SET pfile_mimetypefk = '%ld' WHERE pfile_pk = '%ld';",
+          CMD[CI->PI.Cmd].DBindex, CI->pfile_pk);
+    }
+    else
+    {
+      snprintf(SQL,MAXSQL,"UPDATE pfile SET pfile_sha256 = '%.64s' WHERE pfile_pk = '%ld';",
+          Fuid+74, CI->pfile_pk);
+    }
+    result = PQexec(pgConn, SQL);
+    if (fo_checkPQcommand(pgConn, result, SQL, __FILE__, __LINE__)) SafeExit(16);
+    PQclear(result);
   }
 
   return(1);
@@ -1281,6 +1387,122 @@ int TestSCMData(char *sourcefilename)
 
   return(found);
 } /* TestSCMData() */
+
+/**
+ * @brief Insert the buffered leaf rows one at a time.
+ *
+ * Fallback when the multi-row INSERT fails. The batch is atomic so nothing was
+ * committed; retrying per row lets good rows through and names the bad file in
+ * the log. Aborts on the first row that still fails, as the old code did.
+ **/
+static void FlushUploadTreeBatchRowByRow(void)
+{
+  int i;
+  for (i = 0; i < UTBatchCount; i++)
+  {
+    size_t need;
+    char *rsql;
+    int pos;
+    PGresult *result;
+
+    need = strlen(uploadtree_tablename) + strlen(UTBatch[i].ufile_name) + 160;
+    rsql = malloc(need);
+    if (!rsql)
+    {
+      ResetUploadTreeBatch();
+      LOG_FATAL("Out of memory in FlushUploadTreeBatchRowByRow");
+      SafeExit(99);
+    }
+    pos = snprintf(rsql, need,
+        "INSERT INTO %s (parent,pfile_fk,ufile_mode,ufile_name,upload_fk) VALUES ",
+        uploadtree_tablename);
+    FormatUploadTreeRow(rsql + pos, need - pos, &UTBatch[i]);
+
+    result = PQexec(pgConn, rsql);
+    if (fo_checkPQcommand(pgConn, result, rsql, __FILE__, __LINE__))
+    {
+      /* fo_checkPQcommand already cleared result and logged the SQL */
+      LOG_ERROR("uploadtree insert failed for ufile_name='%s' pfile_fk=%ld",
+          UTBatch[i].ufile_name, UTBatch[i].pfile_pk);
+      free(rsql);
+      ResetUploadTreeBatch();
+      SafeExit(18);
+    }
+    PQclear(result);
+    free(rsql);
+  }
+  ResetUploadTreeBatch();
+}
+
+/**
+ * @brief Flush pending leaf-node uploadtree rows in a single multi-row INSERT.
+ * Containers insert immediately (pk needed by children); leaves batch here.
+ * On any batch failure it retries row-by-row for precise diagnostics.
+ **/
+void FlushUploadTreeBatch(void)
+{
+  static int InFlush = 0;
+  int i;
+  PGresult *result;
+  size_t bufsize;
+  char *bsql;
+  int pos;
+
+  /* SafeExit calls us; never re-enter while an outer flush is unwinding */
+  if (InFlush) return;
+
+  if (UTBatchCount == 0 || !pgConn || !Upload_Pk)
+  {
+    ResetUploadTreeBatch();
+    return;
+  }
+
+  InFlush = 1;
+
+  /* size from the real row lengths, not a fixed guess */
+  bufsize = strlen(uploadtree_tablename) + 128;
+  for (i = 0; i < UTBatchCount; i++)
+    bufsize += strlen(UTBatch[i].ufile_name) + 96;
+
+  bsql = malloc(bufsize);
+  if (!bsql)
+  {
+    ResetUploadTreeBatch();
+    InFlush = 0;
+    LOG_FATAL("Out of memory in FlushUploadTreeBatch");
+    SafeExit(99);
+  }
+
+  pos = snprintf(bsql, bufsize,
+      "INSERT INTO %s (parent,pfile_fk,ufile_mode,ufile_name,upload_fk) VALUES ",
+      uploadtree_tablename);
+
+  for (i = 0; i < UTBatchCount; i++)
+  {
+    if (i > 0)
+    {
+      bsql[pos++] = ',';
+      bsql[pos++] = ' ';
+    }
+    pos += FormatUploadTreeRow(bsql + pos, bufsize - pos, &UTBatch[i]);
+  }
+
+  result = PQexec(pgConn, bsql);
+  free(bsql);
+
+  if (!result || PQresultStatus(result) != PGRES_COMMAND_OK)
+  {
+    /* Don't log the multi-KB statement; retry per-row to isolate the culprit */
+    if (result) PQclear(result);
+    FlushUploadTreeBatchRowByRow(); /* resets batch; SafeExit on hard failure */
+    InFlush = 0;
+    return;
+  }
+
+  PQclear(result);
+  ResetUploadTreeBatch();
+  InFlush = 0;
+}
 
 /**
  * @brief Insert an UploadTree record.
@@ -1361,37 +1583,49 @@ int	DBInsertUploadTree	(ContainerInfo *CI, int Mask)
      */
     for (cp=UfileName; *cp; cp++) if (!isprint(*cp) || (*cp=='/') || (*cp=='\\')) *cp = '~';
 
-    /* Get the parent ID */
-    /* Two cases -- depending on if the parent exists */
-    memset(SQL,'\0',MAXSQL);
-    if (CI->PI.uploadtree_pk > 0) /* This is a child */
+    if (CI->HasChild)
     {
-      /* Prepare to insert child */
-      snprintf(SQL,MAXSQL,"INSERT INTO %s (parent,pfile_fk,ufile_mode,ufile_name,upload_fk) VALUES (%ld,%ld,%ld,E'%s',%s);",
-          uploadtree_tablename, CI->PI.uploadtree_pk, CI->pfile_pk, CI->ufile_mode,
-          UfileName, Upload_Pk);
-      result =  PQexec(pgConn, SQL); /* INSERT INTO uploadtree */
-      if (fo_checkPQcommand(pgConn, result, SQL, __FILE__ ,__LINE__))
+      /* container: flush batch, then insert and get pk via RETURNING */
+      FlushUploadTreeBatch();
+
+      memset(SQL,'\0',MAXSQL);
+      if (CI->PI.uploadtree_pk > 0) /* This is a child */
       {
-        SafeExit(18);
+        snprintf(SQL,MAXSQL,"INSERT INTO %s (parent,pfile_fk,ufile_mode,ufile_name,upload_fk) "
+            "VALUES (%ld,%ld,%ld,E'%s',%s) RETURNING uploadtree_pk",
+            uploadtree_tablename, CI->PI.uploadtree_pk, CI->pfile_pk, CI->ufile_mode,
+            UfileName, Upload_Pk);
+        result = PQexec(pgConn, SQL);
+        if (fo_checkPQresult(pgConn, result, SQL, __FILE__, __LINE__)) SafeExit(18);
       }
+      else /* No parent -- this is the top-level upload */
+      {
+        snprintf(SQL,MAXSQL,"INSERT INTO %s (upload_fk,pfile_fk,ufile_mode,ufile_name) "
+            "VALUES (%s,%ld,%ld,E'%s') RETURNING uploadtree_pk",
+            uploadtree_tablename, Upload_Pk, CI->pfile_pk, CI->ufile_mode, UfileName);
+        result = PQexec(pgConn, SQL);
+        if (fo_checkPQresult(pgConn, result, SQL, __FILE__, __LINE__)) SafeExit(19);
+      }
+      CI->uploadtree_pk = atol(PQgetvalue(result,0,0));
       PQclear(result);
     }
-    else /* No parent!  This is the first upload! */
+    else
     {
-      snprintf(SQL,MAXSQL,"INSERT INTO %s (upload_fk,pfile_fk,ufile_mode,ufile_name) VALUES (%s,%ld,%ld,E'%s');",
-          uploadtree_tablename, Upload_Pk, CI->pfile_pk, CI->ufile_mode, UfileName);
-      result =  PQexec(pgConn, SQL); /* INSERT INTO uploadtree */
-      if (fo_checkPQcommand(pgConn, result, SQL, __FILE__ ,__LINE__)) SafeExit(19);
-      PQclear(result);
+      /* Leaf node: pk is not needed by any child, defer to batch INSERT */
+      if (UTBatchCount >= UPLOADTREE_BATCH_SIZE) FlushUploadTreeBatch();
+      UTBatch[UTBatchCount].parent_pk  = CI->PI.uploadtree_pk;
+      UTBatch[UTBatchCount].has_parent = (CI->PI.uploadtree_pk > 0);
+      UTBatch[UTBatchCount].pfile_pk   = CI->pfile_pk;
+      UTBatch[UTBatchCount].ufile_mode = CI->ufile_mode;
+      UTBatch[UTBatchCount].ufile_name = strdup(UfileName);
+      if (!UTBatch[UTBatchCount].ufile_name)
+      {
+        LOG_FATAL("Out of memory storing ufile_name in batch");
+        SafeExit(99);
+      }
+      UTBatchCount++;
+      CI->uploadtree_pk = 0; /* not referenced by any child */
     }
-    /* Find the inserted child */
-    memset(SQL,'\0',MAXSQL);
-    snprintf(SQL,MAXSQL,"SELECT currval('uploadtree_uploadtree_pk_seq');");
-    result =  PQexec(pgConn, SQL);
-    if (fo_checkPQresult(pgConn, result, SQL, __FILE__, __LINE__)) SafeExit(20);
-    CI->uploadtree_pk = atol(PQgetvalue(result,0,0));
-    PQclear(result);
   }
   TotalItems++;
   fo_scheduler_heart(1);
@@ -1579,17 +1813,8 @@ int	DisplayContainerInfo	(ContainerInfo *CI, int Cmd)
   {
     CksumFile *CF;
     Cksum *Sum;
-    char SHA256[65];
-
-    memset(SHA256, '\0', sizeof(SHA256));
 
     CF = SumOpenFile(CI->Source);
-    if(calc_sha256sum(CI->Source, SHA256))
-    {
-        LOG_FATAL("Unable to calculate SHA256 of %s\n", CI->Source);
-        SafeExit(56);
-    }
-
     if (CF)
     {
       Sum = SumComputeBuff(CF);
@@ -1601,7 +1826,7 @@ int	DisplayContainerInfo	(ContainerInfo *CI, int Cmd)
         Fuid[40]='.';
         for(i=0; i<16; i++) { sprintf(Fuid+41+i*2,"%02X",Sum->MD5digest[i]); }
         Fuid[73]='.';
-        for(i=0; i<64; i++) { sprintf(Fuid+74+i,"%c",SHA256[i]); }
+        for(i=0; i<32; i++) { sprintf(Fuid+74+i*2,"%02X",Sum->SHA256digest[i]); }
         Fuid[139]='.';
         snprintf(Fuid+140,sizeof(Fuid)-140,"%Lu",(long long unsigned int)Sum->DataLen);
         if (ListOutFile) fprintf(ListOutFile,"fuid=\"%s\" ",Fuid);
@@ -1621,7 +1846,7 @@ int	DisplayContainerInfo	(ContainerInfo *CI, int Cmd)
           Fuid[40]='.';
           for(i=0; i<16; i++) { sprintf(Fuid+41+i*2,"%02X",Sum->MD5digest[i]); }
           Fuid[73]='.';
-          for(i=0; i<64; i++) { sprintf(Fuid+74+i,"%c",SHA256[i]); }
+          for(i=0; i<32; i++) { sprintf(Fuid+74+i*2,"%02X",Sum->SHA256digest[i]); }
           Fuid[139]='.';
           snprintf(Fuid+140,sizeof(Fuid)-140,"%Lu",(long long unsigned int)Sum->DataLen);
           if (ListOutFile) fprintf(ListOutFile,"fuid=\"%s\" ",Fuid);

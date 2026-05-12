@@ -33,6 +33,7 @@ struct Cksum
 {
   uint8_t MD5digest[16];    ///< MD5 digest of the file
   uint8_t SHA1digest[20];   ///< SHA1 digest of the file
+  uint8_t SHA256digest[32]; ///< SHA256 digest of the file
   uint64_t DataLen;         ///< Size of the file
 };
 typedef struct Cksum Cksum;
@@ -55,5 +56,4 @@ int	CountDigits	(uint64_t Num);
 Cksum *	SumComputeFile	(FILE *Fin);
 Cksum *	SumComputeBuff	(CksumFile *CF);
 char *	SumToString	(Cksum *Sum);
-int calc_sha256sum(char* filename, char* dst);
 #endif

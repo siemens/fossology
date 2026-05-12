@@ -183,6 +183,7 @@ void SetDir  (char *Dest, int DestLen, char *Smain, char *Sfile);
 void DebugContainerInfo  (ContainerInfo *CI);
 int  DBInsertPfile (ContainerInfo *CI, char *Fuid);
 int  DBInsertUploadTree  (ContainerInfo *CI, int Mask);
+void FlushUploadTreeBatch (void);
 int  AddToRepository (ContainerInfo *CI, char *Fuid, int Mask);
 int  DisplayContainerInfo  (ContainerInfo *CI, int Cmd);
 char *PathCheck(char *DirPath);

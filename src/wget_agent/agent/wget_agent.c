@@ -104,12 +104,11 @@ void DBLoadGold()
   Sum = SumComputeFile(Fin);
   fclose(Fin);
 
-  // Calculate sha256 value
-  rc = calc_sha256sum(GlobalTempFile, SHA256);
-  if (rc != 0)
+  if (Sum)
   {
-    LOG_FATAL("Unable to calculate SHA256 of %s\n", GlobalTempFile);
-    SafeExit(56);
+    int sha256i;
+    for (sha256i = 0; sha256i < 32; sha256i++)
+      sprintf(SHA256 + sha256i * 2, "%02X", Sum->SHA256digest[sha256i]);
   }
 
   if ((int)ForceGroup > 0)
