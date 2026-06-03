@@ -28,6 +28,6 @@
 using namespace std;
 
 void scanFileWithScancode(const State& state, string fileLocation, string outputFile);
-map<string, vector<Match>> extractDataFromScancodeResult( const string& scancodeResult, const string& filename);
+map<string, vector<Match>> extractDataFromScancodeResult( const Json::Value& scancodevalue, const string& filename);
 
 #endif // SCANCODE_AGENT_SCANCODE_WRAPPER_HPP

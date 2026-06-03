@@ -113,6 +113,7 @@ bool processUploadId(const State &state, int uploadId,
 
     mapFileNameWithId(pFileId, fileIdsMap, fileIdsMapReverse, databaseHandler);
 
+    /* Report count during mapping so the scheduler shows progress early. */
     fo_scheduler_heart(1);
   }
 
@@ -155,10 +156,14 @@ bool processUploadId(const State &state, int uploadId,
             fileId = it->second;
         }
         if (!matchFileWithLicenses(state, threadLocalDatabaseHandler,
-                                   scanResults[i], fileName, fileId)) {
+                                   scancodeValue, fileName, fileId)) {
           errors = true;
         }
       }
+
+      /* Keep the alive flag set during DB writes. Count is already reported
+       * in the mapping loop above, so pass 0 to avoid double-counting. */
+      fo_scheduler_heart(0);
     }
   }
   if (unlink(outputFile.c_str()) != 0) {
@@ -266,7 +271,7 @@ string getScanResult(const string& line) {
  */
 bool matchFileWithLicenses(const State &state,
                            ScancodeDatabaseHandler &databaseHandler,
-                           string scancodeResult, string &filename, unsigned long fileId) {
+                           const Json::Value &scancodeResult, const string &filename, unsigned long fileId) {
 map<string, vector<Match>> scancodeData =
       extractDataFromScancodeResult(scancodeResult, filename);
 return saveLicenseMatchesToDatabase(

@@ -42,7 +42,7 @@ bool processUploadId(const State& state, int uploadId, ScancodeDatabaseHandler& 
 void mapFileNameWithId(unsigned long pFileId, unordered_map<unsigned long, string> &fileIdsMap, unordered_map<string, unsigned long> &fileIdsMapReverse, ScancodeDatabaseHandler &databaseHandler);
 void writeFileNameToTextFile(unordered_map<unsigned long, string> &fileIdsMap, string fileLocation);
 string getScanResult(const string& line);
-bool matchFileWithLicenses(const State& state, ScancodeDatabaseHandler& databaseHandler, string scancodeResult, string& fileName, unsigned long fileId);
+bool matchFileWithLicenses(const State& state, ScancodeDatabaseHandler& databaseHandler, const Json::Value& scancodeResult, const string& fileName, unsigned long fileId);
 bool saveLicenseMatchesToDatabase(const State& state, const vector<Match>& matches, unsigned long pFileId, ScancodeDatabaseHandler& databaseHandler);
 bool saveOtherMatchesToDatabase(const State& state, const vector<Match>& matches, unsigned long pFileId, ScancodeDatabaseHandler& databaseHandler);
 bool parseCommandLine(int argc, char** argv, string& cliOption, bool& ignoreFilesWithMimeType);
