@@ -19,6 +19,7 @@
   PQgetvalue(db_result, row, PQfnumber(db_result, col))
 
 extern const char* jobsql_failed;
+extern const char* jobsql_faildependents;
 
 /* ************************************************************************** */
 /* **** constructor destructor ********************************************** */
@@ -34,6 +35,7 @@ void email_init(scheduler_t* scheduler);
 PGresult* database_exec(scheduler_t* scheduler, const char* sql);
 void database_exec_event(scheduler_t* scheduler, char* sql);
 void database_update_event(scheduler_t* scheduler, void* unused);
+gchar* database_fail_job_sql(const char* message, int jq_pk);
 
 void database_reset_queue(scheduler_t* scheduler);
 void database_update_job(scheduler_t* db_conn, job_t* j, job_status status);

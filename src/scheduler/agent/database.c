@@ -838,6 +838,50 @@ void database_exec_event(scheduler_t* scheduler, char* sql)
 }
 
 /**
+ * Escape a string for use inside a single-quoted SQL literal by doubling every
+ * single quote. Safe with standard_conforming_strings=on (the PostgreSQL
+ * default) and needs no PGconn, so it can run off the scheduler DB thread.
+ * Caller owns the returned string.
+ *
+ * @param str text to escape, may be NULL
+ */
+static gchar* database_escape_literal(const char* str)
+{
+  gchar** parts;
+  gchar* escaped;
+
+  if(str == NULL)
+    return g_strdup("");
+
+  parts = g_strsplit(str, "'", -1);
+  escaped = g_strjoinv("''", parts);
+  g_strfreev(parts);
+  return escaped;
+}
+
+/**
+ * Build the SQL that fails one job and, transitively, every queue entry that
+ * depends on it. Both statements share one string so libpq runs them as a single
+ * implicit transaction: the job and all its dependents fail together or nothing
+ * changes. Caller owns the returned string.
+ *
+ * @param message text stored in jq_endtext for the failed job
+ * @param jq_pk   job queue id of the job that failed
+ */
+gchar* database_fail_job_sql(const char* message, int jq_pk)
+{
+  gchar* safe = database_escape_literal(message);
+  gchar* self = g_strdup_printf(jobsql_failed, safe, jq_pk);
+  gchar* deps = g_strdup_printf(jobsql_faildependents, jq_pk);
+  gchar* both = g_strconcat(self, " ", deps, NULL);
+
+  g_free(safe);
+  g_free(self);
+  g_free(deps);
+  return both;
+}
+
+/**
  * @brief Checks the job queue for any new entries.
  *
  * @param scheduler The scheduler_t* that holds the connection
@@ -966,7 +1010,12 @@ void database_update_job(scheduler_t* scheduler, job_t* job, job_status status)
       sql = g_strdup_printf(jobsql_restart, j_id);
       break;
     case JB_FAILED:
-      sql = g_strdup_printf(jobsql_failed, message, j_id);
+      /* Fail this job and, in the same transaction, every queue entry that
+       * transitively depends on it: a dependent of a failed job can never pass
+       * basic_checkout, so it would otherwise sit queued and unrunnable forever.
+       * Startup/probe jobs (id < 0) have no real queue row, but the statements
+       * simply match nothing for them, so no guard is needed. */
+      sql = database_fail_job_sql(message, j_id);
       break;
     case JB_PAUSED:
       sql = g_strdup_printf(jobsql_paused, j_id);

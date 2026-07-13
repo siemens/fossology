@@ -269,6 +269,161 @@
     
   </testsuite>
 
+  <!--
+  @brief Tests the per-agent-type version refresh.
+
+  Regression guard for the change that made a code/version change refresh only
+  the affected agent type instead of restarting every agent (which used to
+  discard unchanged agents' in-flight work / pfile reuse).
+
+  The test bumps ONE test agent's reported VERSION on disk, sends a real SIGHUP
+  to the running scheduler, and then asserts, from the scheduler log and the CLI
+  socket, that:
+    - the changed type ("simple") was detected as changed and refreshed,
+    - the unchanged types were NOT touched,
+    - a change to the scheduler's own build hash (COMMIT_HASH) no longer triggers
+      the old build-wide "kill every agent" path,
+    - all agents remain valid and the scheduler stays up throughout.
+
+  Backups are taken to /tmp and restored on cleanup so the shared gen/agents
+  tree is left pristine for other suites.
+  -->
+  <testsuite name="VersionRefresh" longest="45">
+    <definitions pwd       = "{$pwd}"
+                 config    = "{pwd}/src/scheduler/agent_tests/gen/agents"
+                 log       = "{config}/fossology.log"
+                 agentdir  = "{pwd}/src/scheduler/agent"
+                 scheduler = "{agentdir}/fo_scheduler"
+                 cli       = "{agentdir}/fo_cli"
+                 simplever = "{config}/mods-enabled/simple/VERSION"
+                 topver    = "{config}/VERSION"
+                 baksimple = "/tmp/fo_simple_VERSION.bak"
+                 baktop    = "/tmp/fo_top_VERSION.bak"/>
+    <setup>
+      <!-- confirm the scheduler is up and the startup tests have drained (jobs:0) -->
+      <sequential command="{cli}" params="--config={config} -S" retval="0"
+                  result="scheduler:{pids:0} revision:{BUILD:COMMIT_HASH} daemon:0 jobs:0 log:{log} port:{FOSSOLOGY:port} verbose:952"/>
+      <!-- back up the two files this suite rewrites; setup always refreshes the
+           backup before modifying, so a stale copy cannot survive a rerun -->
+      <sequential command="cp" params="{simplever} {baksimple}" retval="0"/>
+      <sequential command="cp" params="{topver} {baktop}" retval="0"/>
+    </setup>
+
+    <!--
+    Change one agent's version and SIGHUP: only that type must be refreshed.
+    -->
+    <test name="refresh only the changed agent type">
+      <!-- bump ONLY the "simple" agent's reported version on disk -->
+      <sequential command="sed"
+                  params="-i 's/^VERSION=.*/VERSION=changed-v2/' {simplever}" retval="0"/>
+
+      <!-- send a REAL SIGHUP to the running scheduler process -->
+      <sequential command="kill" params="-HUP {pids:0}" retval="0"/>
+
+      <!-- poll (no fixed sleep) until the changed type is detected and refreshed -->
+      <waitfor command="grep"
+               params="-F 'META_AGENT[simple] code changed' {log}"
+               retval="0" timeout="30"/>
+
+      <!-- the unchanged types must NOT have been refreshed -->
+      <sequential command="grep"
+                  params="-F 'META_AGENT[db_connect] code changed' {log}" retval="1"/>
+      <sequential command="grep"
+                  params="-F 'META_AGENT[multi_connect] code changed' {log}" retval="1"/>
+      <sequential command="grep"
+                  params="-F 'META_AGENT[no_update] code changed' {log}" retval="1"/>
+
+      <!-- every agent must still be valid and the scheduler still answering -->
+      <sequential command="{cli}" params="--config={config} -a" retval="0"
+                  result="db_connect multi_connect no_update simple"/>
+    </test>
+
+    <!--
+    Changing the scheduler's own build hash must NOT restart every agent.
+    -->
+    <test name="build hash change does not kill all agents">
+      <!-- change the scheduler build hash (top-level VERSION file) -->
+      <sequential command="sed"
+                  params="-i 's/^COMMIT_HASH.*/COMMIT_HASH=deadbeef-func/' {topver}" retval="0"/>
+
+      <sequential command="kill" params="-HUP {pids:0}" retval="0"/>
+
+      <!-- poll until the new, benign per-type note appears -->
+      <waitfor command="grep"
+               params="-F 'scheduler build changed' {log}"
+               retval="0" timeout="30"/>
+
+      <!-- the scheduler process must still be alive and answering (a pure
+           build-hash change must not tear it down). The strong "agents were not
+           killed" check is the -a assertion below: all four agents still valid. -->
+      <sequential command="{cli}" params="--config={config} -S" retval="0"/>
+
+      <!-- scheduler still up, all agents still valid -->
+      <sequential command="{cli}" params="--config={config} -a" retval="0"
+                  result="db_connect multi_connect no_update simple"/>
+    </test>
+
+    <cleanup>
+      <!-- restore the files we rewrote (runs after the scheduler is stopped) -->
+      <sequential command="cp" params="{baksimple} {simplever}"/>
+      <sequential command="cp" params="{baktop} {topver}"/>
+      <sequential command="rm" params="-f {baksimple} {baktop}"/>
+    </cleanup>
+  </testsuite>
+
+  <!--
+  @brief Negative path: a broken agent must fail its re-probe in isolation.
+
+  Corrupts ONE agent's VERSION file so its library can no longer parse it. On the
+  next SIGHUP re-probe that agent exits before presenting a "VERSION:" line, so
+  the scheduler invalidates it. This test asserts the failure is isolated: only
+  the broken agent is invalidated, every other agent stays valid, and the
+  scheduler stays up (it is not taken down by the failure).
+  -->
+  <testsuite name="VersionRefreshNegative" longest="40">
+    <definitions pwd       = "{$pwd}"
+                 config    = "{pwd}/src/scheduler/agent_tests/gen/agents"
+                 log       = "{config}/fossology.log"
+                 agentdir  = "{pwd}/src/scheduler/agent"
+                 scheduler = "{agentdir}/fo_scheduler"
+                 cli       = "{agentdir}/fo_cli"
+                 simplever = "{config}/mods-enabled/simple/VERSION"
+                 bakneg    = "/tmp/fo_simple_VERSION.neg.bak"/>
+    <setup>
+      <sequential command="{cli}" params="--config={config} -S" retval="0"
+                  result="scheduler:{pids:0} revision:{BUILD:COMMIT_HASH} daemon:0 jobs:0 log:{log} port:{FOSSOLOGY:port} verbose:952"/>
+      <!-- confirm the agent is valid to begin with -->
+      <sequential command="{cli}" params="--config={config} -a" retval="0"
+                  result="db_connect multi_connect no_update simple"/>
+      <sequential command="cp" params="{simplever} {bakneg}" retval="0"/>
+    </setup>
+
+    <test name="broken agent is invalidated without affecting others">
+      <!-- corrupt only "simple"'s VERSION file so its library cannot parse it -->
+      <sequential command="sed" params="-i 's/.*/!!!BROKEN!!!/' {simplever}" retval="0"/>
+
+      <!-- real SIGHUP triggers the re-probe -->
+      <sequential command="kill" params="-HUP {pids:0}" retval="0"/>
+
+      <!-- poll until the broken agent is invalidated ... -->
+      <waitfor command="grep"
+               params="-F 'simple has been invalidated' {log}"
+               retval="0" timeout="30"/>
+
+      <!-- ... only "simple" is gone; the other agents remain valid ... -->
+      <sequential command="{cli}" params="--config={config} -a" retval="0"
+                  result="db_connect multi_connect no_update"/>
+
+      <!-- ... and the scheduler is still alive and answering. -->
+      <sequential command="{cli}" params="--config={config} -S" retval="0"/>
+    </test>
+
+    <cleanup>
+      <sequential command="cp" params="{bakneg} {simplever}"/>
+      <sequential command="rm" params="-f {bakneg}"/>
+    </cleanup>
+  </testsuite>
+
 </testsuites>
 
 

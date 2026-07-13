@@ -244,7 +244,10 @@ void interface_thread(interface_connection* conn, scheduler_t* scheduler)
       }
       else if((job = g_tree_lookup(scheduler->job_list, &i)) == NULL)
       {
-        arg3 = g_strdup_printf(jobsql_failed, arg2, i);
+        /* Job is queued but not active yet: fail it and, in the same
+         * transaction, every job that transitively depends on it, so nothing is
+         * left queued and unrunnable behind a job the user just killed. */
+        arg3 = database_fail_job_sql(arg2, i);
         event_signal(database_exec_event, arg3);
       }
       else

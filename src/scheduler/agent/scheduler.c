@@ -272,6 +272,9 @@ scheduler_t* scheduler_init(gchar* sysconfigdir, log_t* log)
 
   ret->scheduler_version = NULL;
 
+  ret->ma_version_cache = g_hash_table_new_full(
+      g_str_hash, g_str_equal, g_free, g_free);
+
   ret->job_queue     = g_sequence_new(NULL);
 
   ret->db_conn       = NULL;
@@ -373,6 +376,7 @@ void scheduler_destroy(scheduler_t* scheduler)
   }
 
   if(scheduler->scheduler_version) g_free(scheduler->scheduler_version);
+  if(scheduler->ma_version_cache)  g_hash_table_destroy(scheduler->ma_version_cache);
   if(scheduler->process_name) g_free(scheduler->process_name);
   if(scheduler->sysconfig)    fo_config_free(scheduler->sysconfig);
   if(scheduler->sysconfigdir) g_free(scheduler->sysconfigdir);
@@ -843,9 +847,37 @@ int kill_scheduler(int force)
  *
  * @param scheduler  the scheduler to reset the information on
  */
+/**
+ * @brief GTraverseFunc: snapshot a meta agent's reported version into the cache.
+ *
+ * Runs before the meta_agents tree is cleared on reload so that the version each
+ * agent type last reported survives into the rebuilt tree. That is what lets us
+ * tell, after a reload, which types actually changed their code (version differs)
+ * and which did not (version matches) - the basis for a per-type refresh.
+ */
+static gboolean snapshot_ma_version(gpointer key, gpointer val, gpointer data)
+{
+  meta_agent_t* ma = (meta_agent_t*)val;
+  GHashTable*   cache = (GHashTable*)data;
+  if(ma != NULL && ma->version != NULL)
+    g_hash_table_replace(cache, g_strdup(ma->name), g_strdup(ma->version));
+  return FALSE;
+}
+
 void scheduler_clear_config(scheduler_t* scheduler)
 {
+  /* Snapshot each type's version (so a reload can compare per-type instead of
+   * resetting everything), then free the meta_agents, all under version_lock so
+   * a listen thread adopting a version at the same time cannot race the read or
+   * the free of ma->version. */
+  agent_meta_version_lock();
+  if(scheduler->ma_version_cache)
+    g_tree_foreach(scheduler->meta_agents, snapshot_ma_version,
+        scheduler->ma_version_cache);
+
   g_tree_clear(scheduler->meta_agents);
+  agent_meta_version_unlock();
+
   g_tree_clear(scheduler->host_list);
 
   g_list_free(scheduler->host_queue);
@@ -907,6 +939,113 @@ void g_tree_clear(GTree* tree)
     g_tree_remove(tree, iter->data);
 
   g_list_free(keys);
+}
+
+/**
+ * @brief GTraverseFunc: restore a rebuilt meta agent's version from the cache.
+ *
+ * Only restores when the type is still fresh (version == NULL). The source is set
+ * to a sentinel because the reporting host is not known until an agent runs again.
+ * Validity is left as the config parse set it, so a type is never resurrected here.
+ */
+static gboolean restore_ma_version(gpointer key, gpointer val, gpointer data)
+{
+  meta_agent_t* ma = (meta_agent_t*)val;
+  GHashTable*   cache = (GHashTable*)data;
+  const char*   v;
+
+  if(ma == NULL) return FALSE;
+  v = g_hash_table_lookup(cache, ma->name);
+  if(v != NULL && ma->version == NULL)
+  {
+    ma->version = g_strdup(v);
+    ma->version_source = MA_VERSION_SOURCE_CACHED;
+  }
+  return FALSE;
+}
+
+/**
+ * @brief GTraverseFunc: re-point a running agent at the rebuilt type/host structs.
+ *
+ * A reload clears and rebuilds the meta_agents and host_list trees, freeing the
+ * structs that running agents still reference through agent->type / agent->host.
+ * Matching on the stable name copies (never freed), we re-point both so later
+ * code (update(), agent_death_event(), a per-type refresh, ...) never touches a
+ * freed struct. run_count and host->running are rebuilt separately below.
+ *
+ * If a type or host was removed from the config on this reload, the old struct is
+ * gone and the agent cannot be kept or rescheduled. We NULL the missing pointer,
+ * drop the agent from load accounting (accounted = FALSE, so recount skips it),
+ * and SIGKILL it; the death event then fails its job using the now null-safe
+ * counter helpers. This replaces the previous "leave a dangling pointer" path,
+ * which caused a use-after-free in recount and agent_death_event.
+ */
+typedef struct { GTree* metas; GTree* hosts; } repoint_ctx;
+
+static gboolean repoint_agent(int* pid_ptr, agent_t* agent, gpointer data)
+{
+  repoint_ctx*  ctx = (repoint_ctx*)data;
+  meta_agent_t* ma;
+  host_t*       h;
+  gboolean      lost = FALSE;
+
+  if(agent == NULL) return FALSE;
+
+  ma = g_tree_lookup(ctx->metas, agent->type_name);
+  if(ma != NULL)
+    agent->type = ma;
+  else
+  {
+    agent->type = NULL;
+    lost = TRUE;
+    log_printf("WARNING %s.%d: agent pid %d type \"%s\" no longer in config after"
+        " reload; failing it\n", __FILE__, __LINE__, agent->pid, agent->type_name);
+  }
+
+  h = g_tree_lookup(ctx->hosts, agent->host_name);
+  if(h != NULL)
+    agent->host = h;
+  else
+  {
+    agent->host = NULL;
+    lost = TRUE;
+    log_printf("WARNING %s.%d: agent pid %d host \"%s\" no longer in config after"
+        " reload; failing it\n", __FILE__, __LINE__, agent->pid, agent->host_name);
+  }
+
+  if(lost)
+  {
+    /* Release its slot (recount rebuilds counters from the surviving agents) and
+     * kill it; return_code != 0 so the death event fails its job. */
+    agent->accounted = FALSE;
+    agent->return_code = 1;
+    kill(-agent->pid, SIGKILL);
+  }
+
+  return FALSE;
+}
+
+/**
+ * @brief GTraverseFunc: recompute run_count/host load from the live agents.
+ *
+ * The rebuilt meta_agents and hosts start at zero. A slot is taken at
+ * agent_init() (accounted set) and released only when the agent pauses
+ * (agent_transition to AG_PAUSED) or dies. So any accounted agent still in the
+ * tree that is not paused is holding a slot right now - regardless of owner (an
+ * accounted agent can outlive its job) and regardless of AG_FAILED (the slot is
+ * not released until the death event reaps it). This mirrors the decrement side
+ * exactly; keying off anything narrower undercounts and makes a later death
+ * underflow run_count / host->running.
+ */
+static gboolean recount_slot_holder(int* pid_ptr, agent_t* agent, gpointer unused)
+{
+  if(agent == NULL) return FALSE;
+  if(!agent->accounted) return FALSE;
+  if(agent->status == AG_PAUSED) return FALSE;
+
+  if(agent->type != NULL) agent->type->run_count++;
+  if(agent->host != NULL) agent->host->running++;
+  return FALSE;
 }
 
 /**
@@ -1014,6 +1153,24 @@ void scheduler_agent_config(scheduler_t* scheduler)
   }
 
   closedir(dp);
+
+  /* Reload recovery: restore preserved versions onto the rebuilt meta_agents,
+   * re-point running agents at the rebuilt type/host structs, then recompute
+   * load from the live agents. All no-ops on first boot. */
+  if(scheduler->ma_version_cache != NULL)
+    g_tree_foreach(scheduler->meta_agents, restore_ma_version,
+        scheduler->ma_version_cache);
+
+  {
+    repoint_ctx rctx = { scheduler->meta_agents, scheduler->host_list };
+    g_tree_foreach(scheduler->agents, (GTraverseFunc)repoint_agent, &rctx);
+    g_tree_foreach(scheduler->agents, (GTraverseFunc)recount_slot_holder, NULL);
+  }
+
+  /* The startup test re-probes every type's version. Because the versions above
+   * were preserved, a type whose code is unchanged reports a matching version and
+   * is left alone; only a type whose version changed triggers a per-type refresh
+   * (see agent_listen()). */
   event_signal(scheduler_test_agents, NULL);
 }
 
@@ -1126,17 +1283,19 @@ void scheduler_foss_config(scheduler_t* scheduler)
     {
       /* first load: just store it */
       scheduler->scheduler_version = g_strdup(new_ver);
-      log_printf("NOTE: scheduler version initialised to \"%s\"\n",
+      log_printf("NOTE: scheduler version initialized to \"%s\"\n",
           scheduler->scheduler_version);
     }
     else if (strcmp(scheduler->scheduler_version, new_ver) != 0)
     {
-      /* version changed: store it and respawn agents on the new binary */
-      log_printf("NOTE: scheduler version changed: \"%s\" -> \"%s\"\n",
+      /* COMMIT_HASH is build-wide and cannot say which agent changed, so only
+       * record it. The refresh is per-type, driven by each agent's reported
+       * VERSION on the next startup re-probe (see agent_listen()). */
+      log_printf("NOTE: scheduler build changed: \"%s\" -> \"%s\";"
+          " agents will be refreshed per-type on version mismatch\n",
           scheduler->scheduler_version, new_ver);
       g_free(scheduler->scheduler_version);
       scheduler->scheduler_version = g_strdup(new_ver);
-      event_signal(scheduler_version_refresh, NULL);
     }
   }
 
@@ -1236,87 +1395,6 @@ void scheduler_test_agents(scheduler_t* scheduler, void* unused)
 {
   scheduler->s_startup = TRUE;
   test_agents(scheduler);
-}
-
-/* ************************************************************************** */
-/* **** Version refresh ***************************************************** */
-/* ************************************************************************** */
-
-/**
- * @brief Context structure for the version-refresh tree traversal.
- */
-typedef struct
-{
-  scheduler_t* scheduler;
-  int          count;
-} version_refresh_ctx;
-
-/**
- * @brief GTraverseFunc: respawn a not-yet-working agent on the new binary.
- *
- * Resets every meta agent's cached version so the first respawned agent of each
- * type sets the new one.
- *
- * Only AG_SPAWNED agents are killed (job still JB_CHECKEDOUT, no data sent): the
- * death event re-queues those for a fresh dispatch. AG_RUNNING agents are left
- * to finish on the binary they started with, otherwise their half-done job would
- * be marked complete.
- *
- * @param pid_ptr  Key in the agents GTree (pid)
- * @param agent    The running agent
- * @param ctx      version_refresh_ctx*
- * @return 0 to continue traversal
- */
-static gboolean version_refresh_kill_agent(int* pid_ptr, agent_t* agent,
-    version_refresh_ctx* ctx)
-{
-  if (agent == NULL)
-  {
-    return FALSE;
-  }
-
-  agent_meta_version_reset(agent->type);
-
-  /* leave agents that have already started; only respawn the not-yet-working ones */
-  if (agent->status != AG_SPAWNED)
-  {
-    return FALSE;
-  }
-
-  /* kill() directly, not agent_kill(): return_code=0 makes the death event
-   * re-queue the still-CHECKEDOUT job. Kill the process group too. */
-  agent->return_code = 0;
-  log_printf("NOTE: version refresh: sending SIGKILL to agent pid %d type \"%s\"\n",
-      agent->pid, agent->type ? agent->type->name : "?");
-  kill(-agent->pid, SIGKILL);
-  ctx->count++;
-  return FALSE;
-}
-
-/**
- * @brief Event run when the scheduler's own version changed.
- *
- * Kills the agents that can be respawned so they pick up the new binary on the
- * next scheduler_update(). Triggered by scheduler_foss_config() when COMMIT_HASH
- * changes between two config loads (e.g. SIGHUP after a rebuild).
- *
- * @param scheduler  the scheduler
- * @param unused     ignored (required by event signature)
- */
-void scheduler_version_refresh(scheduler_t* scheduler, void* unused)
-{
-  version_refresh_ctx ctx;
-  ctx.scheduler = scheduler;
-  ctx.count = 0;
-
-  log_printf("NOTE: scheduler_version_refresh: killing all running agents "
-      "for version update\n");
-
-  g_tree_foreach(scheduler->agents,
-      (GTraverseFunc)version_refresh_kill_agent, &ctx);
-
-  log_printf("NOTE: scheduler_version_refresh: sent SIGKILL to %d agent(s); "
-      "they will respawn automatically\n", ctx.count);
 }
 
 /**

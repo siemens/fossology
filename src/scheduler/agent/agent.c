@@ -272,8 +272,9 @@ static int agent_test(const gchar* name, meta_agent_t* ma, scheduler_t* schedule
   return 0;
 }
 
-/* Protects meta_agent_t::version and version_source - held by both the
- * agent_listen spawn thread and the event-loop thread (agent_meta_version_reset). */
+/* Protects meta_agent_t::version and version_source - held by the agent_listen
+ * spawn thread while it checks and adopts a reported version, and by the reload
+ * path (scheduler_clear_config) while it snapshots and frees those fields. */
 #if GLIB_CHECK_VERSION(2, 32, 0)
 static GMutex version_lock;
 #else
@@ -281,28 +282,25 @@ static GStaticMutex version_lock = G_STATIC_MUTEX_INIT;
 #endif
 
 /**
- * @brief Reset a meta_agent's cached version fields under version_lock.
+ * @brief Acquire the lock guarding meta_agent version/version_source.
  *
- * Called by version_refresh_kill_agent (event loop thread) so that the free
- * and NULL-assignment are mutually exclusive with agent_listen (spawn thread)
- * reading the same fields under the same lock.
+ * Lets the reload path serialize its version snapshot and teardown against a
+ * listen thread adopting a new version at the same time.
  */
-void agent_meta_version_reset(meta_agent_t* ma)
+void agent_meta_version_lock(void)
 {
-  if (ma == NULL) return;
 #if GLIB_CHECK_VERSION(2, 32, 0)
   g_mutex_lock(&version_lock);
 #else
   g_static_mutex_lock(&version_lock);
 #endif
-  /* Log the old version while holding the lock so the read and free are atomic. */
-  if (ma->version != NULL)
-    log_printf("NOTE: version refresh: resetting cached version for agent "
-        "type \"%s\" (was \"%s\")\n", ma->name, ma->version);
-  g_free(ma->version);
-  ma->version = NULL;
-  ma->version_source = NULL;
-  ma->valid = TRUE;
+}
+
+/**
+ * @brief Release the lock guarding meta_agent version/version_source.
+ */
+void agent_meta_version_unlock(void)
+{
 #if GLIB_CHECK_VERSION(2, 32, 0)
   g_mutex_unlock(&version_lock);
 #else
@@ -393,10 +391,23 @@ static void agent_listen(scheduler_t* scheduler, agent_t* agent)
   }
   else if (strcmp(agent->type->version, version_str) != 0)
   {
-    /* Version mismatch: hard-fail during startup tests (id<0); adopt new version at runtime. */
-    if (agent->owner != NULL && agent->owner->id < 0)
+    /* A mismatch is either cross-host skew or a code update for this type.
+     * Skew: a startup/reprobe job (id < 0) reports a version different from the
+     * one another host recorded - a deployment error, so hard-fail. Otherwise
+     * (same-host re-report, post-reload sentinel source, or a runtime mismatch)
+     * it is a code update: adopt the new version, respawn this agent, and refresh
+     * only this type; other types keep running and reuse their pfiles.
+     * Comparing version_source against the reporting host (not a global "startup
+     * done" flag) keeps skew detection working across reloads and added hosts. */
+    gboolean startup_probe = (agent->owner != NULL && agent->owner->id < 0);
+    gboolean cross_host =
+        agent->type->version_source != NULL &&
+        strcmp(agent->type->version_source, MA_VERSION_SOURCE_CACHED) != 0 &&
+        strcmp(agent->type->version_source, agent->host->name) != 0;
+
+    if (startup_probe && cross_host)
     {
-      /* Startup test: hard-fail so version skew is caught at boot. */
+      /* cross-host skew: hard-fail so it is caught. */
       con_printf(job_log(agent->owner),
           "ERROR %s.%d: META_DATA[%s] invalid agent spawn check (startup)\n",
           __FILE__, __LINE__, agent->type->name);
@@ -416,19 +427,28 @@ static void agent_listen(scheduler_t* scheduler, agent_t* agent)
       return;
     }
 
-    /* Runtime: adopt new version and respawn cleanly. */
+    /* code update: adopt the new version and refresh only this type. */
     con_printf(main_log,
-        "WARNING %s.%d: META_AGENT[%s] version changed: \"%s\" -> \"%s\" "
-        "(was reported by: %s, now: %s). Adopting new version; agent will respawn.\n",
+        "NOTE %s.%d: META_AGENT[%s] code changed: version \"%s\" -> \"%s\" "
+        "(was reported by: %s, now: %s). Refreshing only this agent type; "
+        "other agents are unaffected.\n",
         __FILE__, __LINE__, agent->type->name,
         agent->type->version, version_str,
-        agent->type->version_source, agent->host->name);
+        agent->type->version_source ? agent->type->version_source : "?",
+        agent->host->name);
 
     g_free(agent->type->version);
     agent->type->version = g_strdup(version_str);
     agent->type->version_source = agent->host->name;
-    /* return_code=0 so the death event respawns cleanly instead of failing the job.
-     * Kill the process group so child processes die too. */
+
+    /* refresh the other spawned agents of THIS type only. Pass a copied name, not
+     * the agent pointer: this agent may be joined and freed before the event runs,
+     * and matching by name is also safe against a reload rebuilding the types. */
+    event_signal(agent_type_refresh_event, g_strdup(agent->type->name));
+
+    /* return_code=0 so the death event respawns this agent cleanly (job stays
+     * CHECKEDOUT and is re-queued) instead of failing it. Kill the process group
+     * so child processes die too. */
     agent->return_code = 0;
     kill(-agent->pid, SIGKILL);
 #if GLIB_CHECK_VERSION(2, 32, 0)
@@ -982,6 +1002,12 @@ agent_t* agent_init(scheduler_t* scheduler, host_t* host, job_t* job)
   agent->type = ma;
   agent->status = AG_CREATED;
 
+  /* stable name copies used to match/re-point the agent after a config reload
+   * rebuilds the type/host structs (see repoint_agent() in scheduler.c) */
+  g_strlcpy(agent->type_name, ma->name, sizeof(agent->type_name));
+  g_strlcpy(agent->host_name, host ? host->name : LOCAL_HOST,
+      sizeof(agent->host_name));
+
   /* check if the agent is valid */
   if (!agent->type->valid)
   {
@@ -1091,7 +1117,8 @@ void agent_destroy(agent_t* agent)
 
   // from_child/to_child are owned by the FILE* wrappers; fclose closes them.
   close(agent->from_parent);
-  close(agent->to_parent);
+  if (agent->to_parent >= 0)
+    close(agent->to_parent);
   if (agent->write)
   {
     fclose(agent->write);
@@ -1108,6 +1135,37 @@ void agent_destroy(agent_t* agent)
 /* ************************************************************************** */
 /* **** Events ************************************************************** */
 /* ************************************************************************** */
+
+/**
+ * Wake the listen thread and force EOF on the child pipe so its fgets() returns
+ * and the pending g_thread_join() cannot hang the event loop. The "@@@1" write
+ * is a best-effort graceful wake, made non-blocking because a killed child may
+ * have left the pipe full; closing our write end is the real guarantee: it
+ * yields EOF once the child is gone, since every other agent already closed
+ * this fd in agent_close_fd.
+ *
+ * @param agent agent whose to_parent pipe end is being torn down
+ */
+static void agent_release_pipe(agent_t* agent)
+{
+  int flags;
+
+  if (agent->to_parent < 0)
+    return;
+
+  flags = fcntl(agent->to_parent, F_GETFL, 0);
+  if (flags != -1)
+    fcntl(agent->to_parent, F_SETFL, flags | O_NONBLOCK);
+
+  if (write(agent->to_parent, "@@@1\n", 5) != 5)
+  {
+    AGENT_SEQUENTIAL_PRINT("wake of agent pid %d unsuccessful: %s\n",
+        (int)agent->pid, strerror(errno));
+  }
+
+  close(agent->to_parent);
+  agent->to_parent = -1;
+}
 
 /**
  * Event created when a SIGCHLD is received for an agent. If one SIGCHILD is
@@ -1142,10 +1200,7 @@ void agent_death_event(scheduler_t* scheduler, pid_t* pid)
   {
     log_printf("ERROR %s.%d: agent_death_event for ownerless agent pid %d - cleaning up\n",
         __FILE__, __LINE__, (int)pid[0]);
-    if (write(agent->to_parent, "@@@1\n", 5) != 5)
-    {
-      AGENT_SEQUENTIAL_PRINT("write to ownerless agent unsuccessful: %s\n", strerror(errno));
-    }
+    agent_release_pipe(agent);
     g_thread_join(agent->thread);
     /* Release the slot if this agent was counted and still holds it (AG_PAUSED
      * agents already released theirs when they paused). */
@@ -1165,10 +1220,7 @@ void agent_death_event(scheduler_t* scheduler, pid_t* pid)
     event_signal(database_update_event, NULL);
   }
 
-  if (write(agent->to_parent, "@@@1\n", 5) != 5)
-  {
-    AGENT_SEQUENTIAL_PRINT("write to agent unsuccessful: %s\n", strerror(errno));
-  }
+  agent_release_pipe(agent);
   g_thread_join(agent->thread);
 
   /* Skip if the agent was already failed (the "BYE n" path may have run first);
@@ -1196,15 +1248,17 @@ void agent_death_event(scheduler_t* scheduler, pid_t* pid)
   }
 
   /* Decrement run_count and host load once per death:
-   *   AG_FAILED: agent_fail_event skipped it, so do it here.
+   *   AG_FAILED: agent_fail_event skipped it, so do it here (only if the agent
+   *     was still accounted; a reload can drop an agent from accounting).
    *   AG_PAUSED: already done at the PAUSED transition.
    *   otherwise: do it through agent_transition(AG_PAUSED). */
   if (agent->status == AG_FAILED)
   {
-    if (agent->owner != NULL && agent->owner->id > 0)
+    if (agent->owner != NULL && agent->owner->id > 0 && agent->accounted)
     {
       host_decrease_load(agent->host);
       meta_agent_decrease_count(agent->type);
+      agent->accounted = FALSE;
     }
   }
   else if (agent->status != AG_PAUSED)
@@ -1238,14 +1292,15 @@ void agent_death_event(scheduler_t* scheduler, pid_t* pid)
   {
     job_update(scheduler, agent->owner);
   }
-  if (agent->status == AG_FAILED && agent->owner->id < 0)
+  if (agent->status == AG_FAILED && agent->owner->id < 0 &&
+      agent->type != NULL && agent->host != NULL)
   {
     log_printf("ERROR %s.%d: agent %s.%s has failed scheduler startup test\n", __FILE__, __LINE__, agent->host->name,
         agent->type->name);
     agent->type->valid = 0;
   }
 
-  if (agent->owner->id < 0 && !agent->type->valid)
+  if (agent->owner->id < 0 && agent->type != NULL && !agent->type->valid)
     AGENT_SEQUENTIAL_PRINT("agent failed startup test, removing from meta agents\n");
 
   AGENT_SEQUENTIAL_PRINT("successfully remove from the system\n");
@@ -1346,7 +1401,7 @@ typedef struct {
 } zombie_ctx;
 
 /**
- * @brief GTraverseFunc: collect agents in FAILED jobs silent for >3×agent_death_timer.
+ * @brief GTraverseFunc: collect agents in FAILED jobs silent for >3x agent_death_timer.
  * Targets D-state processes that SIGKILL cannot reap (SIGCHLD never fires,
  * leaking listen threads and job_t until scheduler restarts).
  */
@@ -1365,7 +1420,7 @@ static gboolean collect_zombie_agents(int* pid_ptr, agent_t* agent, zombie_ctx* 
   {
     return FALSE;
   }
-  // 3× timer guarantees the normal watchdog already attempted SIGKILL.
+  // 3x timer guarantees the normal watchdog already attempted SIGKILL.
   if (ctx->now - agent->check_in <= (time_t)(3 * CONF_agent_death_timer))
   {
     return FALSE;
@@ -1419,6 +1474,72 @@ void agent_update_event(scheduler_t* scheduler, void* unused)
   }
 
   g_list_free(zctx.list);
+}
+
+/**
+ * @brief Context for the per-type refresh traversal.
+ */
+typedef struct
+{
+  const char* type_name; ///< the agent type whose code changed
+  int         count;     ///< number of agents refreshed
+} type_refresh_ctx;
+
+/**
+ * @brief GTraverseFunc: respawn a not-yet-working agent of the changed type.
+ *
+ * Matches on the stable type_name copy (never dereferences agent->type, which
+ * could be stale after a reload). Only AG_SPAWNED agents are refreshed: they have
+ * not been sent any data yet, so their still-CHECKEDOUT job is re-queued for a
+ * fresh dispatch by the death event. AG_RUNNING agents are deliberately left to
+ * finish on the binary they started with, so their in-progress work (and pfile
+ * reuse) is not thrown away. Agents of every other type are ignored entirely.
+ */
+static gboolean type_refresh_kill(int* pid_ptr, agent_t* agent,
+    type_refresh_ctx* ctx)
+{
+  if (agent == NULL)
+    return FALSE;
+  if (strcmp(agent->type_name, ctx->type_name) != 0)
+    return FALSE;
+  if (agent->status != AG_SPAWNED)
+    return FALSE;
+
+  /* return_code=0 so the death event respawns it cleanly rather than failing
+   * its job. Kill the process group so child processes die too. */
+  agent->return_code = 0;
+  log_printf("NOTE: per-type refresh: sending SIGKILL to agent pid %d type \"%s\""
+      " so it respawns on the updated binary\n", agent->pid, agent->type_name);
+  kill(-agent->pid, SIGKILL);
+  ctx->count++;
+  return FALSE;
+}
+
+/**
+ * @brief Event: refresh only the agents of a single, changed agent type.
+ *
+ * Queued from agent_listen() when an agent reports a version different from its
+ * type's cached version. Instead of the old behavior that killed every spawned
+ * agent whenever COMMIT_HASH changed, this touches only the one type that
+ * actually changed, leaving all other agents running normally.
+ *
+ * @param scheduler the scheduler
+ * @param type_name heap-allocated agent type name (g_strdup'd by the caller);
+ * freed here
+ */
+void agent_type_refresh_event(scheduler_t* scheduler, void* type_name)
+{
+  type_refresh_ctx ctx;
+  ctx.type_name = (const char*)type_name;
+  ctx.count = 0;
+
+  g_tree_foreach(scheduler->agents, (GTraverseFunc)type_refresh_kill, &ctx);
+
+  log_printf("NOTE: agent_type_refresh_event: refreshed %d spawned agent(s) of "
+      "type \"%s\"; other agent types were left untouched\n",
+      ctx.count, (const char*)type_name);
+
+  g_free(type_name);
 }
 
 /**
@@ -1740,6 +1861,7 @@ int is_agent_special(agent_t* agent, int special_type)
  */
 void meta_agent_increase_count(meta_agent_t* ma)
 {
+  if (ma == NULL) return;
   ma->run_count++;
   V_AGENT("AGENT[%s] run increased to %d\n", ma->name, ma->run_count);
 }
@@ -1750,6 +1872,7 @@ void meta_agent_increase_count(meta_agent_t* ma)
  */
 void meta_agent_decrease_count(meta_agent_t* ma)
 {
+  if (ma == NULL) return;
   ma->run_count--;
   V_AGENT("AGENT[%s] run decreased to %d\n", ma->name, ma->run_count);
 }

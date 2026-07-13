@@ -371,6 +371,47 @@ class testsuite:
     time.sleep(int(duration))
     return (1, 0)
   
+  def waitfor(self, node, doc, dest):
+    """
+    Action
+    
+    Attributes:
+      command [required]: the process to run on each poll
+      params  [required]: the command line parameters passed to the command
+      retval  [optional]: the exit value to wait for (default 0)
+      timeout [optional]: max seconds to wait before failing (default 30)
+    
+    Polls the command until it returns the expected retval or the timeout
+    elapses, sleeping briefly between attempts. Use instead of a fixed sleep
+    followed by a check so the test is not flaky on slow machines.
+    
+    Returns True if the command returned the expected retval within timeout.
+    """
+    command = self.required(node, 'command')
+    params  = self.required(node, 'params')
+    retval  = self.optional(node, 'retval')
+    tout    = self.optional(node, 'timeout')
+    
+    want     = int(retval) if len(retval) != 0 else 0
+    deadline = time.time() + (int(tout) if len(tout) != 0 else 30)
+    last     = None
+    
+    while True:
+      cmd  = "{0} {1}".format(command, params)
+      proc = subprocess.Popen(cmd, 0, shell = True, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+      proc.wait()
+      last = proc.returncode
+      if last == want:
+        return (1, 0)
+      if time.time() >= deadline:
+        break
+      time.sleep(0.5)
+    
+    self.failure(doc, dest, "WaitTimeout",
+        "command '{0} {1}' did not return {2} within timeout (last: {3})".format(
+            command, params, want, last))
+    return (1, 1)
+  
   def loadConf(self, node, doc, dest):
     """
     Action

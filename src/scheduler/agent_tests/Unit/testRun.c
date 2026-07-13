@@ -86,6 +86,7 @@ CU_SuiteInfo suites[] =
     {"MetaAgent",       NULL, NULL, (CU_SetUpFunc)init_suite, (CU_TearDownFunc)clean_suite, tests_meta_agent },
     {"Agent",           NULL, NULL, (CU_SetUpFunc)init_suite, (CU_TearDownFunc)clean_suite, tests_agent },
     {"Event",           NULL, NULL, (CU_SetUpFunc)init_suite, (CU_TearDownFunc)clean_suite, tests_event },
+    {"VersionRefresh",  NULL, NULL, (CU_SetUpFunc)init_suite, (CU_TearDownFunc)clean_suite, tests_version_refresh },
     CU_SUITE_INFO_NULL
 };
 

@@ -101,6 +101,7 @@ void host_insert(host_t* host, scheduler_t* scheduler)
  */
 void host_increase_load(host_t* host)
 {
+  if (host == NULL) return;
   host->running++;
   V_HOST("HOST[%s] load increased to %d\n", host->name, host->running);
 }
@@ -112,6 +113,7 @@ void host_increase_load(host_t* host)
  */
 void host_decrease_load(host_t* host)
 {
+  if (host == NULL) return;
   host->running--;
   V_HOST("HOST[%s] load decreased to %d\n", host->name, host->running);
 }

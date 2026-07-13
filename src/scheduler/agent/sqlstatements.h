@@ -171,6 +171,39 @@ const char* jobsql_failed =
     "   WHERE jq_pk = %d;";
 
 /**
+ * Fail every queue entry that transitively depends on a failed job.
+ * A dependent of a failed job can never pass the dependency check in
+ * basic_checkout, so it would otherwise stay queued and unrunnable forever.
+ * Only entries that have not started yet (jq_starttime IS NULL) are touched, so
+ * running and paused jobs are left alone. UNION in the recursive term
+ * deduplicates, so a diamond or an accidental cycle in jobdepends cannot loop.
+ * jq_starttime is stamped alongside jq_endtime so the row is a normal
+ * instantaneously-failed entry instead of a NULL-start/failed-end oddity that
+ * confuses job-history duration math in the UI. The single %d is the jq_pk of
+ * the job that failed.
+ */
+const char* jobsql_faildependents =
+    " WITH RECURSIVE dependents(jq_pk) AS ( "
+    "     SELECT jd.jdep_jq_fk "
+    "       FROM jobdepends jd "
+    "      WHERE jd.jdep_jq_depends_fk = %d "
+    "   UNION "
+    "     SELECT jd.jdep_jq_fk "
+    "       FROM jobdepends jd "
+    "       INNER JOIN dependents d ON d.jq_pk = jd.jdep_jq_depends_fk "
+    " ) "
+    " UPDATE jobqueue jq "
+    "    SET jq_starttime = now(), "
+    "        jq_endtime = now(), "
+    "        jq_end_bits = jq_end_bits | 2, "
+    "        jq_schedinfo = null, "
+    "        jq_endtext = 'Failed: a prerequisite job failed' "
+    "   FROM dependents d "
+    "  WHERE jq.jq_pk = d.jq_pk "
+    "    AND jq.jq_starttime IS NULL "
+    "    AND jq.jq_endtime IS NULL;";
+
+/**
  * Update the items processed for the given job id
  */
 const char* jobsql_processed =

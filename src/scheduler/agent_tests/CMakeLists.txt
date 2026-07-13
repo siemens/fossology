@@ -27,6 +27,7 @@ target_sources(test_scheduler
     ${FO_CWD}/Unit/testEvent.c
     ${FO_CWD}/Unit/testDatabase.c
     ${FO_CWD}/Unit/testScheduler.c
+    ${FO_CWD}/Unit/testVersionRefresh.c
     ${FO_CWD}/Unit/testJob.c
     ${FO_CWD}/Unit/utils.c)
 target_compile_definitions(test_scheduler

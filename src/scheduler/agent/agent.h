@@ -73,6 +73,11 @@ extern const char* agent_status_strings[];
  */
 typedef int agent_pk;
 
+/** Sentinel version_source used after a reload restores a cached version, before
+ *  any agent has re-reported. A version mismatch against this source is treated
+ *  as a code update (adopt), never as cross-host skew. */
+#define MA_VERSION_SOURCE_CACHED "cached-across-reload"
+
 /**
  * Internal declaration of private members for the meta_agent type. Meta agents
  * are used to store the information necessary to create a new agent of the same
@@ -101,6 +106,13 @@ typedef struct
     /* we need all the information on creating the agent */
     meta_agent_t* type; ///< the type of agent this is i.e. bucket, copyright...
     host_t*       host; ///< the host that this agent will start on
+
+    /* stable identity copies: type/host pointers above can dangle after a config
+     * reload rebuilds the meta_agents/host_list trees. These name copies survive
+     * the reload and let us match/re-point agents without dereferencing a freed
+     * struct. Set once at agent_init() and never changed. */
+    char type_name[MAX_NAME + 2]; ///< copy of type->name, stable across reloads
+    char host_name[MAX_NAME + 2]; ///< copy of host->name, stable across reloads
 
     /* thread management */
     agent_status status;    ///< the state of execution the agent is currently in
@@ -135,7 +147,8 @@ typedef struct
 /* meta agent */
 meta_agent_t* meta_agent_init(char* name, char* cmd, int max, int spc);
 void meta_agent_destroy(meta_agent_t* meta_agent);
-void agent_meta_version_reset(meta_agent_t* ma);
+void agent_meta_version_lock(void);
+void agent_meta_version_unlock(void);
 
 /* agent */
 agent_t* agent_init(scheduler_t* scheduler, host_t* host, job_t* owner);
@@ -149,6 +162,7 @@ void agent_death_event(scheduler_t* scheduler, pid_t* pids);
 void agent_create_event(scheduler_t* scheduler, agent_t* agent);
 void agent_ready_event(scheduler_t* scheduler, agent_t* agent);
 void agent_update_event(scheduler_t* scheduler, void* unused);
+void agent_type_refresh_event(scheduler_t* scheduler, void* type_name);
 void agent_fail_event(scheduler_t* scheduler, agent_t* agent);
 void agent_fail_event_pid(scheduler_t* scheduler, void* arg);
 void list_agents_event(scheduler_t* scheduler, GOutputStream* ostr);
