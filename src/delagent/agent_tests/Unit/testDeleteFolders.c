@@ -40,6 +40,34 @@ void testDeleteFolders()
 }
 
 /**
+ * \brief Deleting a folder through its parent removes the folder row
+ * \test
+ * -# Delete folder 4 (parent 1) with deleteFolder()
+ * -# Check the folder row and its link to the parent are both gone
+ */
+void testDeleteFolderRemovesRow()
+{
+  char *ErrorBuf;
+  PGresult *result;
+  int rc;
+
+  pgConn = fo_dbconnect(DBConfFile, &ErrorBuf);
+  rc = deleteFolder(4, 1, 3, 10);
+  CU_ASSERT_EQUAL(rc, 0);
+
+  result = PQexec(pgConn, "SELECT 1 FROM folder WHERE folder_pk = 4");
+  CU_ASSERT_FALSE(fo_checkPQresult(pgConn, result, "folder", __FILE__, __LINE__));
+  CU_ASSERT_EQUAL(PQntuples(result), 0);
+  PQclear(result);
+
+  result = PQexec(pgConn, "SELECT 1 FROM foldercontents WHERE foldercontents_mode = 1 AND child_id = 4");
+  CU_ASSERT_FALSE(fo_checkPQresult(pgConn, result, "foldercontents", __FILE__, __LINE__));
+  CU_ASSERT_EQUAL(PQntuples(result), 0);
+  PQclear(result);
+  PQfinish(pgConn);
+}
+
+/**
  * \brief for function DeleteUploads
  * \test
  * -# Delete an upload using deleteUpload() and check for the return
@@ -105,6 +133,7 @@ CU_TestInfo testcases_DeleteFolders[] =
 #endif
 {"Testing the function DeleteFolders:", testDeleteFolders},
 {"Testing the function DeleteUploads:", testDeleteUploads},
+{"Testing deleteFolder removes the folder row:", testDeleteFolderRemovesRow},
   CU_TEST_INFO_NULL
 };
 

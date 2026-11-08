@@ -745,10 +745,11 @@ int listFoldersRecurse (long Parent, int Depth, long Row, int DelFlag, int userI
           return rc;
         }
       }
+      /* the folder delete joins on the link, so it goes first */
       if(Row > 0)
-        snprintf(SQL,MAXSQL,"DELETE FROM foldercontents WHERE foldercontents_mode=1 AND parent_fk=%ld AND child_id=%ld",Row,Parent);
+        snprintf(SQL,MAXSQL,"DELETE FROM folder f USING foldercontents fc WHERE  f.folder_pk = fc.child_id AND fc.parent_fk='%ld' AND f.folder_pk = '%ld';",Row,Parent);
       else
-        snprintf(SQL,MAXSQL,"DELETE FROM foldercontents WHERE foldercontents_mode=1 AND child_id=%ld",Parent);
+        snprintf(SQL,MAXSQL,"DELETE FROM folder WHERE folder_pk = '%ld';",Parent);
       if (Test)
       {
         printf("TEST: %s\n",SQL);
@@ -758,9 +759,9 @@ int listFoldersRecurse (long Parent, int Depth, long Row, int DelFlag, int userI
         PQexecCheckClear(NULL, SQL, __FILE__, __LINE__);
       }
       if(Row > 0)
-        snprintf(SQL,MAXSQL,"DELETE FROM folder f USING foldercontents fc WHERE  f.folder_pk = fc.child_id AND fc.parent_fk='%ld' AND f.folder_pk = '%ld';",Row,Parent);
+        snprintf(SQL,MAXSQL,"DELETE FROM foldercontents WHERE foldercontents_mode=1 AND parent_fk=%ld AND child_id=%ld",Row,Parent);
       else
-        snprintf(SQL,MAXSQL,"DELETE FROM folder WHERE folder_pk = '%ld';",Parent);
+        snprintf(SQL,MAXSQL,"DELETE FROM foldercontents WHERE foldercontents_mode=1 AND child_id=%ld",Parent);
       if (Test)
       {
         printf("TEST: %s\n",SQL);

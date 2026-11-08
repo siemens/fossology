@@ -821,4 +821,33 @@ class LicenseCsvImportTest extends \PHPUnit\Framework\TestCase
       ->once()
       ->andReturn($return);
   }
+
+  /**
+   * @test
+   * -# An imported license marked inactive stays inactive
+   * -# A row without the flag is stored as active
+   */
+  public function testInsertNewLicenseKeepsActiveFlag()
+  {
+    $row = array('shortname' => 'licI', 'licensetype' => 'Permissive',
+      'fullname' => 'License I', 'spdx_id' => 'LicenseRef-I', 'text' => 'txI',
+      'url' => '', 'notes' => '', 'source' => '', 'risk' => 0,
+      'external_id' => 'ext-I', 'active' => false);
+    foreach ([[false, 'f'], [null, 't']] as list($active, $stored)) {
+      $dbManager = M::mock(DbManager::class);
+      $dbManager->shouldReceive('booleanToDb')->with($active ?? true)->once()
+        ->andReturn($stored);
+      $dbManager->shouldReceive('insertTableRow')->with('license_ref',
+        M::on(function ($columns) use ($stored) {
+          return $columns['rf_active'] === $stored;
+        }), anything(), 'rf_pk')->once()->andReturn(7);
+      $licenseCsvImport = new LicenseCsvImport($dbManager, M::mock(UserDao::class));
+      $input = $row;
+      if ($active === null) {
+        unset($input['active']);
+      }
+      Reflectory::invokeObjectsMethodnameWith($licenseCsvImport,
+        'insertNewLicense', array($input));
+    }
+  }
 }

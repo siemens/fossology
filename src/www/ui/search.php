@@ -204,7 +204,7 @@ class search extends FO_Plugin
     }
 
     $Limit = GetParm("limit", PARM_INTEGER);
-    if (!empty($Limit)) {
+    if ($Limit > 0) {
       $GETvars .= "&limit=" . urlencode($Limit);
       $this->MaxPerPage = $Limit;
     }
@@ -217,10 +217,10 @@ class search extends FO_Plugin
     $this->vars["postUrl"] = Traceback_uri() . "?mod=" . self::getName();
 
     if ($CriteriaCount) {
-      if (empty($Page)) {
+      if (empty($Page) || $Page < 0) {
         $Page = 0;
       }
-      $UploadtreeRecsResult = $this->searchHelperDao->GetResults($Item, $Filename, $Upload, $tag, $Page, $Limit, $SizeMin,
+      $UploadtreeRecsResult = $this->searchHelperDao->GetResults($Item, $Filename, $Upload, $tag, $Page, $this->MaxPerPage, $SizeMin,
         $SizeMax, $searchtype, $License, $Copyright, $this->uploadDao,
         Auth::getGroupId());
       $html = "<hr>\n";
