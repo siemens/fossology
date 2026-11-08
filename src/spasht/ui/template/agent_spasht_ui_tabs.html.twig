@@ -73,7 +73,7 @@
                   {% if row.content ends with '/' %}
                   <b>
                   {% endif %}
-                  <a href="{{ row.url }}">{{ row.content }}</a>
+                  <a href="{{ row.url|e }}">{{ row.content|e }}</a>
                   {% if row.content ends with '/' %}
                   </b>
                   {% endif %}

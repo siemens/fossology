@@ -15,7 +15,7 @@
             {% for src in reuseSources %}
               <option value="{{ src.id }}"
                 {% if src.id == reuseUploadId %}selected{% endif %}>
-                {{ src.name }} (ID: {{ src.id }})
+                {{ src.name|e }} (ID: {{ src.id }})
               </option>
             {% endfor %}
           </select>
@@ -40,7 +40,7 @@
           <span class="mr-2 font-weight-bold">{{ 'Search'|trans }}:</span>
           <input type="text" id="fileSearch" class="form-control form-control-sm d-inline-block w-auto mr-3"
                  placeholder="{{ 'File name'|trans }}..."
-                 value="{{ searchQuery }}" onkeyup="filterDiffTable()">
+                 value="{{ searchQuery|e }}" onkeyup="filterDiffTable()">
           <span class="mr-2 font-weight-bold">{{ 'Status'|trans }}:</span>
           <select id="statusFilter" class="form-control form-control-sm d-inline-block w-auto"
                   onchange="applyStatusFilter()">
@@ -66,9 +66,9 @@
               <td class="td-upload">
                 {% if row.upload_file_name %}
                   {% if row.upload_href %}
-                    <a href="{{ row.upload_href }}">{{ row.upload_file_name }}</a>
+                    <a href="{{ row.upload_href }}">{{ row.upload_file_name|e }}</a>
                   {% else %}
-                    {{ row.upload_file_name }}
+                    {{ row.upload_file_name|e }}
                   {% endif %}
                 {% else %}
                   -
@@ -77,9 +77,9 @@
               <td class="td-reuse">
                 {% if row.reuse_file_name %}
                   {% if row.reuse_href %}
-                    <a href="{{ row.reuse_href }}">{{ row.reuse_file_name }}</a>
+                    <a href="{{ row.reuse_href }}">{{ row.reuse_file_name|e }}</a>
                   {% else %}
-                    {{ row.reuse_file_name }}
+                    {{ row.reuse_file_name|e }}
                   {% endif %}
                 {% else %}
                   -
@@ -327,7 +327,7 @@
                 <strong>{{ licenseFilter|capitalize }} {{ 'licenses'|trans }}:</strong>
                 <ul class="list-unstyled mb-0 mt-1" style="font-size:13px;">
                   {% for lic in licenseCategories[licenseFilter] %}
-                    <li><a href="?mod=license_list_files&item={{ itemId }}&lic={{ lic|url_encode }}&reuse={{ reuseUploadId }}">{{ lic }}</a></li>
+                    <li><a href="?mod=license_list_files&item={{ itemId }}&lic={{ lic|url_encode }}&reuse={{ reuseUploadId }}">{{ lic|e }}</a></li>
                   {% endfor %}
                 </ul>
               </div>

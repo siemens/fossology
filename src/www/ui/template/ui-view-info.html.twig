@@ -148,7 +148,7 @@
       </tr>
       <tr><td>{{ "Match type"|trans }}</td> <td>{{ matchType|e }}</td></tr>
       <tr><td>{{ "Line range"|trans }}</td> <td>{{ lineRange|e }}</td></tr>
-      <tr><td>{{ "URL"|trans }}</td> <td> <a href={{ url|e }}> {{ url|e }} </a> </td></tr>
+      <tr><td>{{ "URL"|trans }}</td> <td> {% if url matches '{^(https?|ftp)://}i' %}<a href="{{ url|e }}"> {{ url|e }} </a>{% else %}{{ url|e }}{% endif %} </td></tr>
       <tr><td>{{ "PURL"|trans }}</td><td>{{ purl|e }}</td></tr>
       <tr><td>{{ "Path"|trans }}</td><td>{{ path|e }}</td></tr>
       </table> 

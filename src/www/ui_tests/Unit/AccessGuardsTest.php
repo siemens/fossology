@@ -291,6 +291,14 @@ class AccessGuardsTest extends \PHPUnit\Framework\TestCase
       Reflectory::invokeObjectsMethodnameWith($page, 'findTag', [$name]));
   }
 
+  /** @test Content for the job page is set by code, not by the URL */
+  public function testShowJobsIgnoresRequestContent()
+  {
+    $source = file_get_contents(__DIR__ . '/../../ui/showjobs.php');
+    $this->assertStringNotContainsString('GetParm("injectedMessage"', $source);
+    $this->assertStringNotContainsString('GetParm("injectedFoot"', $source);
+  }
+
   /**
    * @param string $method
    * @return int Status returned for an addLicense request

@@ -127,6 +127,28 @@ class test_common_parm extends \PHPUnit\Framework\TestCase
   }
 
   /**
+   * \brief Request URIs and kept parameters can not break out of a quote
+   */
+  function test_Traceback_quotes_encoded()
+  {
+    $_SERVER['REQUEST_URI'] = "/repo/index.php/x'y\"<z>?mod=browse&show='a b`\\";
+    foreach ([Traceback(), Traceback_uri(), Traceback_dir(), Traceback_parm()] as $result) {
+      $this->assertSame(0, preg_match('/[\'"<>`\\\\ ]/', $result), $result);
+    }
+    $this->assertEquals("/repo/index.php/x%27y%22%3Cz%3E", Traceback_uri());
+    $this->assertEquals("/repo/index.php/x%27y%22%3Cz%3E?mod=browse&show=%27a%20b%60%5C",
+      Traceback());
+
+    $_SERVER['REQUEST_URI'] = "/repo/?mod=view-license&upload=16&item=22861%2Fx";
+    $this->assertEquals("/repo/?mod=view-license&upload=16&item=22861%2Fx", Traceback());
+    $this->assertEquals("/repo/", Traceback_uri());
+
+    $_GET['parm1'] = "a'b c&d=e";
+    $this->assertEquals("&parm1=a%27b+c%26d%3De", Traceback_parm_keep(array('parm1')));
+    unset($_GET['parm1']);
+  }
+
+  /**
    * \brief test for Traceback_dir()
    */
   function test_Traceback_dir()

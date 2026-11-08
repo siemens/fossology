@@ -22,18 +22,18 @@
         </tr>
         {% for row in results %}
             <tr>
-                <td>{{ row.item.fileName }} ({{ row.item.id }}, #{{ row.item.fileId }})</td>
+                <td>{{ row.item.fileName|e }} ({{ row.item.id }}, #{{ row.item.fileId }})</td>
                 <td>{% for license in row.decision %}
-                    {{ license.shortName }}{% if not loop.last %}, {% endif %}
+                    {{ license.shortName|e }}{% if not loop.last %}, {% endif %}
                 {% endfor %}</td>
                 <td>{% for license in row.current %}
-                        {{ license.shortName }}{% if not loop.last %}, {% endif %}
+                        {{ license.shortName|e }}{% if not loop.last %}, {% endif %}
                     {% endfor %}</td>
                 <td>{% for license in row.add %}
-                        {{ license.shortName }}{% if not loop.last %}, {% endif %}
+                        {{ license.shortName|e }}{% if not loop.last %}, {% endif %}
                     {% endfor %}</td>
                 <td>{% for license in row.remove %}
-                        {{ license.shortName }}{% if not loop.last %}, {% endif %}
+                        {{ license.shortName|e }}{% if not loop.last %}, {% endif %}
                     {% endfor %}</td>
             </tr>
         {% endfor %}

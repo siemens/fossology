@@ -267,7 +267,7 @@
         {% for singleClient in clientList %}
         <tr>
           <td>
-            {{ singleClient.name }}
+            {{ singleClient.name|e }}
           </td>
           <td>
             {{ singleClient.created|date("Y-m-d") }}
@@ -314,7 +314,7 @@
         {% for singleClient in revokedClientList %}
         <tr>
           <td>
-            {{ singleClient.name }}
+            {{ singleClient.name|e }}
           </td>
           <td>
             {{ singleClient.created|date("Y-m-d") }}
@@ -434,7 +434,7 @@
         {% for singleToken in tokenList %}
         <tr>
           <td>
-            {{ singleToken.name }}
+            {{ singleToken.name|e }}
           </td>
           <td>
             {{ singleToken.created|date("Y-m-d") }}
@@ -487,7 +487,7 @@
         {% for singleToken in expiredTokenList %}
         <tr>
           <td>
-            {{ singleToken.name }}
+            {{ singleToken.name|e }}
           </td>
           <td>
             {{ singleToken.created|date("Y-m-d") }}

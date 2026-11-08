@@ -14,7 +14,7 @@ selectedLicensesTableColumns = [
 uploadId = {{ uploadId }};
 itemId = {{ itemId }};
 searchMatches = {{ searchMatches|json_encode|raw }};
-searchQuery = "{{ searchQuery }}";
+searchQuery = "{{ searchQuery|e('js') }}";
 
 selectedLicensesTableConfig = {
   "bServerSide": true,

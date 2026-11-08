@@ -19,7 +19,7 @@
             {{ pageMenu }}
             
             <div class="clearing-search-bar" style="display:inline-flex;">
-                <input type="text" id="textSearchInput" class="clearing-search-bar__input" placeholder="Search in file..." value="{{ searchQuery }}">
+                <input type="text" id="textSearchInput" class="clearing-search-bar__input" placeholder="Search in file..." value="{{ searchQuery|e }}">
                 <button class="btn btn-light btn-sm" id="btnTriggerSearch" title="Search">
                      Search
                 </button>

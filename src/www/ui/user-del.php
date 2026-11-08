@@ -70,7 +70,7 @@ class user_del extends FO_Plugin
       $V .= "<select name='userid' class='ui-render-select2'>\n";
       while ($row = pg_fetch_assoc($result)) {
         $V .= "<option value='" . $row['user_pk'] . "'>";
-        $V .= $row['user_name'];
+        $V .= htmlspecialchars($row['user_name']);
         $V .= "</option>\n";
       }
       $V .= "</select>\n";

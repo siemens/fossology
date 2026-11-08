@@ -51,7 +51,7 @@ class AdminGroupDelete extends DefaultPlugin
     if (! empty($groupId) && $request->isMethod('POST')) {
       try {
         $userDao->deleteGroup($groupId);
-        $vars['message'] = _("Group") . ' ' . $groupMap[$groupId] . ' ' . _("deleted") . '.';
+        $vars['message'] = _("Group") . ' ' . htmlspecialchars($groupMap[$groupId]) . ' ' . _("deleted") . '.';
         unset($groupMap[$groupId]);
       } catch (\Exception $e) {
         $vars['message'] = $e->getMessage();

@@ -23,12 +23,12 @@
           <td style="text-align:center">{{ loop.index }}</td>
           <td>
             <input type="text" name="{{ acknowledgementNameParam }}[{{ acknowledgement.la_pk }}]"
-              value="{{ acknowledgement.name }}"
+              value="{{ acknowledgement.name|e }}"
               placeholder="{{ "Please enter a name for the acknowledgement"|trans }}" />
           </td>
           <td>
             <textarea rows="7" cols="80" name="{{ acknowledgementParam }}[{{ acknowledgement.la_pk }}]"
-              placeholder="{{ "Please enter a acknowledgement"|trans }}">{{ acknowledgement.acknowledgement }}</textarea>
+              placeholder="{{ "Please enter a acknowledgement"|trans }}">{{ acknowledgement.acknowledgement|e }}</textarea>
           </td>
           <td>
             <input type="checkbox" name="{{ enableParam }}[{{ acknowledgement.la_pk }}]"

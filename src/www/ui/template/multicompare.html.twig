@@ -107,14 +107,14 @@
         {% if view == 'matrix' %}
           <th>{{ 'File'|trans }}</th>
           {% for col in treeInfoArray %}
-            <th class="text-center">{{ col.display_name }}</th>
+            <th class="text-center">{{ col.display_name|e }}</th>
           {% endfor %}
         {% else %}
           {% for c, col in treeInfoArray %}
             {% if c > 0 %}
               <th class="border-left border-success p-0" style="width:3px"></th>
             {% endif %}
-            <th colspan="2">{{ col.display_name }}</th>
+            <th colspan="2">{{ col.display_name|e }}</th>
           {% endfor %}
         {% endif %}
       </tr>

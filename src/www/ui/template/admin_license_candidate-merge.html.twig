@@ -37,7 +37,7 @@
     <tr style="background-color:#F5F5DC;">
       <td valign="top">{{ 'Reference text'|trans }}:</td>
       <td><div style="overflow-y:scroll;max-height:450px;margin:0;">{{ rf_text }}</div></td>
-      {% if suggest_rf %}<td><div style="overflow-y:scroll;max-height:450px;margin:0;">{{ suggest_text }}</div></td>{% endif %}
+      {% if suggest_rf %}<td><div style="overflow-y:scroll;max-height:450px;margin:0;">{{ suggest_text|e }}</div></td>{% endif %}
     </tr>
     <tr>
       <td>{{ 'URL'|trans }}:</td>
@@ -71,7 +71,7 @@
   <select id="cmp" class="ui-render-select2">
     <option value="0">--{{ 'existing license'|trans }}--</option>
   {% for lic in licenseArray %}
-    <option value="{{ lic.id }}" title="{{ lic.fullname }}">{{ lic.shortname }}</option>
+    <option value="{{ lic.id }}" title="{{ lic.fullname|e }}">{{ lic.shortname|e }}</option>
   {% endfor %}
   </select>
   

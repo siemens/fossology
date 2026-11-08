@@ -22,8 +22,8 @@
         </th>
         <td>
           <span>
-            <a href="{{ result.url }}" target="_blank"
-              rel="noopener noreferrer">{{ result.url }}</a>
+            {% if result.url matches '{^(https?|ftp)://}i' %}<a href="{{ result.url|e }}" target="_blank"
+              rel="noopener noreferrer">{{ result.url|e }}</a>{% else %}{{ result.url|e }}{% endif %}
           </span>
         </td>
       </tr>
@@ -40,7 +40,7 @@
           Files
         </th>
         <td>
-          <span>{{ result.files }}</span>
+          <span>{{ result.files|e }}</span>
         </td>
       </tr>
       <tr class="detailsRow detailsId{{ loop.index0 }}">
@@ -64,7 +64,7 @@
           Score
         </th>
         <td>
-          <span>{{ result.score }}</span>
+          <span>{{ result.score|e }}</span>
         </td>
       </tr>
     </tbody>

@@ -180,7 +180,7 @@ class UserEditPage extends DefaultPlugin
       $res = $this->dbManager->execute($stmt);
       $allUsers = array();
       while ($row = $this->dbManager->fetchArray($res)) {
-        $allUsers[$row['user_pk']] = htmlentities($row['user_name']);
+        $allUsers[$row['user_pk']] = $row['user_name'];
       }
       $this->dbManager->freeResult($res);
       $vars['allUsers'] = $allUsers;

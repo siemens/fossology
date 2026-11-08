@@ -23,12 +23,12 @@
           <td style="text-align:center">{{ loop.index }}</td>
           <td>
             <input type="text" name="{{ commentNameParam }}[{{ comment.lsc_pk }}]"
-              value="{{ comment.name }}"
+              value="{{ comment.name|e }}"
               placeholder="{{ "Please enter a name for the comment"|trans }}" />
           </td>
           <td>
             <textarea rows="7" cols="80" name="{{ commentParam }}[{{ comment.lsc_pk }}]"
-              placeholder="{{ "Please enter a comment statement"|trans }}">{{ comment.comment }}</textarea>
+              placeholder="{{ "Please enter a comment statement"|trans }}">{{ comment.comment|e }}</textarea>
           </td>
           <td>
             <input type="checkbox" name="{{ enableParam }}[{{ comment.lsc_pk }}]"

@@ -326,7 +326,7 @@ class AjaxShowJobs extends \FO_Plugin
       }
       if (! empty($jobs['upload'])) {
         $uploadArr = array(
-          'uploadName' => $jobs['upload']['upload_filename'],
+          'uploadName' => htmlspecialchars($jobs['upload']['upload_filename']),
           'uploadId' => $jobs['upload']['upload_pk'],
           'uploadDesc' => $jobs['upload']['upload_desc'],
           'uploadItem' => empty($jobs['uploadtree']) ? -1 : $jobs['uploadtree']['uploadtree_pk'],

@@ -22,7 +22,7 @@
       <ul class="list-group list-group-flush">
         {% for pk in currentItems %}
           <li class="list-group-item d-flex justify-content-between align-items-center py-2">
-            <code class="small">{{ selectedPaths[pk] }}</code>
+            <code class="small">{{ selectedPaths[pk]|e }}</code>
             <a href="{{ removeUris[pk] }}" class="btn btn-outline-danger btn-sm ml-2">
               {{ 'Remove'|trans }}
             </a>

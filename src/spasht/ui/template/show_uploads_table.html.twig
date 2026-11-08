@@ -14,11 +14,11 @@
     <th></th>
   </tr>
   <tr id="definitionsRow">
-    <td>{{ body.namespace }}</td>
-    <td>{{ body.name }}</td>
-    <td>{{ body.revision }}</td>
-    <td>{{ body.type }}</td>
-    <td>{{ body.provider }}</td>
+    <td>{{ body.namespace|e }}</td>
+    <td>{{ body.name|e }}</td>
+    <td>{{ body.revision|e }}</td>
+    <td>{{ body.type|e }}</td>
+    <td>{{ body.provider|e }}</td>
     <td>{{ body_menu }}</td>
   </tr>
 </table>

@@ -425,7 +425,7 @@ function Dir2BrowseDiff ($Path1, $Path2, $filter, $Column, $plugin)
     if (! $FirstPath) {
       $V .= "<br>";
     }
-    $V .= "&nbsp;&nbsp;<b>" . $PathElt['ufile_name'] . "/</b>";
+    $V .= "&nbsp;&nbsp;<b>" . htmlspecialchars($PathElt['ufile_name']) . "/</b>";
     if ($UseHref && ($PathElt != $Last)) {
       $V .= "</a>";
     }

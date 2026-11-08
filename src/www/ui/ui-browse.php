@@ -104,7 +104,7 @@ class ui_browse extends FO_Plugin
         continue;
       }
       $ShowSomething = 1;
-      $Name = $Row['ufile_name'];
+      $Name = htmlspecialchars($Row['ufile_name']);
 
       /* Set alternating row background color - repeats every $ColorSpanRows rows */
       $RowStyle = (($RowNum++ % (2 * $ColorSpanRows)) < $ColorSpanRows) ? $RowStyle1 : $RowStyle2;

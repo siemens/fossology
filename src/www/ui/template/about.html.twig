@@ -11,15 +11,15 @@
     </p>
     {% if latestVersion %}
       <p>
-        {{ 'The'|trans }} <a href="https://github.com/fossology/fossology/releases/tag/{{ latestVersion.tag_name }}">
-           {{ 'latest version'|trans }} <b>{{ latestVersion.tag_name }}</b></a>
-         {{ 'was created at'|trans }} {{ latestVersion.created_at }}
-         {{ 'and is ready for'|trans }} <a href="{{ latestVersion.zipball_url }}">{{ 'download'|trans }}</a>.
+        {{ 'The'|trans }} <a href="https://github.com/fossology/fossology/releases/tag/{{ latestVersion.tag_name|e }}">
+           {{ 'latest version'|trans }} <b>{{ latestVersion.tag_name|e }}</b></a>
+         {{ 'was created at'|trans }} {{ latestVersion.created_at|e }}
+         {{ 'and is ready for'|trans }} <a href="{{ latestVersion.zipball_url|e }}">{{ 'download'|trans }}</a>.
       </p>
     {% endif %}
     {% if latestCommit %}
       <p>
-         {{ 'The latest Github commit'|trans }} {{ lastestCommit }}
+         {{ 'The latest Github commit'|trans }} {{ lastestCommit|e }}
          {% if lastestCommit!=versionInfo.commitHash %}{{ 'is not installed'|trans }}{%
           else %}{{ 'is not installed'|trans }}{%endif%}.
      </p>

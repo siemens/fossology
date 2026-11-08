@@ -329,9 +329,9 @@ $ShowBox=1, $ShowMicro=NULL, $Enumerate=-1, $PreText='', $PostText='', $uploadtr
     }
 
     if (Isdir($P['ufile_mode'])) {
-      $V .= $P['ufile_name'];
+      $V .= htmlspecialchars($P['ufile_name']);
     } else {
-      $V .= "<b>" . $P['ufile_name'] . "</b>";
+      $V .= "<b>" . htmlspecialchars($P['ufile_name']) . "</b>";
     }
 
     if (! empty($LinkLast) || ($P != $Last)) {

@@ -129,7 +129,7 @@ class AgentDecisionImporterPlugin extends DefaultPlugin
     $usersById[$vars['userid']] = "-- ME --";         // Select current user by default
     foreach ($allUsers as $user) {
       if ($user['user_pk'] != $vars['userid']) {
-        $usersById[$user['user_pk']] = htmlentities($user['user_name']);
+        $usersById[$user['user_pk']] = $user['user_name'];
       }
     }
     $vars['userList'] = $usersById;

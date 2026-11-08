@@ -76,7 +76,7 @@
           <select id="selectedUser" name="selected_user" class="form-control select-field">
             <option value="0">{{ 'Select a user...' | trans }}</option>
             {% for user_pk, user_name in users %}
-              <option value="{{ user_pk }}">{{ user_name }}</option>
+              <option value="{{ user_pk }}">{{ user_name|e }}</option>
             {% endfor %}
           </select>
         </div>
@@ -88,7 +88,7 @@
           <select id="selectedGroup" name="selected_group" class="form-control select-field">
             <option value="0">{{ 'Select a group...' | trans }}</option>
             {% for group_pk, group_name in groups %}
-              <option value="{{ group_pk }}">{{ group_name }}</option>
+              <option value="{{ group_pk }}">{{ group_name|e }}</option>
             {% endfor %}
           </select>
         </div>

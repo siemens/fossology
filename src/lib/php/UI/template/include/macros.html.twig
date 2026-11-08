@@ -5,8 +5,8 @@
 {% macro radioGroup(id,options,select,action,separator) %}
   {% for key,disp in options %}
     {% if not loop.first %}{{ separator }}{% endif %}
-    <input type="radio" name="{{ id }}" value="{{ key }}"
-           {% if key == select %}selected="selected" {% endif %}{{ action }}>{{ disp }}
+    <input type="radio" name="{{ id }}" value="{{ key|e }}"
+           {% if key == select %}selected="selected" {% endif %}{{ action }}>{{ disp|e }}
   {% endfor %}
 {% endmacro %}
 
@@ -34,7 +34,7 @@
   <select name="{{ name }}"{% if id is defined %} id="{{ id }}"{% endif %}{% if size > 0  %} multiple="multiple" size="{{ size }}"{% endif %}{% if action is defined %}
     {{ action}}{% endif %}>
     {% for key, value in options %}
-      <option value="{{ key }}"{% if selected == key %} selected="selected"{% endif %}>
+      <option value="{{ key|e }}"{% if selected == key %} selected="selected"{% endif %}>
         {{ value|e }}
       </option>
     {% endfor %}
@@ -51,7 +51,7 @@
   <select name="{{ name }}"{% if id is defined %} id="{{ id }}"{% endif %}{% if size > 0  %} size="{{ size }}"{% endif %}{% if action is defined %}
     {{ action}}{% endif %}>
     {% for key, value in options %}
-      <option value="{{ key }}"{% if selected == key %} selected="selected"{% endif %}>
+      <option value="{{ key|e }}"{% if selected == key %} selected="selected"{% endif %}>
         {{ value|e }}
       </option>
     {% endfor %}
@@ -71,7 +71,7 @@
           {% set selectedflag = true %}
         {% endif %}
       {% endfor %}
-      <option value="{{ key }}" {% if selectedflag %}selected="selected"{% endif %}>
+      <option value="{{ key|e }}" {% if selectedflag %}selected="selected"{% endif %}>
       {{ value|e }}
       </option>
     {% endfor %}

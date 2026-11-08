@@ -343,12 +343,12 @@ class AjaxExplorer extends DefaultPlugin
 
     /* Populate the output ($VF) - file list */
     /* id of each element is its uploadtree_pk */
-    $fileName = $child['ufile_name'];
+    $fileName = htmlspecialchars($child['ufile_name']);
     if ($isContainer) {
-      $fileDetails["fileName"] = $fileName;
+      $fileDetails["fileName"] = $child['ufile_name'];
       $fileName = "<a href='$linkUri'><span style='color: darkblue'> <b>$fileName</b> </span></a>";
     } else if (!empty($linkUri)) {
-      $fileDetails["fileName"] = $fileName;
+      $fileDetails["fileName"] = $child['ufile_name'];
       $fileName = "<a href='$linkUri'>$fileName</a>";
     }
     /* show licenses under file name */
@@ -374,6 +374,7 @@ class AjaxExplorer extends DefaultPlugin
           }
         }
       }
+      $licenseEntries = array_map('htmlspecialchars', $licenseEntries);
     } else {
       $licenseEntries = array();
       if (array_key_exists($fileId, $pfileLicenses)) {
@@ -412,9 +413,10 @@ class AjaxExplorer extends DefaultPlugin
           }
           $licenseHtml = "";
           if (!$compatible) {
-            $licenseHtml = "<span class='text-danger font-weight-bold'>$shortName</span>";
+            $licenseHtml = "<span class='text-danger font-weight-bold'>" .
+              htmlspecialchars($shortName) . "</span>";
           } else {
-            $licenseHtml = $shortName;
+            $licenseHtml = htmlspecialchars($shortName);
           }
           $licenseEntries[] = "$licenseHtml [" . implode("][", $agentEntries) . "]";
         }
@@ -433,7 +435,7 @@ class AjaxExplorer extends DefaultPlugin
     foreach ($editedLicenses as $licenseRef) {
       $projectedId = $this->licenseProjector->getProjectedId($licenseRef->getId());
       $projectedName = $this->licenseProjector->getProjectedShortname($licenseRef->getId(),$licenseRef->getShortName());
-      $concludedLicenses[$projectedId] = $projectedName;
+      $concludedLicenses[$projectedId] = htmlspecialchars($projectedName);
       $concludedLicensesRest[] = array('id' => $projectedId, 'name' => $projectedName);
     }
 

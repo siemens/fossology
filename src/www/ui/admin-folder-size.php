@@ -61,7 +61,7 @@ class size_dashboard extends FO_Plugin
     foreach ($results as $result) {
       $clearingDuration = $durationBatch[$result["upload_pk"]] ?? ['NA', 0];
       $var .= "<tr><td align='left'>" . $result['upload_pk'] .
-        "</td><td align='left'>" . $result['upload_filename'] .
+        "</td><td align='left'>" . htmlspecialchars($result['upload_filename']) .
         "</td><td align='left' data-order='{$result['pfile_size']}'>" .
         HumanSize($result['pfile_size']) .
         "</td><td align='left' data-order='{$clearingDuration[1]}'>$clearingDuration[0]</td>

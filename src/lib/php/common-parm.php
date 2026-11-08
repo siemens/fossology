@@ -98,11 +98,25 @@ function GetParm($parameterName, $parameterType)
 } // GetParm()
 
 /**
+ * \brief Percent-encode every character a URL does not need, including the
+ * single quote, so the result can go into HTML attributes and script strings.
+ * \param string $uri
+ * \return string
+ */
+function UriSafe($uri)
+{
+  return preg_replace_callback('/[^A-Za-z0-9\-._~:\/?#\[\]@!$&()*+,;=%]/',
+    function ($m) {
+      return rawurlencode($m[0]);
+    }, (string) $uri);
+}
+
+/**
  * \brief Get the URI + query to this location.
  */
 function Traceback()
 {
-  return(@$_SERVER['REQUEST_URI']);
+  return UriSafe(@$_SERVER['REQUEST_URI']);
 } // Traceback()
 
 /**
@@ -110,7 +124,7 @@ function Traceback()
  */
 function Traceback_uri()
 {
-  $V = explode('?',@$_SERVER['REQUEST_URI'],2);
+  $V = explode('?', UriSafe(@$_SERVER['REQUEST_URI']), 2);
   return($V[0]);
 } // Traceback_uri()
 
@@ -122,7 +136,7 @@ function Traceback_uri()
  */
 function Traceback_parm($ShowMod=1)
 {
-  $V = explode('?',@$_SERVER['REQUEST_URI'],2);
+  $V = explode('?', UriSafe(@$_SERVER['REQUEST_URI']), 2);
   /* need to check the size to avoid accessing past the array, there are
    * request URI's that only have a single entry after the explode.
    */
@@ -155,7 +169,7 @@ function Traceback_parm_keep($List)
     $L = &$List[$i];
     $Val = GetParm($L, PARM_STRING);
     if (! empty($Val)) {
-      $Opt .= "&" . "$L=$Val";
+      $Opt .= "&" . "$L=" . urlencode($Val);
     }
   }
   return($Opt);
@@ -166,7 +180,7 @@ function Traceback_parm_keep($List)
  */
 function Traceback_dir()
 {
-  $V = explode('?',@$_SERVER['REQUEST_URI'],2);
+  $V = explode('?', UriSafe(@$_SERVER['REQUEST_URI']), 2);
   $V = $V[0];
   $i = strlen($V);
   while (($i > 0) && ($V[$i - 1] != '/')) {

@@ -57,10 +57,10 @@ class AdminGroupEdit extends DefaultPlugin
       $validateGroup = $this->validateGroupName($newGroupName);
       if (empty($validateGroup)) {
         try {
-          $escapedGroupName = htmlspecialchars(strip_tags($newGroupName), ENT_QUOTES, 'UTF-8');
-          $userDao->editGroup($groupId, $escapedGroupName);
-          $vars['message'] = _("Group") . ' ' . $groupMap[$groupId] . ' ' . _("edited to ".$escapedGroupName ) . '.';
-          $groupMap[$groupId] = $escapedGroupName;
+          $userDao->editGroup($groupId, $newGroupName);
+          $vars['message'] = _("Group") . ' ' . htmlspecialchars($groupMap[$groupId]) . ' ' .
+            _("edited to") . ' ' . htmlspecialchars($newGroupName) . '.';
+          $groupMap[$groupId] = $newGroupName;
         } catch (\Exception $e) {
           $vars['message'] = $e->getMessage();
         }

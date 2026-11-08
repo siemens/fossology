@@ -758,9 +758,9 @@ JSOUT;
       $ErrText2 = _("Use Jobs > Agents to schedule a license scan.");
       $ErrMsg = '';
       if ($TreeInfo1['agent_pk'] == 0) {
-        $ErrMsg = "$ErrText $TreeInfo1[ufile_name].<br>$ErrText2<p>";
+        $ErrMsg = "$ErrText " . htmlspecialchars($TreeInfo1['ufile_name']) . ".<br>$ErrText2<p>";
       } else if ($TreeInfo2['agent_pk'] == 0) {
-        $ErrMsg = "$ErrText $TreeInfo2[ufile_name].<br>$ErrText2<p>";
+        $ErrMsg = "$ErrText " . htmlspecialchars($TreeInfo2['ufile_name']) . ".<br>$ErrText2<p>";
       } else {
         /* Get list of children */
         $Children1 = GetNonArtifactChildren($uploadtree_pk1);

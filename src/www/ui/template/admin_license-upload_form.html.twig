@@ -8,8 +8,8 @@
 
 {% if error is empty %}
 <form name="Updatefm" action="{{ actionUri }}" method="post">
-  <input type="hidden" name="req_marydone" value="{{ req_marydone }}"/>
-  <input type="hidden" name="req_shortname" value="{{ req_shortname }}"/>
+  <input type="hidden" name="req_marydone" value="{{ req_marydone|e }}"/>
+  <input type="hidden" name="req_shortname" value="{{ req_shortname|e }}"/>
   <input type="hidden" name="rf_pk" value="{{ rf_pk }}"/>
   <input type="hidden" name="{% if rf_pk %}updateit{% else %}addit{% endif %}" value="true"/>
   <table>
@@ -64,9 +64,9 @@
     <tr>
       <td align=right>
         <label for="rf_url">{{ 'URL'|trans }}</label>
-        {% if rf_url %}<a href="{{ rf_url }}"><img border="0" src="images/right-point-bullet.gif"/></a>{% endif %}
+        {% if rf_url %}<a href="{{ rf_url|e }}"><img border="0" src="images/right-point-bullet.gif"/></a>{% endif %}
       </td>
-      <td><input type="text" name="rf_url" value="{{ rf_url }}" id="rf_url" size="60"></td>
+      <td><input type="text" name="rf_url" value="{{ rf_url|e }}" id="rf_url" size="60"></td>
     </tr>
     <tr>
       <td align="right"><label for="rf_notes">{{ 'Public notes'|trans }}</label></td>
@@ -90,7 +90,7 @@
     </tr>
   </table>
   {% if rfId %}
-    <a href="?mod=admin_license_to_csv&amp;rf={{ rfId }}" class="buttonLink">{{ 'Export as CSV'|trans }}</a>
+    <a href="?mod=admin_license_to_csv&amp;rf={{ rfId|e }}" class="buttonLink">{{ 'Export as CSV'|trans }}</a>
   {% endif %}
   <input type="submit" value="{% if rfId %}{{ 'Update'|trans }}{% else %}{{ 'Add license'|trans }}{% endif %}"/>
 </form>

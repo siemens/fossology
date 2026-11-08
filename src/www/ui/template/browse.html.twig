@@ -37,7 +37,7 @@
                 <select id="scanFilter" class="ui-render-select2 form-control-sm">
                   <option value="0">-- {{'filter for scan results'|trans}} --</option>
                   {% for shortname,row in scannerLicenses %}
-                    <option value="{{row.rf_pk}}">{{ shortname }}</option>
+                    <option value="{{row.rf_pk}}">{{ shortname|e }}</option>
                   {% endfor %}
                 </select>
               </th>
@@ -45,7 +45,7 @@
                 <select id="conFilter" class="ui-render-select2 form-control-sm">
                   <option value="0">-- {{'filter for edited results'|trans}} --</option>
                   {% for shortname,row in editedLicenses %}
-                    <option value="{{row.rf_pk}}">{{ shortname }}</option>
+                    <option value="{{row.rf_pk}}">{{ shortname|e }}</option>
                   {% endfor %}
                 </select>
               </th>

@@ -17,6 +17,10 @@ use Fossology\Lib\Db\DbManager;
 
 class showjobs extends FO_Plugin
 {
+  /** @var string */
+  private $injectedMessage = "";
+  /** @var string */
+  private $injectedFoot = "";
   /** @var ShowJobsDao */
   private $showJobsDao;
   /** @var UploadDao */
@@ -79,7 +83,7 @@ class showjobs extends FO_Plugin
     if (empty($uploadFileName)) {
       /* upload has been deleted so try to get the job name from the original upload job record */
       $jobName = $this->showJobsDao->getJobName($row["job_upload_fk"]);
-      $uploadFileName = "Deleted " . $jobName;
+      $uploadFileName = "Deleted " . htmlspecialchars($jobName);
     }
 
     $uploadtree_pk = -1;
@@ -180,9 +184,21 @@ class showjobs extends FO_Plugin
       $this->vars['clockTime'] = $this->getTimeToRefresh();
       $this->vars['allusersdiv'] = menu_to_1html(
         menu_find($this->Name, $MenuDepth), 0);
-      $this->vars['injectedFoot'] = GetParm("injectedFoot",PARM_TEXT);
-      $this->vars['message'] = GetParm("injectedMessage",PARM_TEXT);
+      $this->vars['injectedFoot'] = $this->injectedFoot;
+      $this->vars['message'] = $this->injectedMessage;
     }
+  }
+
+  /**
+   * HTML shown with the job list. Never take it from the request.
+   *
+   * @param string $message Shown as the page message
+   * @param string $foot Shown below the job list
+   */
+  public function setInjectedContent($message, $foot)
+  {
+    $this->injectedMessage = $message;
+    $this->injectedFoot = $foot;
   }
 
   /**

@@ -247,11 +247,11 @@ class AjaxBrowse extends DefaultPlugin
   {
     $html = "<select class='form-control-sm' style=\"max-width:250px;\" name=\"$id\" id=\"$id\" $action class=\"ui-render-select2\">";
     foreach ($options as $key=>$disp) {
-      $html .= '<option value="'.$key.'"';
+      $html .= '<option value="'.htmlspecialchars($key).'"';
       if ($key == $select) {
         $html .= ' selected';
       }
-      $html .= ">$disp</option>";
+      $html .= ">" . htmlspecialchars($disp) . "</option>";
     }
     $html .= '</select>';
     return $html;

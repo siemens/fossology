@@ -91,12 +91,13 @@ class ReadMeOssPlugin extends DefaultPlugin
                   'downloadLink' => Traceback_uri(). "?mod=download&report=".$jobId,
                   'showJobsLink' => Traceback_uri(). "?mod=showjobs&upload=".$upload->getId(),
                   'reportType' => "ReadMe_OSS");
-    $text = sprintf(_("Generating ReadMe_OSS for '%s'"), $upload->getFilename());
+    $text = sprintf(_("Generating ReadMe_OSS for '%s'"), htmlspecialchars($upload->getFilename()));
     $vars['content'] = "<h2>".$text."</h2>";
     $content = $this->renderer->load("report.html.twig")->render($vars);
     $message = '<h3 id="jobResult"></h3>';
-    $request->duplicate(array('injectedMessage'=>$message,'injectedFoot'=>$content,'mod'=>'showjobs'))->overrideGlobals();
+    $request->duplicate(array('mod'=>'showjobs'))->overrideGlobals();
     $showJobsPlugin = \plugin_find('showjobs');
+    $showJobsPlugin->setInjectedContent($message, $content);
     $showJobsPlugin->OutputOpen();
     return $showJobsPlugin->getResponse();
   }

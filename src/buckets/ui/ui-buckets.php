@@ -397,7 +397,7 @@ return;
       {
         $VF .= "<a href='$LinkUri'>"; $HasHref=1;
       }
-      $VF .= $C['ufile_name'];
+      $VF .= htmlspecialchars($C['ufile_name']);
       if ($IsDir) {
         $VF .= "/";
       }
