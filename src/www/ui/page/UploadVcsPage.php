@@ -72,6 +72,9 @@ class UploadVcsPage extends UploadPageBase
     if (preg_match('/[;|&<>()\'"`$\\\\]/', $getUrl) === 1) {
       return array(false, _("Invalid URL") . $getUrl, $description);
     }
+    if (($refusal = $this->refuseDestination($getUrl, true)) !== null) {
+      return array(false, $refusal, $description, 400);
+    }
     $getUrl = $this->basicShEscaping($getUrl);
 
     if ($request->getSession()->get(self::UPLOAD_FORM_BUILD_PARAMETER_NAME)

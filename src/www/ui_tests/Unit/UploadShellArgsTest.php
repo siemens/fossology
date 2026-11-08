@@ -64,6 +64,22 @@ class UploadShellArgsTest extends \PHPUnit\Framework\TestCase
     }
   }
 
+  /** @test URL and VCS uploads refuse internal hosts before creating an upload */
+  public function testInternalDestinationRefused()
+  {
+    foreach (['UploadUrlPage', 'UploadVcsPage'] as $class) {
+      $page = $this->page($class);
+      foreach (['http://127.0.0.1/a.tgz', 'http://169.254.169.254/latest/',
+          'https://10.0.0.1:8443/r.git'] as $url) {
+        $request = new Request([], ['geturl' => $url, 'vcstype' => 'Git']);
+        $result = Reflectory::invokeObjectsMethodnameWith($page, 'handleUpload',
+          [$request]);
+        $this->assertFalse($result[0], "$class $url");
+        $this->assertStringContainsString('internal address', $result[1], "$class $url");
+      }
+    }
+  }
+
   public static function shellPaths()
   {
     return [['a;b', 'a;b'], ['a&b', 'a&b'], ['a(b)', 'a(b)'], ['a;b', 'a;b/*.tar']];

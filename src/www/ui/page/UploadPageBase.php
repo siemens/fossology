@@ -13,6 +13,7 @@ use Fossology\Lib\Dao\UploadDao;
 use Fossology\Lib\Plugin\AgentPlugin;
 use Fossology\Lib\Plugin\DefaultPlugin;
 use Fossology\Lib\UI\MenuHook;
+use Fossology\Lib\Util\UrlDestination;
 use Monolog\Logger;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -272,6 +273,18 @@ abstract class UploadPageBase extends DefaultPlugin
     $str = str_replace('`', '\`', $str);
     $str = str_replace('$', '\$', $str);
     return $str;
+  }
+
+  /**
+   * @param string $url
+   * @param bool $vcs Git or svn, which use http_proxy for every scheme
+   * @return string|null Why the server must not fetch it, or null
+   */
+  protected function refuseDestination($url, $vcs = false)
+  {
+    global $SysConf;
+    return UrlDestination::check($url, $SysConf['UPLOAD']['allow_internal'] ?? '',
+      null, UrlDestination::isProxied($url, $SysConf['FOSSOLOGY'] ?? [], $vcs));
   }
 
   /**

@@ -1,0 +1,42 @@
+# Addresses and how both URL guards must classify them: lib/php/Util/UrlDestination.php
+# (UrlDestinationTest) and wget_agent/agent/url_guard.c (testUrlGuard.c).
+# address	public|internal
+127.0.0.1	internal
+10.1.2.3	internal
+172.16.0.1	internal
+172.31.255.255	internal
+172.32.0.1	public
+192.168.1.1	internal
+169.254.169.254	internal
+100.64.0.1	internal
+100.128.0.1	public
+0.0.0.0	internal
+192.0.0.1	internal
+192.0.2.1	internal
+198.18.0.1	internal
+198.20.0.1	public
+198.51.100.7	internal
+203.0.113.5	internal
+224.0.0.1	internal
+239.255.255.250	internal
+255.255.255.255	internal
+8.8.8.8	public
+93.184.215.14	public
+::	internal
+::1	internal
+::127.0.0.1	internal
+::ffff:127.0.0.1	internal
+::ffff:169.254.169.254	internal
+::ffff:8.8.8.8	public
+64:ff9b::10.0.0.1	internal
+64:ff9b::808:808	public
+2002:7f00:1::	internal
+2002:a00:1::	internal
+2002:808:808::	public
+fd00::1	internal
+fe80::1	internal
+fec0::1	internal
+ff02::1	internal
+2001:db8::1	internal
+100::1	internal
+2606:4700::1111	public

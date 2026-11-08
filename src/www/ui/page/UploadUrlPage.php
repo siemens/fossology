@@ -45,6 +45,9 @@ class UploadUrlPage extends UploadPageBase
     if (preg_match("@^((http)|(https)|(ftp))://([[:alnum:]]+)@i", $getURL) != 1) {
       return array(false, _("Invalid URL"), $description);
     }
+    if (($refusal = $this->refuseDestination($getURL)) !== null) {
+      return array(false, $refusal, $description, 400);
+    }
     $getURL = $this->basicShEscaping($getURL);
 
     $name = $request->get(self::NAME_PARAM);

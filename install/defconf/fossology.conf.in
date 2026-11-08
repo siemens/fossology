@@ -121,6 +121,12 @@ CONF_EXT_AUTH_NEW_USER_AUTO_CREATE=true
 ; "agent_copyright,agent_keyword,agent_mimetype,agent_monk,agent_nomos,agent_ojo,agent_shagent"
 CONF_EXT_AUTH_NEW_USER_AGENT_LIST=
 
+[UPLOAD]
+; URL and VCS uploads refuse hosts that resolve to private, loopback or
+; link-local addresses. List internal sources to allow, as host names or
+; networks, comma separated.
+;allow_internal = git.example.internal, 10.20.0.0/16
+
 ; Section to allow password login
 [AUTHENTICATION]
 ; Should be one of

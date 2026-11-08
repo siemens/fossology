@@ -315,6 +315,389 @@ char *PrepareWgetDest(char *TempFile, char *TempFileDir, char *TempFileDirectory
 
 
 /**
+ * \brief Shell prefix and wget option for the configured proxies
+ * \param[out] proxy    Export commands for the proxy variables (STRMAX)
+ * \param[out] noProxy  wget option for no_proxy (STRMAX)
+ */
+void ProxyArgs(char *proxy, char *noProxy)
+{
+  char proxy_temp[STRMAX] = {0};
+
+  proxy[0] = '\0';
+  noProxy[0] = '\0';
+  /* http_proxy is optional so don't error if it doesn't exist */
+  if (GlobalProxy[0] && GlobalProxy[0][0])
+  {
+    snprintf(proxy_temp, STRMAX-1, "export http_proxy='%s' ;", GlobalProxy[0]);
+    strcat(proxy, proxy_temp);
+  }
+  if (GlobalProxy[1] && GlobalProxy[1][0])
+  {
+    snprintf(proxy_temp, STRMAX-1, "export https_proxy='%s' ;", GlobalProxy[1]);
+    strcat(proxy, proxy_temp);
+  }
+  if (GlobalProxy[2] && GlobalProxy[2][0])
+  {
+    snprintf(proxy_temp, STRMAX-1, "export ftp_proxy='%s' ;", GlobalProxy[2]);
+    strcat(proxy, proxy_temp);
+  }
+  if (GlobalProxy[3] && GlobalProxy[3][0])
+  {
+    snprintf(noProxy, STRMAX-1, "-e no_proxy='%s'", GlobalProxy[3]);
+  }
+}
+
+/**
+ * \brief Whether a configured proxy fetches this URL
+ * \param url URL to fetch
+ * \param vcs 1 for git and svn, which use http_proxy for every scheme
+ * \return 1 if a proxy applies, 0 otherwise
+ */
+int ProxyApplies(const char *url, int vcs)
+{
+  const char *proxy = GlobalProxy[0];
+
+  if (!vcs)
+  {
+    if (strncasecmp(url, "https://", 8) == 0)
+    {
+      proxy = GlobalProxy[1];
+    }
+    else if (strncasecmp(url, "ftp://", 6) == 0)
+    {
+      proxy = GlobalProxy[2];
+    }
+    else if (strncasecmp(url, "http://", 7) != 0)
+    {
+      proxy = NULL;
+    }
+  }
+  if (!proxy || !proxy[0])
+  {
+    return 0;
+  }
+  return !UrlGuardNoProxy(url, GlobalProxy[3]);
+}
+
+/**
+ * \brief `[UPLOAD] allow_internal` from fossology.conf, or NULL
+ */
+const char *AllowInternal()
+{
+  GError *error = NULL;
+  char *value;
+
+  if (!sysconfig || !fo_config_has_key(sysconfig, "UPLOAD", "allow_internal"))
+  {
+    return NULL;
+  }
+  value = fo_config_get(sysconfig, "UPLOAD", "allow_internal", &error);
+  g_clear_error(&error);
+  return value;
+}
+
+/**
+ * \brief Follow redirects one hop at a time, refusing internal hosts
+ *
+ * Each hop is checked with UrlGuardCheckVia() before wget asks it for headers;
+ * the download itself then runs with redirects off.
+ * \param[in,out] url  URL to start from; the final URL on success
+ * \param size         Capacity of url
+ * \param proxy        From ProxyArgs()
+ * \param noProxy      From ProxyArgs()
+ * \param allowInternal From AllowInternal()
+ * \return 0 on success, 1 if refused or too many redirects
+ */
+int ResolveRedirects(char *url, size_t size, const char *proxy,
+  const char *noProxy, const char *allowInternal)
+{
+  char current[URLMAX];
+  char next[URLMAX];
+  char tainted[URLMAX];
+  char line[URLMAX];
+  char location[URLMAX];
+  int hop;
+
+  strncpy(current, url, URLMAX - 1);
+  current[URLMAX - 1] = '\0';
+  for (hop = 0; hop <= 10; hop++)
+  {
+    const char *reason = UrlGuardCheckVia(current, allowInternal,
+      ProxyApplies(current, 0));
+    char *cmd;
+    FILE *headers;
+
+    if (reason)
+    {
+      LOG_FATAL("upload %ld refused %s: %s", GlobalUploadKey, current, reason);
+      return 1;
+    }
+    if (strncasecmp(current, "http://", 7) != 0 && strncasecmp(current, "https://", 8) != 0)
+    {
+      break;
+    }
+    if (!TaintURL(current, tainted, URLMAX))
+    {
+      LOG_FATAL("Failed to taint the URL '%s'", current);
+      return 1;
+    }
+    if (asprintf(&cmd, "%s /usr/bin/wget -q -S --spider --max-redirect=0 "
+        "--no-check-certificate '%s' %s 2>&1", proxy, tainted, noProxy) == -1)
+    {
+      ASPRINTF_MEM_ERROR_LOG;
+      return 1;
+    }
+    headers = popen(cmd, "r");
+    free(cmd);
+    if (!headers)
+    {
+      return 1;
+    }
+    location[0] = '\0';
+    while (fgets(line, sizeof(line), headers))
+    {
+      char *p = line;
+      size_t len;
+      while (isspace((unsigned char) *p)) p++;
+      if (strncasecmp(p, "Location:", 9) != 0) continue;
+      p += 9;
+      while (isspace((unsigned char) *p)) p++;
+      len = strlen(p);
+      while (len > 0 && isspace((unsigned char) p[len - 1])) p[--len] = '\0';
+      strncpy(location, p, URLMAX - 1);
+      location[URLMAX - 1] = '\0';
+    }
+    pclose(headers);
+    if (location[0] == '\0')
+    {
+      break;
+    }
+    if (hop == 10 || UrlGuardJoin(current, location, next, sizeof(next)) != 0)
+    {
+      LOG_FATAL("upload %ld refused %s: too many or unusable redirects",
+        GlobalUploadKey, url);
+      return 1;
+    }
+    LOG_VERBOSE0("Redirect %s -> %s", current, next);
+    strcpy(current, next);
+  }
+  if (strlen(current) >= size)
+  {
+    return 1;
+  }
+  strcpy(url, current);
+  return 0;
+}
+
+/** Collects redirects from a wget log for WgetRounds() */
+struct RedirectList
+{
+  GPtrArray *from;
+  GPtrArray *location;
+};
+
+static void addRedirect(const char *from, const char *location, void *ctx)
+{
+  struct RedirectList *list = ctx;
+  g_ptr_array_add(list->from, g_strdup(from));
+  g_ptr_array_add(list->location, g_strdup(location));
+}
+
+/**
+ * \brief Fetch a redirect target as one file, saved where the redirecting
+ * link would have been saved; every hop is checked as for the start URL
+ * \return 0 on success
+ */
+static int FetchRedirected(const char *from, const char *target, const char *dest,
+  const char *proxy, const char *noProxy, const char *allowInternal)
+{
+  char finalUrl[URLMAX];
+  char tainted[URLMAX];
+  char local[URLMAX];
+  char *dir;
+  char *cmd;
+  int rc;
+
+  snprintf(finalUrl, sizeof(finalUrl), "%s", target);
+  if (ResolveRedirects(finalUrl, sizeof(finalUrl), proxy, noProxy, allowInternal) != 0 ||
+      !TaintURL(finalUrl, tainted, sizeof(tainted)) ||
+      UrlGuardLocalPath(from, dest, local, sizeof(local)) != 0)
+  {
+    return 1;
+  }
+  dir = g_path_get_dirname(local);
+  g_mkdir_with_parents(dir, 0775);
+  g_free(dir);
+  if (asprintf(&cmd, " %s /usr/bin/wget -q --no-check-certificate --max-redirect=0 -O '%s' '%s' %s",
+      proxy, local, tainted, noProxy) == -1)
+  {
+    ASPRINTF_MEM_ERROR_LOG;
+    SafeExit(ASPRINTF_MEM_ERROR);
+  }
+  LOG_VERBOSE0("CMD: %s", cmd);
+  rc = system(cmd);
+  free(cmd);
+  if (!WIFEXITED(rc) || WEXITSTATUS(rc) != 0)
+  {
+    unlink(local);
+    return 1;
+  }
+  return 0;
+}
+
+/**
+ * \brief Download with wget's redirects off, following same-site redirects
+ * ourselves
+ *
+ * wget follows a redirect anywhere, also from links inside a recursive
+ * download. Here wget never follows one; each round the redirects it met are
+ * read from its log. Targets that fail UrlGuardCheckVia() are skipped. Targets on
+ * the start URL's scheme, host and port under its directory become the next
+ * round's start URLs; any other target is fetched as one file under the
+ * redirecting link's name, as wget saved it before.
+ * \param startUrl  Checked URL the download starts from
+ * \param dest      Directory for wget -P, or NULL
+ * \param proxy     From ProxyArgs()
+ * \param noProxy   From ProxyArgs()
+ * \param allowInternal From AllowInternal()
+ * \return 0 on success, otherwise the failing wget exit status
+ */
+int WgetRounds(const char *startUrl, const char *dest, const char *proxy,
+  const char *noProxy, const char *allowInternal)
+{
+#if 1
+  const char *wgetArgs = "--no-check-certificate --progress=dot -rc -np -e robots=off --max-redirect=0";
+#else
+  /* wget < 1.10 does not support "--no-check-certificate" */
+  const char *wgetArgs = "--progress=dot -rc -np -e robots=off --max-redirect=0";
+#endif
+  char listPath[] = "/tmp/fo_wget_urlsXXXXXX";
+  char logPath[] = "/tmp/fo_wget_logXXXXXX";
+  GHashTable *seen = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+  GPtrArray *queue = g_ptr_array_new_with_free_func(g_free);
+  int status = 0;
+  int round;
+  int listFd = mkstemp(listPath);
+  int logFd = mkstemp(logPath);
+
+  if (listFd < 0 || logFd < 0)
+  {
+    LOG_FATAL("Can not create temporary files for wget");
+    status = 1;
+    goto done;
+  }
+  close(logFd);
+  close(listFd);
+  g_hash_table_add(seen, g_strdup(startUrl));
+  g_ptr_array_add(queue, g_strdup(startUrl));
+
+  for (round = 0; queue->len > 0; round++)
+  {
+    struct RedirectList found = {g_ptr_array_new_with_free_func(g_free),
+      g_ptr_array_new_with_free_func(g_free)};
+    FILE *file;
+    char *cmd;
+    int rc;
+    int errors;
+    guint i;
+
+    if (round == 5)
+    {
+      LOG_WARNING("upload %ld: stopped following redirects after %d rounds",
+        GlobalUploadKey, round);
+      g_ptr_array_free(found.from, TRUE);
+      g_ptr_array_free(found.location, TRUE);
+      break;
+    }
+    file = fopen(listPath, "w");
+    if (!file)
+    {
+      status = 1;
+      g_ptr_array_free(found.from, TRUE);
+      g_ptr_array_free(found.location, TRUE);
+      break;
+    }
+    for (i = 0; i < queue->len; i++)
+    {
+      fprintf(file, "%s\n", (char *) g_ptr_array_index(queue, i));
+    }
+    fclose(file);
+    g_ptr_array_set_size(queue, 0);
+
+    if (asprintf(&cmd, " %s /usr/bin/wget %s -S -o '%s' %s%s%s -i '%s' %s %s",
+        proxy, wgetArgs, logPath, dest ? "-P '" : "", dest ? dest : "",
+        dest ? "'" : "", listPath, GlobalParam, noProxy) == -1)
+    {
+      ASPRINTF_MEM_ERROR_LOG;
+      SafeExit(ASPRINTF_MEM_ERROR);
+    }
+    LOG_VERBOSE0("CMD: %s", cmd);
+    rc = system(cmd);
+    free(cmd);
+    rc = WIFEXITED(rc) ? WEXITSTATUS(rc) : 1;
+
+    file = fopen(logPath, "r");
+    errors = file ? UrlGuardWgetLog(file, addRedirect, &found) : 1;
+    if (file)
+    {
+      fclose(file);
+    }
+    /* 8 is "server issued an error response", which skipped redirects cause */
+    if (rc != 0 && !(rc == 8 && errors == 0))
+    {
+      status = rc;
+    }
+    for (i = 0; status == 0 && i < found.from->len; i++)
+    {
+      char target[URLMAX];
+      const char *from = g_ptr_array_index(found.from, i);
+      const char *reason;
+
+      if (UrlGuardJoin(from, g_ptr_array_index(found.location, i), target,
+          sizeof(target)) != 0)
+      {
+        continue;
+      }
+      reason = UrlGuardCheckVia(target, allowInternal, ProxyApplies(target, 0));
+      if (reason)
+      {
+        LOG_WARNING("upload %ld: not following redirect to %s: %s",
+          GlobalUploadKey, target, reason);
+        continue;
+      }
+      if (!UrlGuardSameOrigin(startUrl, target) || !UrlGuardInStartPath(startUrl, target))
+      {
+        /* elsewhere: one file, kept under the link's name as wget used to */
+        if (FetchRedirected(from, target, dest, proxy, noProxy, allowInternal) != 0)
+        {
+          LOG_WARNING("upload %ld: could not fetch %s, redirected from %s",
+            GlobalUploadKey, target, from);
+        }
+        continue;
+      }
+      if (!g_hash_table_contains(seen, target))
+      {
+        g_hash_table_add(seen, g_strdup(target));
+        g_ptr_array_add(queue, g_strdup(target));
+      }
+    }
+    g_ptr_array_free(found.from, TRUE);
+    g_ptr_array_free(found.location, TRUE);
+    if (status != 0)
+    {
+      break;
+    }
+  }
+
+done:
+  unlink(listPath);
+  unlink(logPath);
+  g_ptr_array_free(queue, TRUE);
+  g_hash_table_destroy(seen);
+  return status;
+}
+
+/**
  * \brief Do the wget.
  * \param TempFile
  * \parblock
@@ -344,18 +727,7 @@ int GetURL(char *TempFile, char *URL, char *TempFileDir)
     ASPRINTF_MEM_ERROR_LOG;
     SafeExit(ASPRINTF_MEM_ERROR);
   }
-#if 1
-  char WgetArgs[]="--no-check-certificate --progress=dot -rc -np -e robots=off";
-#else
-  /* wget < 1.10 does not support "--no-check-certificate" */
-  char WgetArgs[]="--progress=dot -rc -np -e robots=off";
-#endif
 
-  if (!TaintURL(URL,TaintedURL,STRMAX))
-  {
-    LOG_FATAL("Failed to taint the URL '%s'",URL);
-    SafeExit(10);
-  }
 
   /*
    Wget options:
@@ -373,63 +745,30 @@ int GetURL(char *TempFile, char *URL, char *TempFileDir)
   int rc_system =0;
   char no_proxy[STRMAX] = {0};
   char proxy[STRMAX] = {0};
-  char proxy_temp[STRMAX] = {0};
 
-  /* http_proxy is optional so don't error if it doesn't exist */
-  /** set proxy */
-  if (GlobalProxy[0] && GlobalProxy[0][0])
-  {
-    snprintf(proxy_temp, STRMAX-1, "export http_proxy='%s' ;", GlobalProxy[0]);
-    strcat(proxy, proxy_temp);
-  }
-  if (GlobalProxy[1] && GlobalProxy[1][0])
-  {
-    snprintf(proxy_temp, STRMAX-1, "export https_proxy='%s' ;", GlobalProxy[1]);
-    strcat(proxy, proxy_temp);
-  }
-  if (GlobalProxy[2] && GlobalProxy[2][0])
-  {
-    snprintf(proxy_temp, STRMAX-1, "export ftp_proxy='%s' ;", GlobalProxy[2]);
-    strcat(proxy, proxy_temp);
-  }
-  if (GlobalProxy[3] && GlobalProxy[3][0])
-  {
-    snprintf(no_proxy, STRMAX-1, "-e no_proxy='%s'", GlobalProxy[3]);
-  }
-
+  char FinalURL[URLMAX];
   char *dest;
+
+  ProxyArgs(proxy, no_proxy);
+  strncpy(FinalURL, URL, URLMAX - 1);
+  FinalURL[URLMAX - 1] = '\0';
+  if (ResolveRedirects(FinalURL, URLMAX, proxy, no_proxy, AllowInternal()) != 0)
+  {
+    free(delete_tmpdir_cmd);
+    return 1;
+  }
+  if (!TaintURL(FinalURL,TaintedURL,STRMAX))
+  {
+    LOG_FATAL("Failed to taint the URL '%s'",FinalURL);
+    SafeExit(10);
+  }
 
   dest = PrepareWgetDest(TempFile, TempFileDir, TempFileDirectory);
 
-  if (dest) {
-    res = asprintf(&cmd," %s /usr/bin/wget -q %s -P '%s' '%s' %s %s 2>&1",
-        proxy, WgetArgs, dest, TaintedURL, GlobalParam, no_proxy);
-  }
-  else
+  rc = WgetRounds(TaintedURL, dest, proxy, no_proxy, AllowInternal());
+  if (rc != 0)
   {
-    res = asprintf(&cmd," %s /usr/bin/wget -q %s '%s' %s %s 2>&1",
-        proxy, WgetArgs, TaintedURL, GlobalParam, no_proxy);
-  }
-
-  if (res == -1)
-  {
-    ASPRINTF_MEM_ERROR_LOG;
-    free(delete_tmpdir_cmd);
-    SafeExit(ASPRINTF_MEM_ERROR);
-  }
-
-  /* the command is like
-  ". /usr/local/etc/fossology/Proxy.conf;
-     /usr/bin/wget -q --no-check-certificate --progress=dot -rc -np -e robots=off -P
-     '/srv/fossology/repository/localhost/wget/wget.xxx.dir/'
-     'http://a.org/file' -l 1 -R index.html*  2>&1"
-   */
-  LOG_VERBOSE0("CMD: %s", cmd);
-  rc = system(cmd);
-
-  if (WIFEXITED(rc) && (WEXITSTATUS(rc) != 0))
-  {
-    LOG_FATAL("upload %ld Download failed; Return code %d from: %s",GlobalUploadKey,WEXITSTATUS(rc),cmd);
+    LOG_FATAL("upload %ld Download failed; Return code %d from wget for %s",GlobalUploadKey,rc,FinalURL);
     unlink(GlobalTempFile);
     rc_system = system(delete_tmpdir_cmd);
     if (!WIFEXITED(rc_system)) systemError(__LINE__, rc_system, delete_tmpdir_cmd)
@@ -604,6 +943,33 @@ int GetVersionControl()
     ASPRINTF_MEM_ERROR_LOG;
     free(tmp_file_directory);
     return ASPRINTF_MEM_ERROR;
+  }
+
+  {
+    char proxy[STRMAX];
+    char noProxy[STRMAX];
+    const char *reason;
+
+    ProxyArgs(proxy, noProxy);
+    if (0 == strcmp(GlobalType, "SVN") && 0 == strncasecmp(GlobalURL, "http", 4))
+    {
+      reason = ResolveRedirects(GlobalURL, URLMAX, proxy, noProxy, AllowInternal()) ?
+        "refused" : NULL;
+    }
+    else
+    {
+      reason = UrlGuardCheckVia(GlobalURL, AllowInternal(), ProxyApplies(GlobalURL, 1));
+      if (reason)
+      {
+        LOG_FATAL("upload %ld refused %s: %s", GlobalUploadKey, GlobalURL, reason);
+      }
+    }
+    if (reason)
+    {
+      free(tmp_file_directory);
+      free(delete_tmpdir_cmd);
+      return 1;
+    }
   }
 
   command = GetVersionControlCommand(1);
@@ -1142,11 +1508,11 @@ char* GetVersionControlCommand(int withPassword)
   {
     if (GlobalProxy[0] && GlobalProxy[0][0])
     {
-      res = asprintf(&command, "svn --config-option servers:global:http-proxy-host=%s --config-option servers:global:http-proxy-port=%s export %s %s %s --no-auth-cache", GlobalProxy[4], GlobalProxy[5], GlobalURL, GlobalParam, tmpfile_dir);
+      res = asprintf(&command, "svn --config-option servers:global:http-proxy-host=%s --config-option servers:global:http-proxy-port=%s export --ignore-externals %s %s %s --no-auth-cache", GlobalProxy[4], GlobalProxy[5], GlobalURL, GlobalParam, tmpfile_dir);
     }
     else
     {
-      res = asprintf(&command, "svn export %s %s %s --no-auth-cache", GlobalURL, GlobalParam, tmpfile_dir);
+      res = asprintf(&command, "svn export --ignore-externals %s %s %s --no-auth-cache", GlobalURL, GlobalParam, tmpfile_dir);
     }
   }
   else if (0 == strcmp(GlobalType, Type[1]))
@@ -1154,11 +1520,11 @@ char* GetVersionControlCommand(int withPassword)
     replace_url_with_auth();
     if (GlobalProxy[0] && GlobalProxy[0][0])
     {
-      res = asprintf(&command, "git config --global http.proxy %s && git clone %s %s %s  && rm -rf %s/.git", GlobalProxy[0], GlobalURL, GlobalParam, tmpfile_dir, tmpfile_dir);
+      res = asprintf(&command, "git config --global http.proxy %s && git -c http.followRedirects=false clone %s %s %s  && rm -rf %s/.git", GlobalProxy[0], GlobalURL, GlobalParam, tmpfile_dir, tmpfile_dir);
     }
     else
     {
-      res = asprintf(&command, "git clone %s %s %s && rm -rf %s/.git", GlobalURL, GlobalParam, tmpfile_dir, tmpfile_dir);
+      res = asprintf(&command, "git -c http.followRedirects=false clone %s %s %s && rm -rf %s/.git", GlobalURL, GlobalParam, tmpfile_dir, tmpfile_dir);
     }
   }
   if (res == -1)

@@ -33,6 +33,7 @@
 typedef struct stat stat_t;
 
 #include "libfossology.h"
+#include "url_guard.h"
 
 #include "../../ununpack/agent/checksum.h"
 
@@ -62,6 +63,13 @@ int GetPosition(char *URL);
 void DBLoadGold  ();
 int     TaintURL(char *Sin, char *Sout, int SoutSize);
 int GetURL(char *TempFile, char *URL, char *TempFileDir);
+void ProxyArgs(char *proxy, char *noProxy);
+int ProxyApplies(const char *url, int vcs);
+const char *AllowInternal();
+int ResolveRedirects(char *url, size_t size, const char *proxy,
+  const char *noProxy, const char *allowInternal);
+int WgetRounds(const char *startUrl, const char *dest, const char *proxy,
+  const char *noProxy, const char *allowInternal);
 void SetEnv(char *S, char *TempFileDir);
 char *PathCheck (char *DirPath);
 
