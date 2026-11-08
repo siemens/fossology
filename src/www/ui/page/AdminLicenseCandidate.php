@@ -71,6 +71,7 @@ class AdminLicenseCandidate extends DefaultPlugin
     $shortname = $request->get('shortname') ?: $vars['rf_shortname'];
     $vars['shortname'] = $shortname;
     $rfText = $vars['rf_text'];
+    $vars['rf_text'] = htmlspecialchars($rfText);
 
     $suggest = intval($request->get('suggest_rf'));
     $suggestLicense = false;
@@ -102,7 +103,7 @@ class AdminLicenseCandidate extends DefaultPlugin
     $vars['scripts'] = js_url();
 
     $ok = true;
-    switch ($request->get('do')) {
+    switch ($request->isMethod('POST') ? $request->get('do') : '') {
       case 'verify':
       case 'variant':
         $rfParent = ($request->get('do')=='verify') ? $rf : $suggest;

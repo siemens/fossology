@@ -147,6 +147,56 @@ class Auth
   }
 
   /**
+   * Check that a state-changing browser request comes from this site.
+   * Origin is preferred, Referer is the fallback, and a request with
+   * neither is allowed so non-browser clients keep working.
+   *
+   * @param array $server Request headers as in $_SERVER
+   * @return boolean False for a cross-site POST, PUT, PATCH or DELETE
+   */
+  public static function isSameOriginRequest($server)
+  {
+    global $SysConf;
+    if (!filter_var($SysConf['AUTHENTICATION']['origin_check'] ?? true,
+        FILTER_VALIDATE_BOOLEAN)) {
+      return true;
+    }
+    $method = strtoupper($server['REQUEST_METHOD'] ?? 'GET');
+    if (in_array($method, ['GET', 'HEAD', 'OPTIONS'], true)) {
+      return true;
+    }
+    $source = $server['HTTP_ORIGIN'] ?? ($server['HTTP_REFERER'] ?? '');
+    if ($source === '') {
+      return true;
+    }
+    $parts = parse_url($source);
+    if (empty($parts['host'])) {
+      return false;
+    }
+    $sourceHost = strtolower($parts['host'] .
+      (isset($parts['port']) ? ':' . $parts['port'] : ''));
+    $hosts = [$server['HTTP_HOST'] ?? ''];
+    if (!empty($server['HTTP_X_FORWARDED_HOST'])) {
+      $hosts[] = trim(explode(',', $server['HTTP_X_FORWARDED_HOST'])[0]);
+    }
+    /* behind a proxy that rewrites Host, the configured public address */
+    $siteUrl = trim($SysConf['SYSCONFIG']['FOSSologyURL'] ?? '');
+    if ($siteUrl !== '') {
+      $site = parse_url(preg_match('#^[a-z][a-z0-9+.-]*://#i', $siteUrl) ?
+        $siteUrl : "http://$siteUrl");
+      if (!empty($site['host'])) {
+        $hosts[] = $site['host'] . (isset($site['port']) ? ':' . $site['port'] : '');
+      }
+    }
+    foreach ($hosts as $host) {
+      if ($host !== '' && strtolower($host) === $sourceHost) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
    * Get REST Token format from conf
    * @return int Auth::TOKEN_TOKEN | Auth::TOKEN_OAUTH | Auth::TOKEN_BOTH
    */

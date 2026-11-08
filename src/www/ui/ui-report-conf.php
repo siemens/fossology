@@ -408,6 +408,10 @@ class ui_report_conf extends FO_Plugin
     $submitReportConf = GetParm("submitReportConf", PARM_STRING);
 
     if (isset($submitReportConf)) {
+      if (!$this->uploadDao->isEditable($uploadId, $groupId)) {
+        $text = _("Permission Denied");
+        return "<h2>$text</h2>";
+      }
       $applyGlobal = @$_POST["applyGlobal"];
       $applyGlobal = !empty($applyGlobal) ? 1 : 0;
       $parms = array();

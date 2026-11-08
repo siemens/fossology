@@ -16,7 +16,7 @@
     <tr>
       <td>{{ gum.user_name }}</td>
       <td>
-        {% set onchange = ' onchange="js_url(this.value, \'' ~ baseUrl ~ '&gum_pk=' ~ gum.group_user_member_pk ~ '&perm=\')"' %}
+        {% set onchange = ' onchange="post_url(this.value, \'' ~ baseUrl ~ '&gum_pk=' ~ gum.group_user_member_pk ~ '&perm=\')"' %}
         {{ macro.select('permselect',permissionMap,'permselect',gum.group_perm,onchange) }}
       </td>
     </tr>
@@ -24,7 +24,7 @@
   {% if existsOtherUsers %}
     <tr>
       <td>
-      {{ macro.select("userselectnew", otherUsers, "userselectnew", '', ' class="ui-render-select2" onchange="js_url(this.value, newpermurl)"') }}
+      {{ macro.select("userselectnew", otherUsers, "userselectnew", '', ' class="ui-render-select2" onchange="post_url(this.value, newpermurl)"') }}
     </td>
     <td>
       {{ macro.select("permselectnew",newPermissionMap, "permselectnew",-1,' onchange="setNewPermUrl(this.value)"') }}

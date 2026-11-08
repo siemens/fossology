@@ -58,6 +58,10 @@ class AjaxAcknowledgementConf extends FO_Plugin
         return $this->doGetFiles($uploadId, $groupId);
       case "updateAcknowledgement":
       case "deleteAcknowledgement":
+        if (!IsPostRequest()) {
+          return new Response('POST required', Response::HTTP_METHOD_NOT_ALLOWED,
+            array('Content-type' => 'text/plain'));
+        }
         if (!$this->uploadDao->isEditable($uploadId, $groupId)) {
           return new Response('Permission denied', Response::HTTP_FORBIDDEN,
             array('Content-type' => 'text/plain'));

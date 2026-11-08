@@ -83,7 +83,7 @@ class folder_properties extends FO_Plugin
     $FolderId = GetParm('oldfolderid', PARM_INTEGER);
     $NewName = GetParm('newname', PARM_TEXT);
     $NewDesc = GetParm('newdesc', PARM_TEXT);
-    if (! empty($FolderId)) {
+    if (! empty($FolderId) && IsPostRequest()) {
       $FolderSelectId = $FolderId;
       $rc = $this->Edit($FolderId, $NewName, $NewDesc);
       if ($rc == 1) {

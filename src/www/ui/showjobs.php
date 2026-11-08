@@ -111,7 +111,8 @@ class showjobs extends FO_Plugin
     /* Process any actions */
     $action = GetParm("action",PARM_STRING);
     $page = GetParm('page',PARM_INTEGER) ?: 0;
-    if ($_SESSION[Auth::USER_LEVEL] >= PLUGIN_DB_WRITE && !empty($action)) {
+    if ($_SESSION[Auth::USER_LEVEL] >= PLUGIN_DB_WRITE && !empty($action) &&
+        IsPostRequest()) {
       $jq_pk = GetParm("jobid",PARM_INTEGER);
       $uploadPk = GetParm("upload",PARM_INTEGER);
 

@@ -196,7 +196,7 @@ function popUpLicenseText(popUpUri, title) {
 }
 
 function modifyLicense(doWhat ,uploadId, uploadTreeId, licenseId) {
-  $.getJSON("?mod=conclude-license&do=" + doWhat + "&upload=" + uploadId + "&item=" + uploadTreeId + "&licenseId=" + licenseId)
+  $.post("?mod=conclude-license&do=" + doWhat + "&upload=" + uploadId + "&item=" + uploadTreeId + "&licenseId=" + licenseId, null, null, "json")
     .done(function (data) {
       if(data) {
         $('#decTypeSet').addClass('border-danger');
@@ -217,7 +217,7 @@ function removeLicense(uploadId, uploadTreeId, licenseId) {
 
 
 function makeMainLicense(uploadId, licenseId) {
-  $.getJSON("?mod=conclude-license&do=makeMainLicense&upload=" + uploadId + "&licenseId=" + licenseId)
+  $.post("?mod=conclude-license&do=makeMainLicense&upload=" + uploadId + "&licenseId=" + licenseId, null, null, "json")
     .done(function (data) {
        var table = createClearingTable();
       table.fnDraw(false);
@@ -228,7 +228,7 @@ function makeMainLicense(uploadId, licenseId) {
 function removeMainLicense(uploadId,licenseId) {
   if(confirm("Remove this license from the main license list?"))
   {
-    $.getJSON("?mod=conclude-license&do=removeMainLicense&upload=" + uploadId + "&licenseId=" + licenseId)
+    $.post("?mod=conclude-license&do=removeMainLicense&upload=" + uploadId + "&licenseId=" + licenseId, null, null, "json")
       .done(function (data) {
         var table = createClearingTable();
         table.fnDraw(false);

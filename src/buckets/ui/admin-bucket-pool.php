@@ -119,7 +119,7 @@ select bucket_name, bucket_color, bucket_reportorder, bucket_evalorder, $newbuck
     $bucketpool_pk = GetParm("default_bucketpool_fk",PARM_INTEGER);
     $UpdateDefault = GetParm("updatedefault",PARM_RAW);
 
-    if (!empty($bucketpool_pk))
+    if (!empty($bucketpool_pk) && IsPostRequest())
     {
       $msg = "";
       $newbucketpool_pk = $this->CloneBucketpool($bucketpool_pk, $UpdateDefault, $msg);

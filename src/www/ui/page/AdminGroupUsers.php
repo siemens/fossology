@@ -57,22 +57,15 @@ class AdminGroupUsers extends DefaultPlugin
       $group_pk = key($groupMap);
     }
 
-    $gum_pk = intval($request->get('gum_pk'));
+    list($gum_pk, $newuser) = $this->readChanges($request);
     $text = "";
     if ($gum_pk) {
-      $perm = intval($request->get('perm'));
-      $atleastOneUserShouldBePart = $dbManager->getSingleRow("SELECT count(*) cnt FROM group_user_member WHERE group_fk = (SELECT group_fk FROM group_user_member WHERE group_user_member_pk = $1)",
-      array($gum_pk), $stmt = __METHOD__ . ".atleastOneUserShouldBePart");
-      if ($atleastOneUserShouldBePart['cnt'] <= 1) {
-         $text = _("Error: atleast one user should be part of a group.");
-      } else {
-        $this->updateGUMPermission($gum_pk, $perm,$dbManager);
-      }
+      $text = $this->updateMember($userDao, $gum_pk,
+        intval($request->get('perm')), $groupMap);
       $groupMap = $userDao->getAdminGroupMap($userId,
         $_SESSION[Auth::USER_LEVEL]);
     }
 
-    $newuser = intval($request->get('newuser'));
     $newperm = intval($request->get('newperm'));
 
     if ($newuser && $group_pk) {
@@ -128,10 +121,11 @@ class AdminGroupUsers extends DefaultPlugin
          newpermurl='" . $baseUrl . "&newperm='+newperm+'&newuser=';
       }
       setNewPermUrl($newperm);";
-      $scripts = js_url() . '<script type="text/javascript"> ' . $script . '</script>';
+      $scripts = js_url() . $this->postUrlScript() .
+        '<script type="text/javascript"> ' . $script . '</script>';
       $vars['otherUsers'] = $otherUsers;
     } else {
-      $scripts = js_url();
+      $scripts = js_url() . $this->postUrlScript();
     }
 
     $vars['scripts'] = $scripts;
@@ -141,26 +135,53 @@ class AdminGroupUsers extends DefaultPlugin
     return $this->render('admin_group_users.html.twig', $this->mergeWithDefault($vars));
   }
 
-  public function updateGUMPermission($gum_pk, $perm,$dbManager)
+  /**
+   * Membership changes requested by the page. A GET only views, so a link can
+   * not change memberships.
+   *
+   * @param Request $request
+   * @return int[] group_user_member_pk to change and user to add, 0 if none
+   */
+  private function readChanges(Request $request)
   {
-    if ($perm === -1) {
-      $dbManager->prepare($stmt = __METHOD__ . ".delByGUM",
-          "DELETE FROM group_user_member WHERE group_user_member_pk=$1 RETURNING user_fk, group_fk");
-      $deletedEntry = $dbManager->execute($stmt, array($gum_pk));
-      $effectedUser = $dbManager->fetchArray($deletedEntry);
-      $isEffected = $dbManager->getSingleRow("SELECT count(*) cnt FROM users WHERE user_pk=$1 AND group_fk = $2",
-        array($effectedUser['user_fk'], $effectedUser['group_fk']), $stmt = __METHOD__ . ".isUserEffectedFromRemoval");
-      if ($isEffected['cnt'] == 1) {
-        $dbManager->getSingleRow("UPDATE users SET group_fk = (
-          SELECT group_fk FROM group_user_member WHERE user_fk = $1 AND group_perm >= 0 LIMIT 1)
-          WHERE user_pk = $1",
-          array($effectedUser['user_fk']), $stmt = __METHOD__ . ".setNewGroupId");
-      }
-      $dbManager->freeResult($deletedEntry);
-    } else if (array_key_exists($perm, $this->groupPermissions)) {
-      $dbManager->getSingleRow("UPDATE group_user_member SET group_perm=$1 WHERE group_user_member_pk=$2",
-          array($perm, $gum_pk), $stmt = __METHOD__ . ".updatePermInGUM");
+    if (!$request->isMethod('POST')) {
+      return [0, 0];
     }
+    return [intval($request->get('gum_pk')), intval($request->get('newuser'))];
+  }
+
+  /**
+   * @return string Script defining post_url(val, url), which submits url+val by POST
+   */
+  private function postUrlScript()
+  {
+    return '<script type="text/javascript">
+      function post_url(val, url) {
+        $(\'<form method="post"></form>\').attr("action", url + val).appendTo("body").submit();
+      }
+    </script>';
+  }
+
+  /**
+   * Change a membership in one of the groups the caller manages.
+   *
+   * @param UserDao $userDao
+   * @param int $gumPk group_user_member_pk
+   * @param int $perm New permission, -1 to remove the member
+   * @param array $groupMap Groups the caller manages
+   * @return string Error text, empty on success
+   */
+  private function updateMember($userDao, $gumPk, $perm, $groupMap)
+  {
+    $groupId = $userDao->getGroupOfMembership($gumPk);
+    if ($groupId === null || !array_key_exists($groupId, $groupMap)) {
+      return _("You have no permission to manage this group.");
+    }
+    if (count($userDao->getGroupMembers($groupId)) <= 1) {
+      return _("Error: atleast one user should be part of a group.");
+    }
+    $userDao->updateGUMPermission($gumPk, $perm);
+    return "";
   }
 }
 

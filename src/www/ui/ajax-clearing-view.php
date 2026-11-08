@@ -173,6 +173,17 @@ class AjaxClearingView extends FO_Plugin
   }
 
   /**
+   * @param int $uploadTreeId
+   * @param int $groupId
+   * @return bool True if the group may change the upload holding this item
+   */
+  private function isItemEditable($uploadTreeId, $groupId)
+  {
+    $item = $this->uploadDao->getUploadEntry($uploadTreeId);
+    return !empty($item) && $this->uploadDao->isEditable($item['upload_fk'], $groupId);
+  }
+
+  /**
    * @return Response
    */
   function Output()
@@ -187,6 +198,13 @@ class AjaxClearingView extends FO_Plugin
 
     $orderAscending = isset($sort0) ? $sort0 === "asc" : true;
 
+    $writeActions = ["addLicense", "removeLicense", "makeMainLicense",
+      "removeMainLicense", "updateClearings"];
+    if (in_array($action, $writeActions, true) &&
+        strcasecmp($_SERVER['REQUEST_METHOD'] ?? '', 'POST') !== 0) {
+      return new JsonResponse(null, JsonResponse::HTTP_METHOD_NOT_ALLOWED);
+    }
+
     switch ($action) {
       case "licenses":
         return new JsonResponse(
@@ -197,20 +215,32 @@ class AjaxClearingView extends FO_Plugin
           $this->doClearings($orderAscending, $groupId, $uploadId, $uploadTreeId));
 
       case "addLicense":
+        if (!$this->isItemEditable($uploadTreeId, $groupId)) {
+          return new JsonResponse(null, JsonResponse::HTTP_FORBIDDEN);
+        }
         $this->clearingDao->insertClearingEvent($uploadTreeId, $userId, $groupId,
           $licenseId, false, ClearingEventTypes::USER);
         return new JsonResponse();
 
       case "removeLicense":
+        if (!$this->isItemEditable($uploadTreeId, $groupId)) {
+          return new JsonResponse(null, JsonResponse::HTTP_FORBIDDEN);
+        }
         $this->clearingDao->insertClearingEvent($uploadTreeId, $userId, $groupId,
           $licenseId, true, ClearingEventTypes::USER);
         return new JsonResponse();
 
       case "makeMainLicense":
+        if (!$this->uploadDao->isEditable($uploadId, $groupId)) {
+          return new JsonResponse(null, JsonResponse::HTTP_FORBIDDEN);
+        }
         $this->clearingDao->makeMainLicense($uploadId, $groupId, $licenseId);
         return new JsonResponse();
 
       case "removeMainLicense":
+        if (!$this->uploadDao->isEditable($uploadId, $groupId)) {
+          return new JsonResponse(null, JsonResponse::HTTP_FORBIDDEN);
+        }
         $this->clearingDao->removeMainLicense($uploadId, $groupId, $licenseId);
         return new JsonResponse();
 
@@ -226,6 +256,9 @@ class AjaxClearingView extends FO_Plugin
         $id = GetParm("id", PARM_STRING);
         if (isset($id)) {
           list ($uploadTreeId, $licenseId) = explode(',', $id);
+          if (!$this->isItemEditable($uploadTreeId, $groupId)) {
+            return new JsonResponse(null, JsonResponse::HTTP_FORBIDDEN);
+          }
           $what = GetParm("columnId", PARM_INTEGER);
           if ($what==2) {
             $what = 'reportinfo';

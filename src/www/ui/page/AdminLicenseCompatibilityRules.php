@@ -154,14 +154,16 @@ class AdminLicenseCompatibilityRules extends DefaultPlugin
       return $this->fetchRules($request);
     }
 
-    if ($request->get(self::UPDATE_PARAM_NAME, 0) == 1) {
-      return new JsonResponse($this->updateRules($request),
-        JsonResponse::HTTP_OK);
-    } elseif ($request->get("action", 0) === "deleterule") {
-      return new JsonResponse($this->deleteRules($request),
-        JsonResponse::HTTP_OK);
-    } elseif ($request->get("action", 0) === "addrule") {
-      return $this->addRule();
+    if ($request->isMethod('POST')) {
+      if ($request->get(self::UPDATE_PARAM_NAME, 0) == 1) {
+        return new JsonResponse($this->updateRules($request),
+          JsonResponse::HTTP_OK);
+      } elseif ($request->get("action", 0) === "deleterule") {
+        return new JsonResponse($this->deleteRules($request),
+          JsonResponse::HTTP_OK);
+      } elseif ($request->get("action", 0) === "addrule") {
+        return $this->addRule();
+      }
     }
     $vars = [];
     $vars["firstTypeParam"] = self::INSERT_FIRST_LIC_TYPE_PARAM_NAME;

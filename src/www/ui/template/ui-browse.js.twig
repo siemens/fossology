@@ -133,7 +133,7 @@ $('#nav-shower').click(function() {
 function removeMainLicense(uploadId,licenseId) {
   if(confirm("{{'Remove this license from the main license list?'|trans}}"))
   {
-    $.getJSON("?mod=conclude-license&do=removeMainLicense&upload=" + uploadId + "&licenseId=" + licenseId)
+    $.post("?mod=conclude-license&do=removeMainLicense&upload=" + uploadId + "&licenseId=" + licenseId, null, null, "json")
       .done(function (data) {
         var table = createBrowseTable();
         table.draw(false);

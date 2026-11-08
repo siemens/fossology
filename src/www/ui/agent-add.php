@@ -39,7 +39,8 @@ class AgentAdder extends DefaultPlugin
     $agents = $request->get('agents') ?: '';
     $vars = [];
 
-    if (! empty($uploadId) && ! empty($agents) && is_array($agents)) {
+    if (! empty($uploadId) && ! empty($agents) && is_array($agents) &&
+        $request->isMethod('POST')) {
       $rc = $this->agentsAdd($uploadId, $agents, $request);
       if (is_numeric($rc)) {
         $status = GetRunnableJobList();

@@ -63,7 +63,7 @@ class folder_create extends FO_Plugin
     $ParentId = GetParm('parentid', PARM_INTEGER);
     $NewFolder = GetParm('newname', PARM_TEXT);
     $Desc = GetParm('description', PARM_TEXT);
-    if (! empty($ParentId) && ! empty($NewFolder)) {
+    if (! empty($ParentId) && ! empty($NewFolder) && IsPostRequest()) {
       $rc = $this->create($ParentId, $NewFolder, $Desc);
       if ($rc == 1) {
         /* Need to refresh the screen */

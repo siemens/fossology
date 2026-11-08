@@ -132,6 +132,9 @@ class foconfig extends FO_Plugin
     $newarray = GetParm("new", PARM_RAW);
     $oldarray = GetParm("old", PARM_RAW);
 
+    if (!IsPostRequest()) {
+      $newarray = null;
+    }
     if (!empty($newarray)) {
       // Get missing keys from new array (unchecked checkboxes are not sent)
       $boolFalseArray = array_diff_key($oldarray, $newarray);

@@ -126,7 +126,7 @@ class user_add extends DefaultPlugin
   {
     /* If this is a POST, then process the request. */
     $User = $request->get('username');
-    if (! empty($User)) {
+    if (! empty($User) && $request->isMethod('POST')) {
       $rc = $this->add($request);
       if (empty($rc)) {
         $text = _("User");

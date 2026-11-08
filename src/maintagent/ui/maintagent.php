@@ -168,7 +168,7 @@ class maintagent extends FO_Plugin {
     $V = "";
     /* If this is a POST, then process the request. */
     $queue = GetParm('queue', PARM_STRING);
-    if (!empty($queue))
+    if (!empty($queue) && IsPostRequest())
     {
       $request = ['options' => $_REQUEST , 'logsDate' => GetParm('logsDate', PARM_TEXT), 'goldDate' => GetParm('goldDate', PARM_TEXT)];
       $Msg = $this->handle($request);

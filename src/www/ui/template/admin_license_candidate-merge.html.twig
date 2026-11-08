@@ -80,15 +80,18 @@
 {% block foot %}
   {{ parent() }}
   <script type="text/javascript">
+    function post_url(val, url) {
+      $('<form method="post"></form>').attr('action', url + val).appendTo('body').submit();
+    }
     $('#verify-button').click(function(){
-      js_url($('#shortname').val(),"?mod=admin_license_candidate&rf={{ rf_pk }}&do=verify&shortname=");
+      post_url($('#shortname').val(),"?mod=admin_license_candidate&rf={{ rf_pk }}&do=verify&shortname=");
     });
     {% if suggest_rf %}
       $('#variant-button').click(function(){
-        js_url($('#shortname').val(),"?mod=admin_license_candidate&rf={{ rf_pk }}&do=variant&suggest_rf={{ suggest_rf }}&shortname=");
+        post_url($('#shortname').val(),"?mod=admin_license_candidate&rf={{ rf_pk }}&do=variant&suggest_rf={{ suggest_rf }}&shortname=");
       });
       $('#merge-button').click(function(){
-        js_url({{ suggest_rf }},"?mod=admin_license_candidate&rf={{ rf_pk }}&do=merge&suggest_rf=");
+        post_url({{ suggest_rf }},"?mod=admin_license_candidate&rf={{ rf_pk }}&do=merge&suggest_rf=");
       });
     {% endif %}
     $('#cmp').change(function(){

@@ -98,7 +98,7 @@ class AdminLicenseStdComments extends DefaultPlugin
    */
   protected function handle(Request $request)
   {
-    if ($request->get(self::UPDATE_PARAM_NAME, 0) == 1) {
+    if ($request->get(self::UPDATE_PARAM_NAME, 0) == 1 && $request->isMethod('POST')) {
       return new JsonResponse($this->updateComments($request),
         JsonResponse::HTTP_OK);
     }

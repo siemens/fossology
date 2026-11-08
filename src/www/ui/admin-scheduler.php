@@ -216,7 +216,7 @@ class admin_scheduler extends FO_Plugin
     $job_id = GetParm('job_list', PARM_TEXT);
     $priority_id =  GetParm('priority_list', PARM_TEXT);
     $level_id =  GetParm('level_list', PARM_TEXT);
-    if (! empty($operation)) {
+    if (! empty($operation) && IsPostRequest()) {
       $report = "";
       $response_from_scheduler = $this->OperationSubmit($operation, $job_id,
         $priority_id, $level_id);

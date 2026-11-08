@@ -44,6 +44,15 @@ $timingLogger->toc("setup init");
 
 ini_set('session.cookie_secure', Auth::isHttpsRequest($_SERVER) ? '1' : '0');
 
+if (!Auth::isSameOriginRequest($_SERVER)) {
+  http_response_code(403);
+  print _("Cross-site request refused.") . " " .
+    _("Behind a reverse proxy, forward the public host name in X-Forwarded-Host " .
+      "or set FOSSologyURL to it; origin_check in [AUTHENTICATION] of " .
+      "fossology.conf turns this check off.");
+  return 0;
+}
+
 $timingLogger->tic();
 plugin_load();
 plugin_preinstall();

@@ -53,7 +53,7 @@ class AdminGroupEdit extends DefaultPlugin
 
     $groupId = $request->get('grouppk');
     $newGroupName = trim($request->get('newgroupname'));
-    if (! empty($groupId) && ! empty($newGroupName)) {
+    if (! empty($groupId) && ! empty($newGroupName) && $request->isMethod('POST')) {
       $validateGroup = $this->validateGroupName($newGroupName);
       if (empty($validateGroup)) {
         try {

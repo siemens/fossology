@@ -86,7 +86,7 @@ class admin_folder_delete extends FO_Plugin
     /* If this is a POST, then process the request. */
     $folder = GetParm('folder', PARM_RAW);
     $splitFolder = explode(" ",$folder);
-    if (!empty($folder)) {
+    if (!empty($folder) && IsPostRequest()) {
       $userId = Auth::getUserId();
       $sql = "SELECT folder_name FROM folder join users on (users.user_pk = folder.user_fk or users.user_perm = 10) where folder_pk = $1 and users.user_pk = $2;";
       $Folder = $this->dbManager->getSingleRow($sql,array($splitFolder[1],$userId),__METHOD__."GetRowWithFolderName");

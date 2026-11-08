@@ -32,7 +32,7 @@ class group_add extends FO_Plugin
     $V = "";
     /* If this is a POST, then process the request. */
     $groupname = GetParm('groupname', PARM_TEXT);
-    if (! empty($groupname)) {
+    if (! empty($groupname) && IsPostRequest()) {
       try {
         /* @var $userDao UserDao */
         $userDao = $GLOBALS['container']->get('dao.user');
@@ -40,7 +40,7 @@ class group_add extends FO_Plugin
         $userDao->addGroupMembership($groupId, Auth::getUserId());
         $text = _("Group");
         $text1 = _("added");
-        $this->vars['message'] = "$text $groupname $text1.";
+        $this->vars['message'] = "$text " . htmlentities($groupname) . " $text1.";
       } catch (Exception $e) {
         $this->vars['message'] = $e->getMessage();
       }

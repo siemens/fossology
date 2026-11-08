@@ -136,3 +136,7 @@ resttoken = token
 ; SiteMinder proxy that sets the header and removes any copy sent by clients.
 siteminder = false
 
+; Form submissions must come from this site (Origin or Referer header). Behind a
+; reverse proxy, forward X-Forwarded-Host or set FOSSologyURL to the public host;
+; set to false only if neither is possible.
+;origin_check = true

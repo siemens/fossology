@@ -54,6 +54,44 @@ class AuthTest extends \PHPUnit\Framework\TestCase
     $_SESSION[Auth::USER_LEVEL] = Auth::PERM_ADMIN;
     $this->assertTrue(Auth::isAdmin());
   }
+
+  public function testSameOriginAllowsSafeMethods()
+  {
+    $this->assertTrue(Auth::isSameOriginRequest(['REQUEST_METHOD' => 'GET',
+      'HTTP_HOST' => 'fossy.example', 'HTTP_ORIGIN' => 'https://evil.example']));
+  }
+
+  public function testSameOriginAcceptsOwnSite()
+  {
+    foreach ([['HTTP_ORIGIN' => 'https://Fossy.example:8081'],
+        ['HTTP_REFERER' => 'https://fossy.example:8081/repo/?mod=browse'],
+        []] as $source) {
+      $this->assertTrue(Auth::isSameOriginRequest($source + [
+        'REQUEST_METHOD' => 'POST', 'HTTP_HOST' => 'fossy.example:8081']));
+    }
+  }
+
+  public function testSameOriginAcceptsForwardedHost()
+  {
+    $this->assertTrue(Auth::isSameOriginRequest(['REQUEST_METHOD' => 'POST',
+      'HTTP_HOST' => 'web:80', 'HTTP_X_FORWARDED_HOST' => 'fossy.example, proxy',
+      'HTTP_ORIGIN' => 'https://fossy.example']));
+  }
+
+  public function testSameOriginRefusesOtherSites()
+  {
+    foreach ([['HTTP_ORIGIN' => 'https://evil.example'],
+        ['HTTP_ORIGIN' => 'https://fossy.example.evil.example'],
+        ['HTTP_ORIGIN' => 'https://fossy.example:9999'],
+        ['HTTP_ORIGIN' => 'null'],
+        ['HTTP_REFERER' => 'https://evil.example/?fossy.example'],
+        ['HTTP_ORIGIN' => 'https://evil.example', 'HTTP_REFERER' => 'https://fossy.example/']]
+        as $source) {
+      $this->assertFalse(Auth::isSameOriginRequest($source + [
+        'REQUEST_METHOD' => 'POST', 'HTTP_HOST' => 'fossy.example']), json_encode($source));
+    }
+  }
+
   public function testIsLocalRedirect()
   {
     $server = ['HTTP_HOST' => 'fossology.example:8080'];
@@ -76,6 +114,35 @@ class AuthTest extends \PHPUnit\Framework\TestCase
         'http://fossology.example.evil.example/', 'relative/path', "/repo/\nx",
         'ftp://fossology.example/x', "/repo/ x"] as $url) {
       $this->assertFalse(Auth::isLocalRedirect($url, $server), $url);
+    }
+  }
+
+  public function testSameOriginBehindProxyUsesConfiguredUrl()
+  {
+    $server = ['REQUEST_METHOD' => 'POST', 'HTTP_HOST' => 'fossology:80',
+      'HTTP_ORIGIN' => 'https://fossology.corp'];
+    $saved = $GLOBALS['SysConf'] ?? null;
+    try {
+      $GLOBALS['SysConf'] = ['SYSCONFIG' => []];
+      $this->assertFalse(Auth::isSameOriginRequest($server));
+      foreach (['fossology.corp/repo/', 'https://fossology.corp/repo/', 'FOSSOLOGY.corp'] as $url) {
+        $GLOBALS['SysConf'] = ['SYSCONFIG' => ['FOSSologyURL' => $url]];
+        $this->assertTrue(Auth::isSameOriginRequest($server), $url);
+      }
+      $GLOBALS['SysConf'] = ['SYSCONFIG' => ['FOSSologyURL' => 'fossology.corp:8443/repo/']];
+      $this->assertFalse(Auth::isSameOriginRequest($server));
+      $this->assertTrue(Auth::isSameOriginRequest(
+        ['HTTP_ORIGIN' => 'https://fossology.corp:8443'] + $server));
+      $this->assertFalse(Auth::isSameOriginRequest(
+        ['HTTP_ORIGIN' => 'https://evil.example'] + $server));
+      $GLOBALS['SysConf'] = ['AUTHENTICATION' => ['origin_check' => 'false']];
+      $this->assertTrue(Auth::isSameOriginRequest(
+        ['HTTP_ORIGIN' => 'https://evil.example'] + $server));
+      $GLOBALS['SysConf'] = ['AUTHENTICATION' => ['origin_check' => 'true']];
+      $this->assertFalse(Auth::isSameOriginRequest(
+        ['HTTP_ORIGIN' => 'https://evil.example'] + $server));
+    } finally {
+      $GLOBALS['SysConf'] = $saved;
     }
   }
 

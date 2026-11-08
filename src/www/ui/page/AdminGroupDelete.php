@@ -48,7 +48,7 @@ class AdminGroupDelete extends DefaultPlugin
       $_SESSION[Auth::USER_LEVEL]);
 
     $groupId = $request->get('grouppk');
-    if (! empty($groupId)) {
+    if (! empty($groupId) && $request->isMethod('POST')) {
       try {
         $userDao->deleteGroup($groupId);
         $vars['message'] = _("Group") . ' ' . $groupMap[$groupId] . ' ' . _("deleted") . '.';

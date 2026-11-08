@@ -38,7 +38,7 @@ class user_del extends FO_Plugin
     /* If this is a POST, then process the request. */
     $User = GetParm('userid',PARM_TEXT);
     $Confirm = GetParm('confirm',PARM_INTEGER);
-    if (! empty($User)) {
+    if (! empty($User) && IsPostRequest()) {
       if ($Confirm != 1) {
         $rc = "Deletion not confirmed. Not deleted.";
       } else {

@@ -135,13 +135,13 @@ function fillTableWithJobInfo(tableTemplate, job) {
     var action = "";
     if (jobQueueData.canDoActions && jobQueueData.isInProgress){
       if (jobQueueData.jq_endtext == "Paused") {
-        action += '[<a href="' + fullUri + '&action=restart&jobid=' + jobQueueId;
+        action += '[<a href="#" class="job-action" data-url="' + fullUri + '&action=restart&jobid=' + jobQueueId;
         action += '" title="{{ 'Un-Pause this job'|trans }}">{{ 'Resume'|trans }}</a>]';
       } else {
-        action += '[<a href="' + fullUri + '&action=pause&jobid=' + jobQueueId;
+        action += '[<a href="#" class="job-action" data-url="' + fullUri + '&action=pause&jobid=' + jobQueueId;
         action += '" title="{{ 'Pause this job'|trans }}">{{ 'Pause'|trans }}</a>]';
       }
-      action += ' [<a href="' + fullUri + '&action=cancel&jobid=' + jobQueueId;
+      action += ' [<a href="#" class="job-action" data-url="' + fullUri + '&action=cancel&jobid=' + jobQueueId;
       action += '" title="{{ 'Cancel this job'|trans }}">{{ 'Cancel'|trans }}</a>]';
     } else if (jobQueueData.download.length > 0 && jobQueueData.isReady) {
       action += '[<a href="?mod=download&report=' + job.jobId + '">Download ' +
@@ -227,4 +227,11 @@ function getTableBody(callback) {
 
 $(document).ready(function (){
   getTableBody();
+});
+
+/* job actions change state, so they are sent as POST */
+$(document).on('click', 'a.job-action', function (event) {
+  event.preventDefault();
+  $('<form method="post"></form>').attr('action', $(this).data('url'))
+    .appendTo('body').submit();
 });

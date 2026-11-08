@@ -93,7 +93,7 @@ class ChangeLicenseBulk extends DefaultPlugin
     $userId = Auth::getUserId();
     $groupId = Auth::getGroupId();
 
-    if ($uploadId <= 0 || !$this->uploadDao->isAccessible($uploadId, $groupId)) {
+    if ($uploadId <= 0 || !$this->uploadDao->isEditable($uploadId, $groupId)) {
       throw new Exception('permission denied');
     }
 

@@ -52,7 +52,7 @@ class AjaxLicenseStdAcknowledgements extends DefaultPlugin
   protected function handle(Request $request)
   {
     $toggleAcknowledgementPk = $request->get("toggle");
-    if ($toggleAcknowledgementPk !== null) {
+    if ($toggleAcknowledgementPk !== null && $request->isMethod('POST')) {
       $status = false;
       try {
         $status = $this->licenseAcknowledgementDao->toggleAcknowledgement(intval($toggleAcknowledgementPk));

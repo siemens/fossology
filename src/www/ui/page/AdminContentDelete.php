@@ -40,7 +40,7 @@ class AdminContentDelete extends DefaultPlugin
     $vars = array();
 
     $folderContentId = intval($request->get('foldercontent'));
-    if ($folderContentId) {
+    if ($folderContentId && $request->isMethod('POST')) {
       try {
         $this->folderDao->removeContent($folderContentId);
       } catch (Exception $ex) {

@@ -136,7 +136,7 @@ function scheduleScan(upload, agentName, resultEntityKey) {
 }
 
 function makeMainLicenseHist(uploadId, licenseId) {
-  $.getJSON("?mod=conclude-license&do=makeMainLicense&upload=" + uploadId + "&licenseId=" + licenseId)
+  $.post("?mod=conclude-license&do=makeMainLicense&upload=" + uploadId + "&licenseId=" + licenseId, null, null, "json")
     .done(function () {
       setHistogramRowIsMain(licenseId, true);
     })
@@ -145,7 +145,7 @@ function makeMainLicenseHist(uploadId, licenseId) {
 
 function removeMainLicenseHist(uploadId, licenseId) {
   if (!confirm("Remove this license from the main license list?")) return;
-  $.getJSON("?mod=conclude-license&do=removeMainLicense&upload=" + uploadId + "&licenseId=" + licenseId)
+  $.post("?mod=conclude-license&do=removeMainLicense&upload=" + uploadId + "&licenseId=" + licenseId, null, null, "json")
     .done(function () {
       setHistogramRowIsMain(licenseId, false);
     })

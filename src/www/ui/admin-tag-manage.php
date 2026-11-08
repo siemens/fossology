@@ -98,7 +98,7 @@ class admin_tag_manage extends FO_Plugin
       $Folder = FolderGetTop();
     }
 
-    $rc = $this->ManageTag($Folder, $upload_id, $manage);
+    $rc = IsPostRequest() ? $this->ManageTag($Folder, $upload_id, $manage) : null;
     if (1 == $rc) {
 
       $text1 = _("all uploads in folder");

@@ -52,7 +52,7 @@ class AjaxLicenseStdComments extends DefaultPlugin
   protected function handle(Request $request)
   {
     $toggleCommentPk = $request->get("toggle");
-    if ($toggleCommentPk !== null) {
+    if ($toggleCommentPk !== null && $request->isMethod('POST')) {
       $status = false;
       try {
         $status = $this->licenseCommentDao->toggleComment(intval($toggleCommentPk));

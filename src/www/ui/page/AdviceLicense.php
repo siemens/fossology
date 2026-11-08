@@ -57,7 +57,7 @@ class AdviceLicense extends DefaultPlugin
       return $this->flushContent( _('invalid license candidate'));
     }
 
-    if ($request->get('save')) {
+    if ($request->get('save') && $request->isMethod('POST')) {
       try {
         $vars = $this->saveInput($request, $vars, $userId);
         $vars['message'] = 'Successfully updated.';

@@ -236,9 +236,17 @@ SPDX-License-Identifier: FSFAP
             <call method="addExtension">
                 <argument type="service" id="twig.extension.i18n"/>
             </call>
+            <call method="addExtension">
+                <argument type="service" id="twig.extension.assetVersion"/>
+            </call>
         </service>
 
         <service id="twig.extension.i18n" class="Fossology\Lib\UI\TwigExtensions\TranslateFilter">
+            <tag name="twig.extension"/>
+        </service>
+
+        <service id="twig.extension.assetVersion" class="Fossology\Lib\UI\TwigExtensions\AssetVersion">
+            <argument>%application_root%</argument>
             <tag name="twig.extension"/>
         </service>
 

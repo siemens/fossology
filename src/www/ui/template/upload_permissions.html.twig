@@ -101,6 +101,11 @@
       window.location.assign(url);
     }
 
+    function submitWithLoader(url) {
+      $('#loader').show();
+      $('<form method="post"></form>').attr('action', url).appendTo('body').submit();
+    }
+
     $('#folderselect').change(function() {
       redirectWithLoader('{{ baseUri }}&folder=' + $(this).val());
     });
@@ -119,19 +124,19 @@
     });
 
     $('#publicpermselect').change(function() {
-      redirectWithLoader('{{ baseUri }}&folder={{ folderId }}&upload={{ uploadId }}&alluploadsperm={{ allUploadsPerm }}&public=' + $(this).val());
+      submitWithLoader('{{ baseUri }}&folder={{ folderId }}&upload={{ uploadId }}&alluploadsperm={{ allUploadsPerm }}&public=' + $(this).val());
     });
 
     $('#groupselectnew').change(function() {
-      redirectWithLoader('{{ baseUri }}&folder={{ folderId }}&upload={{ uploadId }}&alluploadsperm={{ allUploadsPerm }}&newperm={{ newPerm }}&newgroup=' + $(this).val());
+      submitWithLoader('{{ baseUri }}&folder={{ folderId }}&upload={{ uploadId }}&alluploadsperm={{ allUploadsPerm }}&newperm={{ newPerm }}&newgroup=' + $(this).val());
     });
 
     $('#permselectnew').change(function() {
-      redirectWithLoader('{{ baseUri }}&folder={{ folderId }}&upload={{ uploadId }}&alluploadsperm={{ allUploadsPerm }}&newgroup={{ newGroup }}&newperm=' + $(this).val());
+      submitWithLoader('{{ baseUri }}&folder={{ folderId }}&upload={{ uploadId }}&alluploadsperm={{ allUploadsPerm }}&newgroup={{ newGroup }}&newperm=' + $(this).val());
     });
 
     $('select[name=permselect]').change(function() {
-      redirectWithLoader('{{ baseUri }}&folder={{ folderId }}&upload={{ uploadId }}&permupk=' + $(this).attr('data-puid') + '&perm=' + $(this).val());
+      submitWithLoader('{{ baseUri }}&folder={{ folderId }}&upload={{ uploadId }}&permupk=' + $(this).attr('data-puid') + '&perm=' + $(this).val());
     });
 
   </script>

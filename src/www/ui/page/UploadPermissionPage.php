@@ -59,11 +59,8 @@ class UploadPermissionPage extends DefaultPlugin
     $folder_pk = intval($request->get('folder'));
     $upload_pk = intval($request->get('upload'));
     $allUploadsPerm = ($request->get('alluploadsperm') == 1) ? 1 : 0;
-    $perm_upload_pk = intval($request->get('permupk'));
-    $perm = intval($request->get('perm'));
-    $newgroup = intval($request->get('newgroup'));
-    $newperm = intval($request->get('newperm'));
-    $public_perm = $request->get('public', -1);
+    list($perm_upload_pk, $perm, $newgroup, $newperm, $public_perm) =
+      $this->readChanges($request);
 
     $commu_status = fo_communicate_with_scheduler('status', $response_from_scheduler, $error_info);
     if ($commu_status) {
@@ -109,6 +106,23 @@ class UploadPermissionPage extends DefaultPlugin
     return $this->render('upload_permissions.html.twig', $this->mergeWithDefault($vars));
   }
 
+  /**
+   * Changes requested by the page. A GET only views, so a link can not change
+   * permissions.
+   *
+   * @param Request $request
+   * @return array perm_upload_pk, perm, newgroup, newperm, public permission
+   */
+  private function readChanges(Request $request)
+  {
+    if (!$request->isMethod('POST')) {
+      return [0, 0, 0, 0, -1];
+    }
+    return [intval($request->get('permupk')), intval($request->get('perm')),
+      intval($request->get('newgroup')), intval($request->get('newperm')),
+      $request->get('public', -1)];
+  }
+
   function editPermissionsForUpload($commu_status, $folder_pk,$upload_pk,$allUploadsPerm,$perm_upload_pk,$perm,$newgroup,$newperm,$public_perm)
   {
     $root_folder_pk = $this->folderDao->getRootFolder(Auth::getUserId())->getId();
@@ -121,7 +135,16 @@ class UploadPermissionPage extends DefaultPlugin
       if (empty($upload_pk) && !empty($UploadList)) {
         $upload_pk = $UploadList[0]['upload_pk'];
       }
+      if ((!empty($perm_upload_pk) || (!empty($newgroup) && !empty($newperm)) ||
+          $public_perm >= 0) &&
+          !$this->uploadPermDao->isEditable($upload_pk, Auth::getGroupId())) {
+        throw new \Exception('This upload is missing or inaccessible');
+      }
       if (!empty($perm_upload_pk)) {
+        if (!in_array($perm_upload_pk, array_column(
+            $this->uploadPermDao->getPermissionGroups($upload_pk), 'perm_upload_pk'))) {
+          throw new \Exception('This permission does not belong to the upload');
+        }
         $this->uploadPermDao->updatePermissionId($perm_upload_pk, $perm);
       } else if (!empty($newgroup) && !empty($newperm)) {
         if ($commu_status) {

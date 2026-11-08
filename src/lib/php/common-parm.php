@@ -22,6 +22,20 @@ define("PARM_TEXT",4);
 define("PARM_RAW",5);
 
 /**
+ * \brief Check if the current request is a POST.
+ *
+ * GetParm() also reads the query string, so code that changes data must
+ * check this to keep a plain link from changing anything.
+ *
+ * \return bool
+ */
+function IsPostRequest()
+{
+  return isset($_SERVER['REQUEST_METHOD']) &&
+    strcasecmp($_SERVER['REQUEST_METHOD'], 'POST') === 0;
+}
+
+/**
  * \brief This function will retrieve the variables and check data types.
  *
  * Plugins should not use globals to access HTTP variables.

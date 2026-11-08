@@ -98,7 +98,7 @@ class AdminLicenseAcknowledgements extends DefaultPlugin
    */
   protected function handle(Request $request)
   {
-    if ($request->get(self::ACKNOWLEDGEMENT_UPDATE_PARAM_NAME, 0) == 1) {
+    if ($request->get(self::ACKNOWLEDGEMENT_UPDATE_PARAM_NAME, 0) == 1 && $request->isMethod('POST')) {
       return new JsonResponse($this->updateAcknowledgements($request),
         JsonResponse::HTTP_OK);
     }

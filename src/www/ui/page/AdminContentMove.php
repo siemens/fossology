@@ -46,7 +46,8 @@ class AdminContentMove extends DefaultPlugin
     $userId = Auth::getUserId();
     $vars = array();
 
-    $folderContentIds = $request->get('foldercontent', array());
+    $folderContentIds = $request->isMethod('POST') ?
+      $request->get('foldercontent', array()) : array();
     $parentFolderId = intval($request->get('toFolder'));
     $isCopyRequest = $request->get('copy');
 

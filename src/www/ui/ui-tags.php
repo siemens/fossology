@@ -321,7 +321,7 @@ class ui_tag extends FO_Plugin
       while ($row = pg_fetch_assoc($result)) {
         $VE .= "<tr><td align='center'>" . htmlspecialchars($row['tag'], ENT_QUOTES, 'UTF-8') . "</td><td align='center'>" . htmlspecialchars($row['tag_desc'], ENT_QUOTES, 'UTF-8') . "</td><td align='center'>" . substr($row['tag_file_date'],0,19) . "</td>";
         if ($this->uploadDao->isEditable($Upload, Auth::getGroupId())) {
-          $VE .= "<td align='center'><a href='" . Traceback_uri() . "?mod=tag&action=edit&upload=$Upload&item=$Uploadtree_pk&tag_file_pk=" . $row['tag_file_pk'] . "'>View/Edit</a>|<a href='" . Traceback_uri() . "?mod=tag&action=delete&upload=$Upload&item=$Uploadtree_pk&tag_file_pk=" . $row['tag_file_pk'] . "'>Delete</a></td></tr>\n";
+          $VE .= "<td align='center'><a href='" . Traceback_uri() . "?mod=tag&action=edit&upload=$Upload&item=$Uploadtree_pk&tag_file_pk=" . $row['tag_file_pk'] . "'>View/Edit</a>|<form method='post' style='display:inline' action='" . Traceback_uri() . "?mod=tag&upload=" . intval($Upload) . "&item=" . intval($Uploadtree_pk) . "'><input type='hidden' name='action' value='delete'/><input type='hidden' name='tag_file_pk' value='" . intval($row['tag_file_pk']) . "'/><button type='submit' class='btn btn-link p-0'>" . _("Delete") . "</button></form></td></tr>\n";
         } else {
           $nopermtext = _("No permission to edit tag.");
           $VE .= "<td align='center'>$nopermtext</td></tr>\n";
@@ -638,7 +638,7 @@ class ui_tag extends FO_Plugin
     $V="";
     $action = GetParm('action', PARM_TEXT);
 
-    if ($action == 'add') {
+    if ($action == 'add' && IsPostRequest()) {
       $rc = $this->CreateTag(null);
       if (! empty($rc)) {
         $text = _("Create Tag Failed");
@@ -647,7 +647,7 @@ class ui_tag extends FO_Plugin
         $this->vars['message'] = _("Create Tag Successful!");
       }
     }
-    if ($action == 'update') {
+    if ($action == 'update' && IsPostRequest()) {
       $rc = $this->EditTag();
       if (! empty($rc)) {
         $text = _("Edit Tag Failed");
@@ -656,7 +656,7 @@ class ui_tag extends FO_Plugin
         $this->vars['message'] = _("Edit Tag Successful!");
       }
     }
-    if ($action == 'delete') {
+    if ($action == 'delete' && IsPostRequest()) {
       $rc = $this->DeleteTag();
       if (! empty($rc)) {
         $text = _("Delete Tag Failed");

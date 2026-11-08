@@ -92,7 +92,7 @@ class AdminUploadDelete extends DefaultPlugin
     $uploadpks = $request->get('uploads');
     $folderId = $request->get('folder');
 
-    if (!empty($uploadpks)) {
+    if (!empty($uploadpks) && $request->isMethod('POST')) {
       $vars['message'] = $this->initDeletion($uploadpks, $folderId);
     }
 
