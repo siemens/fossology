@@ -275,6 +275,17 @@ abstract class UploadPageBase extends DefaultPlugin
   }
 
   /**
+   * Quote a value as one shell word. Unlike escapeshellarg(), keeps non-ASCII
+   * bytes regardless of the locale.
+   * @param string $str
+   * @return string
+   */
+  protected function shQuote($str)
+  {
+    return "'" . str_replace("'", "'\\''", $str) . "'";
+  }
+
+  /**
    * Sanitize a comma-separated list of exclude path patterns.
    *
    * This function processes a string of comma-separated path patterns and returns

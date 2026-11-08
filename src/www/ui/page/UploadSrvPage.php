@@ -204,6 +204,12 @@ class UploadSrvPage extends UploadPageBase
         _("you are not allowed to upload this file");
       return array(false, $text, $description);
     }
+    /* wget_agent copies the path through the shell, unquoted for patterns
+     * and directories */
+    if (preg_match('/[;&<>()\'"`$\n]/', $sourceFiles) === 1) {
+      $text = _("The file pattern contains characters that are not allowed.");
+      return array(false, $text, $description);
+    }
     if (! $this->path_is_pattern($sourceFiles) &&
       ! $this->remote_file_exists($sourceFiles, $host)) {
       $text = _("'$sourceFiles' does not exist.\n");

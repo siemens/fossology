@@ -68,6 +68,10 @@ class UploadVcsPage extends UploadPageBase
     if (preg_match("@^((http)|(https))://([[:alnum:]]+)@i", $getUrl) != 1) {
       return array(false, _("Invalid URL") . $getUrl, $description);
     }
+    /* wget_agent passes this URL to the shell unquoted */
+    if (preg_match('/[;|&<>()\'"`$\\\\]/', $getUrl) === 1) {
+      return array(false, _("Invalid URL") . $getUrl, $description);
+    }
     $getUrl = $this->basicShEscaping($getUrl);
 
     if ($request->getSession()->get(self::UPLOAD_FORM_BUILD_PARAMETER_NAME)
@@ -113,24 +117,24 @@ class UploadVcsPage extends UploadPageBase
     }
 
     $VCSType = trim($request->get('vcstype'));
-    $VCSType = $this->basicShEscaping($VCSType);
+    if (!in_array($VCSType, array('SVN', 'Git'), true)) {
+      return array(false, _("Invalid VCS type"), $description);
+    }
     $jq_args = "$uploadId - $getUrl $VCSType ";
 
     $Username = trim($request->get('username'));
-    $Username = $this->basicShEscaping($Username);
     if (!empty($Username)) {
-      $jq_args .= "--username $Username ";
+      $jq_args .= "--username " . $this->shQuote($Username) . " ";
     }
 
     $Passwd = trim($request->get('passwd'));
-    $Passwd = $this->basicShEscaping($Passwd);
     if (!empty($Passwd)) {
-      $jq_args .= "--password $Passwd ";
+      $jq_args .= "--password " . $this->shQuote($Passwd) . " ";
     }
 
     $Branch = trim(explode(' ',trim($request->get('branch')))[0]);
     if (!empty($Branch) && strcasecmp($VCSType,'git') == 0) {
-      $jq_args .= "--single-branch --branch '$Branch'";
+      $jq_args .= "--single-branch --branch " . $this->shQuote($Branch);
     }
 
     $jobqueuepk = JobQueueAdd($jobpk, "wget_agent", $jq_args, NULL, NULL);

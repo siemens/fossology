@@ -30,6 +30,7 @@
       <file>www/ui_tests/Unit/AgentAdderTest.php</file>
       <file>www/ui_tests/Unit/UploadPermissionPageTest.php</file>
       <file>www/ui_tests/Unit/AccessGuardsTest.php</file>
+      <file>www/ui_tests/Unit/UploadShellArgsTest.php</file>
       <file>www/ui_tests/Unit/TemplateEscapingTest.php</file>
       <file>www/ui_tests/Unit/WriteNeedsPostTest.php</file>
       <file>www/ui_tests/Unit/SiteMinderUserTest.php</file>

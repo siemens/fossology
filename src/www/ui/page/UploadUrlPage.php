@@ -77,9 +77,7 @@ class UploadUrlPage extends UploadPageBase
 
     /* first trim, then get rid of whitespaces before and after each comma letter */
     $accept = preg_replace('/\s*,\s*/', ',', trim($request->get(self::ACCEPT_PARAM)));
-    $accept = $this->basicShEscaping($accept);
     $reject = preg_replace('/\s*,\s*/', ',', trim($request->get(self::REJECT_PARAM)));
-    $reject = $this->basicShEscaping($reject);
 
     /* Create the job: job "wget" */
     $jobId = JobAddJob($userId, $groupId, "wget", $uploadId);
@@ -89,9 +87,9 @@ class UploadUrlPage extends UploadPageBase
 
     $jqArgs = "$uploadId - $getURL -l $level ";
     if (! empty($accept)) {
-      $jqArgs .= "-A $accept ";
+      $jqArgs .= "-A " . $this->shQuote($accept) . " ";
     }
-    $jqArgs .= empty($reject) ? "-R index.html* " : "-R $reject,index.html* ";
+    $jqArgs .= "-R " . $this->shQuote(empty($reject) ? "index.html*" : "$reject,index.html*") . " ";
 
     $jobqueueId = JobQueueAdd($jobId, "wget_agent", $jqArgs, NULL, NULL);
     if (empty($jobqueueId)) {
