@@ -28,6 +28,7 @@ use Fossology\UI\Api\Helper\RestHelper;
 use Fossology\UI\Api\Models\ApiVersion;
 use Mockery as M;
 use Slim\Psr7\Factory\StreamFactory;
+use Fossology\Lib\Auth\Auth;
 use Slim\Psr7\Headers;
 use Slim\Psr7\Request;
 use Slim\Psr7\Uri;
@@ -271,5 +272,45 @@ class AuthControllerTest extends \PHPUnit\Framework\TestCase
     $this->expectExceptionCode(404);
 
     $this->authController->createNewJwtToken($request, $response, []);
+  }
+
+  /**
+   * @test
+   * -# A user below write level asks for a write token
+   * -# The token must be issued with read scope, as in the UI
+   */
+  public function testCreateNewJwtTokenReadOnlyUserGetsReadScope()
+  {
+    global $container;
+    $authHelper = M::mock(AuthHelper::class);
+    $authHelper->shouldReceive('checkUsernameAndPassword')->andReturn(true);
+    $authHelper->shouldReceive('generateJwtToken')->withArgs([
+      '2020-01-01', '2020-01-01', '2.2', 'r', M::any()])->once()
+      ->andReturn("sometoken");
+    $this->dbHelper->shouldReceive('insertNewTokenKey')->withArgs([
+      2, '2020-01-01', 'r', 'test_token', M::any()])->once()->andReturn([
+      "jti" => "2.2", "created_on" => '2020-01-01']);
+    $this->restHelper->shouldReceive('validateTokenRequest')->andReturnNull();
+    $this->restHelper->shouldReceive('getAuthHelper')->andReturn($authHelper);
+    $this->restHelper->shouldReceive('getUserId')->andReturn(2);
+    $container->shouldReceive('get')->withArgs(array('helper.restHelper'))
+      ->andReturn($this->restHelper);
+
+    $body = $this->streamFactory->createStream(json_encode([
+      "username" => "foss", "password" => "foss", "token_name" => "test_token",
+      "token_scope" => "write", "token_expire" => "2020-01-01"]));
+    $requestHeaders = new Headers();
+    $requestHeaders->setHeader('Content-Type', 'application/json');
+    $request = new Request("POST", new Uri("HTTP", "localhost"),
+      $requestHeaders, [], [], $body);
+    $GLOBALS['SysConf'] = ['AUTHENTICATION' => ['resttoken' => 'token']];
+    $_SESSION[Auth::USER_LEVEL] = Auth::PERM_READ;
+    try {
+      $response = $this->authController->createNewJwtToken($request,
+        new ResponseHelper(), []);
+    } finally {
+      unset($_SESSION[Auth::USER_LEVEL]);
+    }
+    $this->assertEquals(201, $response->getStatusCode());
   }
 }

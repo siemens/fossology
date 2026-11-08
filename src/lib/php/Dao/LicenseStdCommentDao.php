@@ -31,6 +31,16 @@ class LicenseStdCommentDao
   }
 
   /**
+   * @param int $id
+   * @return array|false The row, false if there is none
+   */
+  public function getCommentRow($id)
+  {
+    return $this->dbManager->getSingleRow(
+      "SELECT lsc_pk, name, comment FROM license_std_comment WHERE lsc_pk = $1", [$id], __METHOD__);
+  }
+
+  /**
    * Get all the comments and their name stored in the DB, sorted by their ID
    * in ascending order.
    * @param boolean $skipNotSet Skip the entries where the name is not changed

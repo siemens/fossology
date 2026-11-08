@@ -183,6 +183,7 @@ class UploadControllerTest extends \PHPUnit\Framework\TestCase
     $this->dbManager = M::mock(DbManager::class);
     $this->restHelper = M::mock(RestHelper::class);
     $this->uploadDao = M::mock(UploadDao::class);
+    $this->uploadDao->shouldReceive('isEditable')->andReturn(true)->byDefault();
     $this->folderDao = M::mock(FolderDao::class);
     $this->agentDao = M::mock(AgentDao::class);
     $this->userDao = M::mock(UserDao::class);
@@ -640,6 +641,13 @@ class UploadControllerTest extends \PHPUnit\Framework\TestCase
     $info = new Info(202, "Upload $uploadId will be copied to folder $folderId",
       InfoType::INFO);
 
+    $this->dbHelper->shouldReceive('doesIdExist')
+      ->withArgs(["upload", "upload_pk", $uploadId])->andReturn(true);
+    $this->uploadDao->shouldReceive('isAccessible')
+      ->withArgs([$uploadId, $this->groupId])->andReturn(true);
+    /* copying needs read access only */
+    $this->uploadDao->shouldReceive('isEditable')
+      ->withArgs([$uploadId, $this->groupId])->andReturn(false);
     $this->restHelper->shouldReceive('copyUpload')
       ->withArgs([$uploadId, $folderId, true])->andReturn($info);
     $expectedResponse = (new ResponseHelper())->withJson($info->getArray(),
@@ -742,6 +750,65 @@ class UploadControllerTest extends \PHPUnit\Framework\TestCase
   public function testPostUploadV2()
   {
     $this->testPostUpload(ApiVersion::V2);
+  }
+
+  /**
+   * @test
+   * -# Unknown permission names are refused before anything changes
+   */
+  public function testSetUploadPermissionsRefusesUnknownNames()
+  {
+    foreach ([['newPermission' => 'read'], ['publicPermission' => 'public'],
+        ['newPermission' => 'ADMIN'], ['newPermission' => ['admin']]] as $field) {
+      $body = $this->streamFactory->createStream(json_encode(array_merge(
+        ['folderId' => 1, 'allUploadsPermission' => false, 'groupId' => 3], $field)));
+      $requestHeaders = new Headers();
+      $requestHeaders->setHeader('Content-Type', 'application/json');
+      $request = new Request("PUT", new Uri("HTTP", "localhost"), $requestHeaders,
+        [], [], $body);
+      try {
+        $this->uploadController->setUploadPermissions($request, new ResponseHelper(),
+          ['id' => 2]);
+        $this->fail('Accepted ' . json_encode($field));
+      } catch (HttpBadRequestException $e) {
+        $this->assertStringContainsString(key($field) . ' must be one of', $e->getMessage());
+      }
+    }
+  }
+
+  /**
+   * @runInSeparateProcess
+   * @preserveGlobalState disabled
+   * @test
+   * -# A refused upload with code 400 gives 400; one without a code gives 500
+   */
+  public function testPostUploadRefusalStatus()
+  {
+    foreach ([[[false, 'refused', 'internal host', 400], HttpBadRequestException::class],
+        [[false, 'failed', 'no record'], HttpInternalServerErrorException::class]]
+        as list($helperResult, $expected)) {
+      $requestHeaders = new Headers();
+      $requestHeaders->setHeader('Content-Type', 'application/json');
+      $requestHeaders->setHeader('folderId', 2);
+      $requestHeaders->setHeader('uploadDescription', 'd');
+      $requestHeaders->setHeader('ignoreScm', 'true');
+      $requestHeaders->setHeader('uploadType', 'url');
+      $request = new Request("POST", new Uri("HTTP", "localhost"), $requestHeaders,
+        [], [], $this->streamFactory->createStream(json_encode(["location" => "data"])));
+      $uploadHelper = M::mock('overload:Fossology\UI\Api\Helper\UploadHelper');
+      $uploadHelper->shouldReceive('createNewUpload')->andReturn($helperResult);
+      $this->folderDao->shouldReceive('getAllFolderIds')->andReturn([2]);
+      $this->folderDao->shouldReceive('isFolderAccessible')->andReturn(true);
+      try {
+        $this->uploadController->postUpload($request, new ResponseHelper(), []);
+        $this->fail("No exception for " . $helperResult[1]);
+      } catch (\Exception $e) {
+        $this->assertInstanceOf($expected, $e, $helperResult[1]);
+        $this->assertStringContainsString($helperResult[2], $e->getMessage());
+      }
+      M::close();
+      $this->setUp();
+    }
   }
 
   /**
@@ -1259,6 +1326,10 @@ class UploadControllerTest extends \PHPUnit\Framework\TestCase
       UploadController::FILTER_ASSIGNEE . "=$assignee"),
       new Headers(), [], [], $body);
 
+    $this->dbHelper->shouldReceive('doesIdExist')
+      ->withArgs(["upload", "upload_pk", $upload])->andReturn(true);
+    $this->uploadDao->shouldReceive('isAccessible')
+      ->withArgs([$upload, $this->groupId])->andReturn(true);
     $this->userDao->shouldReceive('isAdvisorOrAdmin')
       ->withArgs([$this->userId, $this->groupId])
       ->andReturn(true);
@@ -1304,6 +1375,10 @@ class UploadControllerTest extends \PHPUnit\Framework\TestCase
       UploadController::FILTER_ASSIGNEE . "=$assignee"),
       new Headers(), [], [], $body);
 
+    $this->dbHelper->shouldReceive('doesIdExist')
+      ->withArgs(["upload", "upload_pk", $upload])->andReturn(true);
+    $this->uploadDao->shouldReceive('isAccessible')
+      ->withArgs([$upload, $this->groupId])->andReturn(true);
     $this->userDao->shouldReceive('isAdvisorOrAdmin')
       ->withArgs([$this->userId, $this->groupId])
       ->andReturn(false);
@@ -1968,6 +2043,8 @@ class UploadControllerTest extends \PHPUnit\Framework\TestCase
 
     $this->dbHelper->shouldReceive('doesIdExist')
       ->withArgs(["upload", "upload_pk", $uploadId])->andReturn(true);
+    $this->uploadDao->shouldReceive('isAccessible')
+      ->withArgs([$uploadId, $this->groupId])->andReturn(true);
     $this->uploadDao->shouldReceive('getParentItemBounds')
       ->withAnyArgs()->andReturn($this->getUploadBounds($uploadId));
     $this->uploadDao->shouldReceive("getUploadtreeTableName")->withArgs([$uploadId])->andReturn("uploadtree");
@@ -2015,6 +2092,8 @@ class UploadControllerTest extends \PHPUnit\Framework\TestCase
 
     $this->dbHelper->shouldReceive('doesIdExist')
       ->withArgs(["upload", "upload_pk", $uploadId])->andReturn(true);
+    $this->uploadDao->shouldReceive('isAccessible')
+      ->withArgs([$uploadId, $this->groupId])->andReturn(true);
     $this->uploadDao->shouldReceive('getParentItemBounds')
       ->withAnyArgs()->andReturn($this->getUploadBounds($uploadId));
     $this->uploadDao->shouldReceive("getUploadtreeTableName")->withArgs([$uploadId])->andReturn("uploadtree");
@@ -2066,14 +2145,120 @@ class UploadControllerTest extends \PHPUnit\Framework\TestCase
       ->withAnyArgs()->andReturn($itemTreeBounds);
     $this->uploadDao->shouldReceive('getUploadtreeTableName')
       ->withArgs([$uploadId])->andReturn($uploadTreeTableName);
-    $this->dbManager->shouldReceive('getSingleRow')
-      ->withArgs([M::on(function ($sql) use ($uploadTreeTableName) {
-        return strpos($sql, "FROM $uploadTreeTableName WHERE") !== false;
-      }), [$itemTreeBounds->getItemId()], M::any()])
+    $this->uploadDao->shouldReceive('getUploadEntry')
+      ->withArgs([$itemTreeBounds->getItemId(), $uploadTreeTableName])
       ->once()->andReturn(false);
     $this->expectException(HttpNotFoundException::class);
 
     $this->uploadController->uploadDownload(null, new ResponseHelper(),
+      ['id' => $uploadId]);
+  }
+
+  /**
+   * @test
+   * -# An upload the group can only read
+   * -# Each mutating handler must answer 403 before changing anything
+   */
+  public function testMutationsRefusedOnReadOnlyUpload()
+  {
+    $uploadId = 2;
+    $this->dbHelper->shouldReceive('doesIdExist')
+      ->withArgs(["upload", "upload_pk", $uploadId])->andReturn(true);
+    $this->uploadDao->shouldReceive('isAccessible')
+      ->withArgs([$uploadId, $this->groupId])->andReturn(true);
+    $this->uploadDao->shouldReceive('isEditable')
+      ->withArgs([$uploadId, $this->groupId])->andReturn(false);
+    $this->licenseDao->shouldReceive('getLicenseByShortName')->andReturnNull();
+
+    $requestHeaders = new Headers();
+    $requestHeaders->setHeader('Content-Type', 'application/json');
+    $body = $this->streamFactory->createStream(
+      json_encode(["shortName" => "MIT"]));
+    $request = new Request("POST", new Uri("HTTP", "localhost"),
+      $requestHeaders, [], [], $body);
+
+    $handlers = [
+      fn () => $this->uploadController->setMainLicense($request,
+        new ResponseHelper(), ['id' => $uploadId]),
+      fn () => $this->uploadController->removeMainLicense($request,
+        new ResponseHelper(), ['id' => $uploadId, 'shortName' => 'MIT']),
+    ];
+    foreach ($handlers as $handler) {
+      try {
+        $handler();
+        $this->fail("Read-only upload was changed");
+      } catch (HttpForbiddenException $e) {
+        $this->assertEquals(403, $e->getCode());
+      }
+    }
+  }
+
+  /**
+   * @test
+   * -# An advisor whose group can not reach the upload
+   * -# Renaming must be refused before any write
+   */
+  public function testUpdateUploadRefusedOnInaccessibleUpload()
+  {
+    $uploadId = 2;
+    $this->dbHelper->shouldReceive('doesIdExist')
+      ->withArgs(["upload", "upload_pk", $uploadId])->andReturn(true);
+    $this->uploadDao->shouldReceive('isAccessible')
+      ->withArgs([$uploadId, $this->groupId])->andReturn(false);
+    $this->userDao->shouldNotReceive('isAdvisorOrAdmin');
+
+    $requestHeaders = new Headers();
+    $requestHeaders->setHeader('Content-Type', 'application/json');
+    $body = $this->streamFactory->createStream(
+      json_encode(["name" => "renamed"]));
+    $request = new Request("PATCH", new Uri("HTTP", "localhost"),
+      $requestHeaders, [], [], $body);
+
+    $this->expectException(HttpForbiddenException::class);
+    $this->uploadController->updateUpload($request, new ResponseHelper(),
+      ['id' => $uploadId]);
+  }
+
+  /**
+   * @test
+   * -# An upload another group owns
+   * -# getTopItem must refuse it
+   */
+  public function testGetTopItemNotAccessible()
+  {
+    $uploadId = 2;
+    $this->dbHelper->shouldReceive('doesIdExist')
+      ->withArgs(["upload", "upload_pk", $uploadId])->andReturn(true);
+    $this->uploadDao->shouldReceive('isAccessible')
+      ->withArgs([$uploadId, $this->groupId])->andReturn(false);
+    $this->expectException(HttpForbiddenException::class);
+    $this->uploadController->getTopItem(null, new ResponseHelper(),
+      ["id" => $uploadId]);
+  }
+
+  /**
+   * @test
+   * -# An upload the group can only read
+   * -# Moving it must be refused, not reported as accepted
+   */
+  public function testMoveUploadRefusedOnReadOnlyUpload()
+  {
+    $uploadId = 2;
+    $this->dbHelper->shouldReceive('doesIdExist')
+      ->withArgs(["upload", "upload_pk", $uploadId])->andReturn(true);
+    $this->uploadDao->shouldReceive('isAccessible')
+      ->withArgs([$uploadId, $this->groupId])->andReturn(true);
+    $this->uploadDao->shouldReceive('isEditable')
+      ->withArgs([$uploadId, $this->groupId])->andReturn(false);
+    $this->restHelper->shouldNotReceive('copyUpload');
+
+    $requestHeaders = new Headers();
+    $requestHeaders->setHeader('folderId', '3');
+    $requestHeaders->setHeader('action', 'move');
+    $request = new Request("PUT", new Uri("HTTP", "localhost"), $requestHeaders,
+      [], [], $this->streamFactory->createStream());
+    $this->expectException(HttpForbiddenException::class);
+    $this->uploadController->moveUpload($request, new ResponseHelper(),
       ['id' => $uploadId]);
   }
 }

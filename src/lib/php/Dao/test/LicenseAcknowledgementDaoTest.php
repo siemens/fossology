@@ -465,4 +465,13 @@ class LicenseAcknowledgementDaoTest extends TestCase
     $acknowledgementId = -1;
     $this->licenseAcknowledgementDao->toggleAcknowledgement($acknowledgementId);
   }
+
+  public function testGetAcknowledgementRow()
+  {
+    $first = $this->dbManager->getSingleRow(
+      "SELECT la_pk, name FROM license_std_acknowledgement ORDER BY la_pk LIMIT 1", [], __METHOD__);
+    $row = $this->licenseAcknowledgementDao->getAcknowledgementRow($first['la_pk']);
+    $this->assertEquals($first['name'], $row['name']);
+    $this->assertFalse($this->licenseAcknowledgementDao->getAcknowledgementRow(99999));
+  }
 }

@@ -299,6 +299,34 @@ paths:
                 $ref: '#/components/schemas/Info'
         default:
           $ref: '#/components/responses/defaultResponse'
+    get:
+      operationId: getMaintenanceInfo
+      tags:
+        - Maintenance
+      summary: Get details about the last completed maintenance job
+      description: >
+        Retrieve the timestamp of the last successfully completed maintenance job.
+      responses:
+        '200':
+          description: Maintenance information.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceInfo'
+        '403':
+          description: Access denied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '500':
+          description: Internal Server Error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        default:
+          $ref: '#/components/responses/defaultResponse'
   /health:
     get:
       operationId: getHealth
@@ -478,12 +506,12 @@ paths:
             schema:
               type: object
               properties:
-                fileInput:
+                file_input:
                   type: string
                   format: binary
                   description: JSON to be imported
               required:
-                - fileInput
+                - file_input
       responses:
         '400':
           description: Validation Error
@@ -4219,6 +4247,61 @@ paths:
                 $ref: '#/components/schemas/Info'
         default:
           $ref: '#/components/responses/defaultResponse'
+    put:
+      operationId: updateGroupByName
+      tags:
+        - Organize
+        - Groups
+        - Admin
+      summary: Rename group by name
+      description: >
+        Renames a single group by name. Only an admin of the group can rename it.
+      requestBody:
+        description: New name of the group
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateGroup'
+      responses:
+        '200':
+          description: Group has been renamed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '400':
+          description: No group name provided or the new name is invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '403':
+          description: Not admin of the group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '404':
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '409':
+          description: Another group already uses the new name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '500':
+          description: Internal server error with details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        default:
+          $ref: '#/components/responses/defaultResponse'
   /groups/{id}/user/{userId}:
     parameters:
       - name: id
@@ -4874,12 +4957,12 @@ paths:
             schema:
               type: object
               properties:
-                fileInput:
+                file_input:
                   type: string
                   format: binary
                   description: JSON to be imported
               required:
-                - fileInput
+                - file_input
       responses:
         '400':
           description: Validation Error
@@ -5520,6 +5603,551 @@ paths:
                 $ref: '#/components/schemas/Info'
         '500':
           description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        default:
+          $ref: '#/components/responses/defaultResponse'
+  /license-compatibility-rules:
+    get:
+      operationId: getLicenseCompatibilityRules
+      tags:
+        - License
+        - Admin
+      summary: Get the license compatibility rules
+      description: >
+        Get the list of license compatibility rules from the server.
+      parameters:
+        - name: page
+          description: Page number for responses
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          description: Limit of rules per request
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+        - name: search
+          description: Filter the rules on their description
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of the license compatibility rules
+          headers:
+            X-Total-Pages:
+              description: Total number of pages available
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LicenseCompatibilityRule'
+        '400':
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '403':
+          description: Route is not accessible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        default:
+          $ref: '#/components/responses/defaultResponse'
+    post:
+      operationId: createLicenseCompatibilityRule
+      tags:
+        - License
+        - Admin
+      summary: Create a new license compatibility rule
+      description: >
+        Create a new license compatibility rule. At least one license or
+        license type has to be given, a rule without any of them would shadow
+        the default compatibility of the server.
+      requestBody:
+        description: New license compatibility rule
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewLicenseCompatibilityRule'
+      responses:
+        '201':
+          description: Rule added successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '400':
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '403':
+          description: Route is not accessible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        default:
+          $ref: '#/components/responses/defaultResponse'
+
+  /license-compatibility-rules/{id}:
+    parameters:
+      - name: id
+        required: true
+        description: Id of the license compatibility rule
+        in: path
+        schema:
+          type: integer
+    put:
+      operationId: updateLicenseCompatibilityRule
+      tags:
+        - License
+        - Admin
+      summary: Update a license compatibility rule
+      description: >
+        Update an existing license compatibility rule. Only the fields sent in
+        the request body are updated.
+      requestBody:
+        description: Values of the rule to update
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EditLicenseCompatibilityRule'
+      responses:
+        '200':
+          description: Rule updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '400':
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '403':
+          description: Route is not accessible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '404':
+          description: Rule not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        default:
+          $ref: '#/components/responses/defaultResponse'
+    delete:
+      operationId: deleteLicenseCompatibilityRule
+      tags:
+        - License
+        - Admin
+      summary: Delete a license compatibility rule
+      description: >
+        Permanently remove an existing license compatibility rule.
+      responses:
+        '200':
+          description: Rule deleted successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '403':
+          description: Route is not accessible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '404':
+          description: Rule not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        default:
+          $ref: '#/components/responses/defaultResponse'
+
+  /license-compatibility-rules/import:
+    post:
+      operationId: importLicenseCompatibilityRules
+      tags:
+        - License
+        - Admin
+      summary: Import license compatibility rules from a YAML file
+      description: >
+        Import the license compatibility rules from a YAML file. Rules already
+        present in the server are updated, the missing ones are created.
+      requestBody:
+        description: Include the YAML file
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file_input:
+                  type: string
+                  format: binary
+                  description: YAML to be imported
+              required:
+                - file_input
+      responses:
+        '200':
+          description: Successfully imported
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '400':
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '403':
+          description: Route is not accessible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        default:
+          $ref: '#/components/responses/defaultResponse'
+
+  /license-compatibility-rules/export:
+    get:
+      operationId: exportLicenseCompatibilityRules
+      tags:
+        - License
+        - Admin
+      summary: Export the license compatibility rules as a YAML file
+      description: >
+        Export the license compatibility rules of the server as a YAML file.
+      parameters:
+        - name: id
+          description: Id of the rule to export, 0 for all
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Successfully exported
+          content:
+            text/x-yaml:
+              schema:
+                type: string
+                format: binary
+        '403':
+          description: Route is not accessible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '404':
+          description: Rule not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        default:
+          $ref: '#/components/responses/defaultResponse'
+
+  /license/bulk-text/export:
+    get:
+      operationId: exportBulkText
+      tags:
+        - License
+        - Admin
+      summary: Export bulk scan text as CSV or JSON
+      description: >
+        Export bulk scan text entries from license_ref_bulk.
+        Defaults are format=json and filter=all.
+      parameters:
+        - name: format
+          in: query
+          required: false
+          description: Output format.
+          schema:
+            type: string
+            enum:
+              - csv
+              - json
+            default: json
+        - name: filter
+          in: query
+          required: false
+          description: Filter mode for export.
+          schema:
+            type: string
+            enum:
+              - all
+              - user
+              - group
+            default: all
+        - name: userId
+          in: query
+          required: false
+          description: User ID, required when filter=user.
+          schema:
+            type: integer
+            minimum: 1
+        - name: groupId
+          in: query
+          required: false
+          description: Group ID, required when filter=group.
+          schema:
+            type: integer
+            minimum: 1
+        - name: delimiter
+          in: query
+          required: false
+          description: CSV delimiter character (used only when format=csv).
+          schema:
+            type: string
+            default: ','
+        - name: enclosure
+          in: query
+          required: false
+          description: CSV enclosure character (used only when format=csv).
+          schema:
+            type: string
+            default: '"'
+      responses:
+        '200':
+          description: Successfully exported
+          content:
+            text/csv:
+            application/json:
+        '400':
+          description: Validation error in query parameters
+          content:
+            application/json:
+        '403':
+          description: Route is not accessible
+          content:
+            application/json:
+        default:
+          $ref: '#/components/responses/defaultResponse'
+  /uploads/{id}/groups/permission:
+    parameters:
+      - name: id
+        required: true
+        description: Id of the upload
+        in: path
+        schema:
+          type: integer
+    get:
+      operationId: getGroupsWithPermissionsByGroups
+      tags:
+        - Upload
+      summary: Get all the groups with their respective permissions for a upload
+      description:
+        Returns the list of all the groups with their respective permissions for a upload
+      responses:
+        '200':
+          description: Get Groups with permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadPermGroups'
+        '404':
+          description: Upload does not exist
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Info'
+        default:
+          $ref: '#/components/responses/defaultResponse'
+  /osselot/packages/{package}/versions:
+    parameters:
+      - name: package
+        required: true
+        description: Package name
+        in: path
+        schema:
+          type: string
+    get:
+      operationId: getOsselotPackageVersions
+      tags:
+        - Upload
+      summary: List the versions OSSelot has curated data for
+      responses:
+        '200':
+          description: Version strings, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        '400':
+          description: Package name is missing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '404':
+          description: No curated versions for the package
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '501':
+          description: OSSelot integration is disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '502':
+          description: OSSelot is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        default:
+          $ref: '#/components/responses/defaultResponse'
+  /uploads/{id}/osselot/import:
+    parameters:
+      - name: id
+        required: true
+        description: Id of the upload
+        in: path
+        schema:
+          type: integer
+    post:
+      operationId: importOsselotReport
+      tags:
+        - Upload
+      summary: Import the curated OSSelot SPDX report for a package version
+      description: Needs write access to the upload.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - package
+                - version
+                - options
+              properties:
+                package:
+                  type: string
+                version:
+                  type: string
+                options:
+                  type: object
+                  required:
+                    - addLicenseInfoFromInfoInFile
+                    - addLicenseInfoFromConcluded
+                    - addConcludedAsDecisions
+                    - addCopyrights
+                  properties:
+                    addLicenseInfoFromInfoInFile:
+                      type: boolean
+                    addLicenseInfoFromConcluded:
+                      type: boolean
+                    addConcludedAsDecisions:
+                      type: boolean
+                    addConcludedAsDecisionsOverwrite:
+                      type: boolean
+                    addConcludedAsDecisionsTBD:
+                      type: boolean
+                    addCopyrights:
+                      type: boolean
+                    addNewLicensesAs:
+                      type: string
+                      enum: [candidate, approved, rejected]
+                    licenseMatch:
+                      type: string
+                      enum: [spdxid, name, text]
+      responses:
+        '202':
+          description: Import job scheduled; jobId is the job queue id
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Info'
+                  - type: object
+                    properties:
+                      jobId:
+                        type: integer
+        '400':
+          description: Missing or invalid fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '403':
+          description: No write access to the upload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '404':
+          description: Upload or curated report not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '409':
+          description: An import job is already in progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '501':
+          description: OSSelot integration is disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '502':
+          description: OSSelot is unavailable
           content:
             application/json:
               schema:
@@ -7642,6 +8270,167 @@ components:
           items:
             type: string
           example: [ "clixml", "pkgagent", "maintagent", "deciderjob" ]
+    LicenseCompatibilityRule:
+      description: License compatibility rule information
+      type: object
+      properties:
+        id:
+          description: Id of the rule
+          type: integer
+          example:
+            4
+        first_license_id:
+          description: Id of the first license, null matches every license
+          type: integer
+          nullable: true
+          example:
+            306
+        first_license_name:
+          description: Short name of the first license
+          type: string
+          nullable: true
+          example:
+            "MIT"
+        second_license_id:
+          description: Id of the second license, null matches every license
+          type: integer
+          nullable: true
+          example:
+            188
+        second_license_name:
+          description: Short name of the second license
+          type: string
+          nullable: true
+          example:
+            "GPL-2.0-only"
+        first_type:
+          description: >
+            License type of the first license, null matches every type. Allowed
+            values are configured by the `LicenseTypes` setting of the server.
+          type: string
+          nullable: true
+          example:
+            "Permissive"
+        second_type:
+          description: License type of the second license, null matches every type
+          type: string
+          nullable: true
+          example:
+            "Strong Copyleft"
+        comment:
+          description: Description of the rule
+          type: string
+          example:
+            "A permissive license is compatible with a copyleft license"
+        compatibility:
+          description: Compatibility result of the rule
+          type: boolean
+          example:
+            true
+    NewLicenseCompatibilityRule:
+      description: New license compatibility rule
+      type: object
+      properties:
+        firstLicenseId:
+          description: Id of the first license, null matches every license
+          type: integer
+          nullable: true
+          example:
+            306
+        secondLicenseId:
+          description: Id of the second license, null matches every license
+          type: integer
+          nullable: true
+          example:
+            188
+        firstType:
+          description: License type of the first license, null matches every type
+          type: string
+          nullable: true
+          example:
+            "Permissive"
+        secondType:
+          description: License type of the second license, null matches every type
+          type: string
+          nullable: true
+          example:
+            "Strong Copyleft"
+        comment:
+          description: Description of the rule
+          type: string
+          example:
+            "A permissive license is compatible with a copyleft license"
+        compatibility:
+          description: Compatibility result of the rule
+          type: boolean
+          example:
+            true
+      required:
+        - comment
+        - compatibility
+    EditLicenseCompatibilityRule:
+      description: >
+        Values of a license compatibility rule to update. Only the fields sent
+        in the request body are updated, at least one is required.
+      type: object
+      properties:
+        firstLicenseId:
+          description: Id of the first license, null matches every license
+          type: integer
+          nullable: true
+          example:
+            306
+        secondLicenseId:
+          description: Id of the second license, null matches every license
+          type: integer
+          nullable: true
+          example:
+            188
+        firstType:
+          description: License type of the first license, null matches every type
+          type: string
+          nullable: true
+          example:
+            "Permissive"
+        secondType:
+          description: License type of the second license, null matches every type
+          type: string
+          nullable: true
+          example:
+            "Strong Copyleft"
+        comment:
+          description: Description of the rule
+          type: string
+          example:
+            "A permissive license is compatible with a copyleft license"
+        compatibility:
+          description: Compatibility result of the rule
+          type: boolean
+          example:
+            true
+    MaintenanceInfo:
+      description: Details about the last completed maintenance job
+      type: object
+      properties:
+        lastRun:
+          type: string
+          format: date-time
+          description: Timestamp of the most recently successfully completed maintenance job. Null if no maintenance job has completed successfully.
+          nullable: true
+          example: "2022-07-16T10:15:30+00:00"
+    UpdateGroup:
+      description: Group rename options
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          description: New name of the group
+          type: string
+          nullable: false
+          example:
+            "Main group"
+
   responses:
     defaultResponse:
       description: Some error occurred. Check the "message"

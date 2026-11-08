@@ -219,7 +219,7 @@ class RestHelper
       $info = new Info(202, "Upload $uploadId will be $action to folder $newFolderId",
         InfoType::INFO);
     } else {
-      $info = new Info(202, "Exceptions occurred: $errors",
+      $info = new Info(500, "Exceptions occurred: $errors",
         InfoType::ERROR);
     }
     return $info;

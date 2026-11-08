@@ -414,6 +414,75 @@ class UserDao
     return $groupNowExists['group_pk'];
   }
 
+  /**
+   * @param int $groupId
+   * @param int $userId
+   * @return int|null group_user_member_pk, null if the user is not a member
+   */
+  public function getGroupMembershipId($groupId, $userId)
+  {
+    $row = $this->dbManager->getSingleRow(
+      "SELECT group_user_member_pk FROM group_user_member WHERE group_fk=$1 AND user_fk=$2",
+      array($groupId, $userId), __METHOD__);
+    return empty($row) ? null : intval($row['group_user_member_pk']);
+  }
+
+  /**
+   * @param int $gumPk group_user_member_pk
+   * @return int|null Group of this membership, null if there is no such row
+   */
+  public function getGroupOfMembership($gumPk)
+  {
+    $row = $this->dbManager->getSingleRow(
+      "SELECT group_fk FROM group_user_member WHERE group_user_member_pk=$1",
+      array($gumPk), __METHOD__);
+    return empty($row) ? null : intval($row['group_fk']);
+  }
+
+  /**
+   * @param int $groupId
+   * @return array[] user_pk and group_perm of every member
+   */
+  public function getGroupMembers($groupId)
+  {
+    return $this->dbManager->getRows(
+      "SELECT user_pk, group_perm FROM users
+       INNER JOIN group_user_member gum ON gum.user_fk=users.user_pk AND gum.group_fk=$1",
+      array($groupId), __METHOD__);
+  }
+
+  /**
+   * Change a member's permission in a group. If the user has this group
+   * active and is removed, they move to another group they belong to.
+   *
+   * @param int $gumPk group_user_member_pk
+   * @param int $perm  -1 to remove the member, else USER, ADMIN or ADVISOR
+   */
+  public function updateGUMPermission($gumPk, $perm)
+  {
+    if ($perm === -1) {
+      $this->dbManager->prepare($stmt = __METHOD__ . ".delByGUM",
+        "DELETE FROM group_user_member WHERE group_user_member_pk=$1 RETURNING user_fk, group_fk");
+      $deletedEntry = $this->dbManager->execute($stmt, array($gumPk));
+      $effectedUser = $this->dbManager->fetchArray($deletedEntry);
+      $isEffected = $this->dbManager->getSingleRow(
+        "SELECT count(*) cnt FROM users WHERE user_pk=$1 AND group_fk = $2",
+        array($effectedUser['user_fk'], $effectedUser['group_fk']),
+        __METHOD__ . ".isUserEffectedFromRemoval");
+      if ($isEffected['cnt'] == 1) {
+        $this->dbManager->getSingleRow("UPDATE users SET group_fk = (
+          SELECT group_fk FROM group_user_member WHERE user_fk = $1 AND group_perm >= 0 LIMIT 1)
+          WHERE user_pk = $1",
+          array($effectedUser['user_fk']), __METHOD__ . ".setNewGroupId");
+      }
+      $this->dbManager->freeResult($deletedEntry);
+    } elseif (in_array($perm, array(self::USER, self::ADMIN, self::ADVISOR), true)) {
+      $this->dbManager->getSingleRow(
+        "UPDATE group_user_member SET group_perm=$1 WHERE group_user_member_pk=$2",
+        array($perm, $gumPk), __METHOD__ . ".updatePermInGUM");
+    }
+  }
+
   public function addGroupMembership($groupId, $userId, $groupPerm=1)
   {
     $this->dbManager->insertTableRow('group_user_member',

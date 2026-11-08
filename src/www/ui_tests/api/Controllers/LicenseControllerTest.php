@@ -612,14 +612,11 @@ class LicenseControllerTest extends \PHPUnit\Framework\TestCase
       "marydone" => false
     ];
 
-    $sql = "SELECT count(*) cnt FROM ".
-      "$tableName WHERE rf_shortname = $1 AND group_fk = $2;";
-
-    $this->dbManager->shouldReceive('insertTableRow')
-      ->withArgs([$tableName, $assocData, M::any(), "rf_pk"])->andReturn(4);
-    $this->dbManager->shouldReceive('getSingleRow')
-      ->withArgs([$sql, [$license->getShortName(), $this->groupId], M::any()])
-      ->andReturn(["cnt" => 0]);
+    $this->licenseDao->shouldReceive('insertLicenseRow')
+      ->withArgs([$assocData, $tableName == "license_candidate"])->andReturn(4);
+    $this->licenseDao->shouldReceive('isShortnameUnused')
+      ->withArgs([$license->getShortName(), $this->groupId])
+      ->andReturn(true);
 
     $info = new Info(201, '4', InfoType::INFO);
     $expectedResponse = (new ResponseHelper())->withJson($info->getArray(),
@@ -725,13 +722,12 @@ class LicenseControllerTest extends \PHPUnit\Framework\TestCase
     $request = $request->withAttribute(Apiversion::class, $version);
     $tableName = "license_candidate";
 
-    $sql = "SELECT count(*) cnt FROM ".
-      "$tableName WHERE rf_shortname = $1 AND group_fk = $2;";
-
-    $this->dbManager->shouldReceive('getSingleRow')
-      ->withArgs([$sql, [$license->getShortName(), $this->groupId], M::any()])
-      ->andReturn(["cnt" => 1]);
+    $this->licenseDao->shouldReceive('isShortnameUnused')
+      ->withArgs([$license->getShortName(), $this->groupId])
+      ->andReturn(false);
     $this->expectException(HttpConflictException::class);
+    $this->expectExceptionMessage("License with shortname '" .
+      $license->getShortName() . "' already exists!");
 
     $this->licenseController->createLicense($request, new ResponseHelper(), []);
   }
@@ -789,8 +785,8 @@ class LicenseControllerTest extends \PHPUnit\Framework\TestCase
     $this->dbHelper->shouldReceive('doesIdExist')
       ->withArgs(["license_candidate", "rf_pk", $license->getId()])
       ->andReturn(true);
-    $this->dbManager->shouldReceive('updateTableRow')
-      ->withArgs([$tableName, $assocData, "rf_pk", $license->getId(), M::any()]);
+    $this->licenseDao->shouldReceive('updateLicenseRow')
+      ->withArgs([$license->getId(), $assocData, $tableName == "license_candidate"])->once();
 
     $info = new Info(200, "License " . $license->getShortName() . " updated.",
       InfoType::INFO);
@@ -1130,6 +1126,21 @@ class LicenseControllerTest extends \PHPUnit\Framework\TestCase
   }
 
   /**
+   * @test
+   * -# A user who is not admin changes the acknowledgements
+   * -# The request must be refused before reading the body
+   */
+  public function testHandleAdminLicenseAcknowledgementNotAdmin()
+  {
+    $_SESSION[Auth::USER_LEVEL] = Auth::PERM_WRITE;
+    $request = new Request("PUT", new Uri("HTTP", "localhost"), new Headers(),
+      [], [], $this->streamFactory->createStream());
+    $this->expectException(HttpForbiddenException::class);
+    $this->licenseController->handleAdminLicenseAcknowledgement($request,
+      new ResponseHelper(), []);
+  }
+
+  /**
    * @test LicenseController::handleAdminLicenseAcknowledgement
    *  - # Check if the status is 400
    *  - # Check if HttpBadRequestException is thrown with empty body
@@ -1138,6 +1149,7 @@ class LicenseControllerTest extends \PHPUnit\Framework\TestCase
    */
   public function testHandleAdminLicenseAcknowledgementBadRequest()
   {
+    $_SESSION[Auth::USER_LEVEL] = Auth::PERM_ADMIN;
     $requestHeaders = new Headers();
     $requestHeaders->setHeader('Content-Type', 'application/json');
     $body = $this->streamFactory->createStream();
@@ -1159,6 +1171,7 @@ class LicenseControllerTest extends \PHPUnit\Framework\TestCase
    */
   public function testHandleAdminLicenseAcknowledgementInvalidBody()
   {
+    $_SESSION[Auth::USER_LEVEL] = Auth::PERM_ADMIN;
     $requestHeaders = new Headers();
     $requestHeaders->setHeader('Content-Type', 'application/json');
     $body = $this->streamFactory->createStream(json_encode([]));
@@ -1182,10 +1195,11 @@ class LicenseControllerTest extends \PHPUnit\Framework\TestCase
 
   public function testHandleAdminLicenseAcknowledgementWithUpdate()
   {
+    $_SESSION[Auth::USER_LEVEL] = Auth::PERM_ADMIN;
 
     $this->dbHelper->shouldReceive("doesIdExist")
       ->withArgs(["license_std_acknowledgement","name", $this->getDummyVars()["bodyContent"][0]["name"]])->andReturn(true);
-    $this->dbManager->shouldReceive("getSingleRow")
+    $this->adminLicenseAckDao->shouldReceive('getAcknowledgementRow')
       ->withAnyArgs()->andReturn($this->getDummyVars()["dummyExistingAck"]);
     $this->adminLicenseAckDao->shouldReceive('updateAcknowledgement')->withArgs([$this->getDummyVars()["bodyContent"][0]["id"], $this->getDummyVars()["bodyContent"][0]["name"], $this->getDummyVars()["bodyContent"][0]["ack"]]);
     $this->adminLicenseAckDao->shouldReceive('toggleAcknowledgement')->withArgs([$this->getDummyVars()["bodyContent"][0]["id"]]);
@@ -1220,13 +1234,14 @@ class LicenseControllerTest extends \PHPUnit\Framework\TestCase
    */
   public function testHandleAdminLicenseAcknowledgementLicenseExists()
   {
+    $_SESSION[Auth::USER_LEVEL] = Auth::PERM_ADMIN;
 
     $bodyContent = $this->getDummyVars()["bodyContent"];
     $bodyContent[0]["update"] = false;
 
     $this->dbHelper->shouldReceive("doesIdExist")
       ->withArgs(["license_std_acknowledgement","name", $this->getDummyVars()["bodyContent"][0]["name"]])->andReturn(true);
-    $this->dbManager->shouldReceive("getSingleRow")
+    $this->adminLicenseAckDao->shouldReceive('getAcknowledgementRow')
       ->withAnyArgs()->andReturn($this->getDummyVars()["dummyExistingAck"]);
     $this->adminLicenseAckDao->shouldReceive('updateAcknowledgement')->withArgs([$this->getDummyVars()["bodyContent"][0]["id"], $this->getDummyVars()["bodyContent"][0]["name"], $this->getDummyVars()["bodyContent"][0]["ack"]]);
     $this->adminLicenseAckDao->shouldReceive('toggleAcknowledgement')->withArgs([$this->getDummyVars()["bodyContent"][0]["id"]]);
@@ -1255,13 +1270,14 @@ class LicenseControllerTest extends \PHPUnit\Framework\TestCase
    */
   public function testHandleAdminLicenseAcknowledgementCreateNew()
   {
+    $_SESSION[Auth::USER_LEVEL] = Auth::PERM_ADMIN;
 
     $bodyContent = $this->getDummyVars()["bodyContent"];
     $bodyContent[0]["update"] = false;
 
     $this->dbHelper->shouldReceive("doesIdExist")
       ->withArgs(["license_std_acknowledgement","name", $this->getDummyVars()["bodyContent"][0]["name"]])->andReturn(false);
-    $this->dbManager->shouldReceive("getSingleRow")
+    $this->adminLicenseAckDao->shouldReceive('getAcknowledgementRow')
       ->withAnyArgs()->andReturn($this->getDummyVars()["dummyExistingAck"]);
     $this->adminLicenseAckDao->shouldReceive('updateAcknowledgement')->withArgs([$this->getDummyVars()["bodyContent"][0]["id"], $this->getDummyVars()["bodyContent"][0]["name"], $this->getDummyVars()["bodyContent"][0]["ack"]]);
     $this->adminLicenseAckDao->shouldReceive('toggleAcknowledgement')->withArgs([$this->getDummyVars()["bodyContent"][0]["id"]]);
@@ -1295,13 +1311,14 @@ class LicenseControllerTest extends \PHPUnit\Framework\TestCase
    */
   public function testHandleAdminLicenseAcknowledgementWithNoPermission()
   {
+    $_SESSION[Auth::USER_LEVEL] = Auth::PERM_ADMIN;
 
     $bodyContent = $this->getDummyVars()["bodyContent"];
     $bodyContent[0]["update"] = false;
 
     $this->dbHelper->shouldReceive("doesIdExist")
       ->withArgs(["license_std_acknowledgement","name", $this->getDummyVars()["bodyContent"][0]["name"]])->andReturn(false);
-    $this->dbManager->shouldReceive("getSingleRow")
+    $this->adminLicenseAckDao->shouldReceive('getAcknowledgementRow')
       ->withAnyArgs()->andReturn($this->getDummyVars()["dummyExistingAck"]);
     $this->adminLicenseAckDao->shouldReceive('updateAcknowledgement')->withArgs([$this->getDummyVars()["bodyContent"][0]["id"], $this->getDummyVars()["bodyContent"][0]["name"], $this->getDummyVars()["bodyContent"][0]["ack"]]);
     $this->adminLicenseAckDao->shouldReceive('toggleAcknowledgement')->withArgs([$this->getDummyVars()["bodyContent"][0]["id"]]);
@@ -1477,7 +1494,7 @@ class LicenseControllerTest extends \PHPUnit\Framework\TestCase
       "update" => true,
     ];
 
-    $this->dbManager->shouldReceive("getSingleRow")
+    $this->licenseStdCommentDao->shouldReceive('getCommentRow')
       ->withAnyArgs()->andReturn($existingLicenseStdComments);
     $this->licenseStdCommentDao->shouldReceive('updateComment')->withArgs([$bodyContent[0]["id"], $bodyContent[0]["name"], $bodyContent[0]["comment"]]);
     $this->licenseStdCommentDao->shouldReceive('toggleComment')->withArgs([$bodyContent[0]["id"]]);

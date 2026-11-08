@@ -111,8 +111,17 @@ class AuthHelper
     }
     $jwtToken           = $jwtTokenMatch[1];
     $jwtTokenPayload    = $jwtTokenMatch[3];
-    $jwtTokenPayloadDecoded = JWT::jsonDecode(
-      JWT::urlsafeB64Decode($jwtTokenPayload));
+    try {
+      $jwtTokenPayloadDecoded = JWT::jsonDecode(
+        JWT::urlsafeB64Decode($jwtTokenPayload));
+    } catch (\DomainException | \InvalidArgumentException $e) {
+      throw new HttpBadRequestException(
+        "Authorization header is malformed or empty.", $e);
+    }
+    if (! is_object($jwtTokenPayloadDecoded)) {
+      throw new HttpBadRequestException(
+        "Authorization header is malformed or empty.");
+    }
 
     $restToken = Auth::getRestTokenType();
     if (($restToken & Auth::TOKEN_OAUTH) == Auth::TOKEN_OAUTH &&
@@ -403,12 +412,15 @@ class AuthHelper
   private function validateTokenLogin($jwtToken, $jwtTokenPayloadDecoded,
                                       &$userId, &$tokenScope)
   {
-    $jwtJti = $jwtTokenPayloadDecoded->{'jti'};
-    $jwtJti = base64_decode($jwtJti, true);
+    $jwtJti = $jwtTokenPayloadDecoded->{'jti'} ?? null;
+    $jwtJti = is_string($jwtJti) ? base64_decode($jwtJti, true) : false;
+    if ($jwtJti === false || ! preg_match('/^\d{1,9}\.\d{1,9}$/', $jwtJti)) {
+      throw new HttpForbiddenException("Invalid token sent.");
+    }
     list ($tokenId, $userId) = explode(".", $jwtJti);
 
     $dbRows = $this->dbHelper->getTokenKey($tokenId);
-    if (empty($dbRows)) {
+    if (empty($dbRows) || empty($dbRows["token_key"])) {
       throw new HttpForbiddenException("Invalid token sent.");
     }
     $this->isTokenActive($dbRows, $tokenId);
@@ -416,7 +428,7 @@ class AuthHelper
       $jwtTokenDecoded = JWT::decode($jwtToken,
         new Key($dbRows["token_key"], 'HS256'));
       $tokenScope = $jwtTokenDecoded->{'scope'};
-    } catch (\UnexpectedValueException $e) {
+    } catch (\UnexpectedValueException | \DomainException $e) {
       throw new HttpForbiddenException($e->getMessage(), $e);
     }
   }

@@ -71,12 +71,7 @@ class JobController extends RestController
     $this->throwNotAdminException();
 
     $queryParams = $request->getQueryParams();
-    $query = $apiVersion == ApiVersion::V2 ? $queryParams : array_map(function($header) {
-      return implode(",", $header);
-    }, $request->getHeaders());
-
-    $limit = isset($query['limit']) ? intval($query['limit']) : 0;
-    $page = isset($query['page']) ? intval($query['page']) : 1;
+    list($limit, $page) = $this->getPagination($request, $apiVersion);
     $sort = $queryParams['sort'] ?? "ASC";
     $status = $queryParams['status'] ?? null;
 
@@ -102,12 +97,7 @@ class JobController extends RestController
     $userId = $this->restHelper->getUserId();
 
     $queryParams = $request->getQueryParams();
-    $query = $apiVersion == ApiVersion::V2 ? $queryParams : array_map(function($header) {
-      return implode(",", $header);
-    }, $request->getHeaders());
-
-    $limit = isset($query['limit']) ? intval($query['limit']) : 0;
-    $page = isset($query['page']) ? intval($query['page']) : 1;
+    list($limit, $page) = $this->getPagination($request, $apiVersion);
     $sort = $queryParams['sort'] ?? "ASC";
     $status = $queryParams['status'] ?? null;
 
@@ -231,6 +221,24 @@ class JobController extends RestController
     }
     $returnVal = new Info(200, "Job deleted successfully", InfoType::INFO);
     return $response->withJson($returnVal->getArray(), $returnVal->getCode());
+  }
+
+  /**
+   * Read limit and page from the query (V2) or the headers (V1).
+   *
+   * @param Request $request
+   * @param integer $apiVersion
+   * @return integer[] Limit and page, 0 and 1 if not sent
+   */
+  private function getPagination($request, $apiVersion)
+  {
+    if ($apiVersion == ApiVersion::V2) {
+      $queryParams = $request->getQueryParams();
+      return [intval($queryParams['limit'] ?? 0),
+        intval($queryParams['page'] ?? 1)];
+    }
+    return [intval($request->getHeaderLine('limit')),
+      $request->hasHeader('page') ? intval($request->getHeaderLine('page')) : 1];
   }
 
   /**
@@ -377,19 +385,7 @@ class JobController extends RestController
     // checking if the upload exists and if yes, whether it is accessible
     $this->uploadAccessible($upload_fk);
 
-    /**
-     * @var DbManager $dbManager
-     * initialising the DB manager
-     */
-    $dbManager = $this->dbHelper->getDbManager();
-
-    // getting all the jobs from the DB for the upload id
-    $query = "SELECT job_pk FROM job WHERE job_upload_fk=$1;";
-    $statement = __METHOD__.".getJobs";
-    $result = $dbManager->getRows($query, [$upload_fk], $statement);
-
-    // creating a list of all the job_pks
-    $allJobPks = array_column($result, 'job_pk');
+    $allJobPks = $this->restHelper->getShowJobDao()->getJobIdsForUpload($upload_fk);
 
     // getting the show jobs data for each job
     $showJobData = $this->getJobQueue($allJobPks);

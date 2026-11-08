@@ -299,8 +299,14 @@ class UserController extends RestController
     $tokens = $tokenType == "active" ? $userEditObj->getListOfActiveTokens() : $userEditObj->getListOfExpiredTokens();
     $manageTokenObj = $restHelper->getPlugin('manage-token');
 
+    $canRevealWrite = $this->restHelper->getAuthHelper()->getSession()
+      ->get('token_scope') === 'write';
     $finalTokens = array();
     foreach ($tokens as $token) {
+      if ($token['scope'] === RestHelper::SCOPE_DB_MAP['write'] && !$canRevealWrite) {
+        $finalTokens[] = array_merge($token, ['token' => null]);
+        continue;
+      }
       list($tokenPk) = explode(".", $token['id']);
       $tokenVal = $manageTokenObj->revealToken($tokenPk);
       $finalTokens[] = array_merge($token, ['token' => $tokenVal['token']]);

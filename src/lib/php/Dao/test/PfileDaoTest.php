@@ -283,4 +283,34 @@ reserved. permission is hereby granted to copy and distribute this
     $result = $this->pfileDao->haveConclusions(100, 100);
     $this->assertFalse($result);
   }
+
+  /**
+   * @test
+   * -# Test for PfileDao::isInAccessibleUpload()
+   * -# Group permission, public upload, permission none, file in no upload
+   */
+  public function testIsInAccessibleUpload()
+  {
+    $this->testDb->createPlainTables(['uploadtree', 'upload', 'perm_upload']);
+    $dbManager = $this->testDb->getDbManager();
+    foreach ([[1, 3, 7], [2, 4, 7], [3, 5, 8], [4, 6, 9]] as $row) {
+      $dbManager->insertTableRow('uploadtree', ['uploadtree_pk' => $row[0],
+        'upload_fk' => $row[1], 'pfile_fk' => $row[2], 'lft' => 1, 'rgt' => 2,
+        'ufile_mode' => 0, 'ufile_name' => 'f']);
+    }
+    foreach ([[3, 0], [4, 0], [5, 1], [6, 0]] as $upload) {
+      $dbManager->insertTableRow('upload', ['upload_pk' => $upload[0],
+        'public_perm' => $upload[1], 'upload_mode' => 104, 'upload_filename' => 'u']);
+    }
+    foreach ([[1, 4, 2, 1], [2, 6, 2, 0]] as $perm) {
+      $dbManager->insertTableRow('perm_upload', ['perm_upload_pk' => $perm[0],
+        'upload_fk' => $perm[1], 'group_fk' => $perm[2], 'perm' => $perm[3]]);
+    }
+    $this->assertTrue($this->pfileDao->isInAccessibleUpload(7, 2, false));
+    $this->assertFalse($this->pfileDao->isInAccessibleUpload(7, 3, true));
+    $this->assertTrue($this->pfileDao->isInAccessibleUpload(8, 3, true));
+    $this->assertFalse($this->pfileDao->isInAccessibleUpload(8, 3, false));
+    $this->assertFalse($this->pfileDao->isInAccessibleUpload(9, 2, true));
+    $this->assertFalse($this->pfileDao->isInAccessibleUpload(99, 2, true));
+  }
 }

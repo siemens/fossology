@@ -273,4 +273,48 @@ class AuthHelperTest extends \PHPUnit\Framework\TestCase
 
     $this->authHelper->userHasGroupAccess($userId, $groupName);
   }
+
+  /**
+   * @test
+   * -# Bearer tokens whose payload is not usable JSON
+   * -# The client gets a 400, not an unhandled error
+   */
+  public function testVerifyAuthTokenMalformedPayload()
+  {
+    foreach (['bm90anNvbg', 'NQ'] as $payload) {
+      $userId = -1;
+      $scope = false;
+      try {
+        $this->authHelper->verifyAuthToken("bearer aaa.$payload.ccc", $userId,
+          $scope);
+        $this->fail("Malformed token accepted");
+      } catch (\Fossology\UI\Api\Exceptions\HttpBadRequestException $e) {
+        $this->assertEquals(400, $e->getCode());
+      }
+    }
+  }
+
+  /**
+   * @test
+   * -# A token whose jti is not "tokenId.userId"
+   * -# It must be refused before the DB is asked
+   */
+  public function testVerifyAuthTokenInvalidJti()
+  {
+    $GLOBALS['SysConf']['AUTHENTICATION']['resttoken'] = 'token';
+    $this->dbHelper->shouldNotReceive('getTokenKey');
+    foreach ([['jti' => base64_encode('abc.1')], ['jti' => 5], []] as $claims) {
+      $payload = rtrim(strtr(base64_encode(json_encode((object) $claims)),
+        '+/', '-_'), '=');
+      $userId = -1;
+      $scope = false;
+      try {
+        $this->authHelper->verifyAuthToken("bearer aaa.$payload.ccc", $userId,
+          $scope);
+        $this->fail("Invalid jti accepted");
+      } catch (\Fossology\UI\Api\Exceptions\HttpForbiddenException $e) {
+        $this->assertEquals(403, $e->getCode());
+      }
+    }
+  }
 }

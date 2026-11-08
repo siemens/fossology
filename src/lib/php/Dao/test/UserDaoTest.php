@@ -143,4 +143,32 @@ class UserDaoTest extends \PHPUnit\Framework\TestCase
     $map = $this->userDao->getUserGroupMap($userId);
     assertThat($map,hasKey($groupId));
   }
+
+  public function testGetGroupMembershipId()
+  {
+    $gumPk = $this->addMember();
+    assertThat($this->userDao->getGroupMembershipId(2,1),is($gumPk));
+    assertThat($this->userDao->getGroupMembershipId(99,1),is(nullValue()));
+  }
+
+  public function testGetGroupMembers()
+  {
+    $this->testDb->createPlainTables(array('users','groups','group_user_member'));
+    $this->testDb->insertData(array('users','groups','group_user_member'));
+    $this->userDao->addGroupMembership($groupId=2,$userId=1,2);
+    $members = $this->userDao->getGroupMembers($groupId);
+    $byUser = array_column($members,'group_perm','user_pk');
+    assertThat($byUser,hasKey($userId));
+    assertThat(intval($byUser[$userId]),is(2));
+    assertThat($this->userDao->getGroupMembers(99),is(emptyArray()));
+  }
+
+  private function addMember()
+  {
+    $this->testDb->createPlainTables(array('users','groups','group_user_member'));
+    $this->testDb->insertData(array('users','groups','group_user_member'));
+    $this->dbManager->insertTableRow('group_user_member', array(
+      'group_user_member_pk'=>900,'group_fk'=>2,'user_fk'=>1,'group_perm'=>UserDao::USER));
+    return 900;
+  }
 }

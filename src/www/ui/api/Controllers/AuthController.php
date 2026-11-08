@@ -75,12 +75,18 @@ class AuthController extends RestController
       throw new HttpNotFoundException("Username or password incorrect.");
     }
 
+    $tokenScope = $tokenRequest->getTokenScope();
+    if (isset($_SESSION[Auth::USER_LEVEL]) &&
+        $_SESSION[Auth::USER_LEVEL] < Auth::PERM_WRITE) {
+      $tokenScope = RestHelper::SCOPE_DB_MAP['read'];
+    }
+
     $userId = $this->restHelper->getUserId();
     $key    = bin2hex(
       openssl_random_pseudo_bytes(RestHelper::TOKEN_KEY_LENGTH / 2));
     try {
       $jti = $this->dbHelper->insertNewTokenKey($userId,
-        $tokenRequest->getTokenExpire(), $tokenRequest->getTokenScope(),
+        $tokenRequest->getTokenExpire(), $tokenScope,
         $tokenRequest->getTokenName(), $key);
     } catch (DuplicateTokenKeyException $e) {
       // Key already exists, try again.
@@ -88,7 +94,7 @@ class AuthController extends RestController
         openssl_random_pseudo_bytes(RestHelper::TOKEN_KEY_LENGTH / 2));
       try {
         $jti = $this->dbHelper->insertNewTokenKey($userId,
-          $tokenRequest->getTokenExpire(), $tokenRequest->getTokenScope(),
+          $tokenRequest->getTokenExpire(), $tokenScope,
           $tokenRequest->getTokenName(), $key);
       } catch (DuplicateTokenKeyException $e) {
         // New key also failed, give up!
@@ -102,7 +108,7 @@ class AuthController extends RestController
     if (! empty($jti['jti'])) {
       $theJwtToken = $this->restHelper->getAuthHelper()->generateJwtToken(
         $tokenRequest->getTokenExpire(), $jti['created_on'], $jti['jti'],
-        $tokenRequest->getTokenScope(), $key);
+        $tokenScope, $key);
       return $response->withJson([
         "Authorization" => "Bearer " . $theJwtToken
       ], 201);

@@ -27,7 +27,10 @@ use Fossology\UI\Api\Models\InfoType;
 use Fossology\UI\Api\Models\ApiVersion;
 use Fossology\UI\Api\Helper\ResponseHelper;
 use Fossology\Lib\Dao\UserDao;
+use Slim\Psr7\Factory\StreamFactory;
+use Slim\Psr7\Headers;
 use Slim\Psr7\Request;
+use Slim\Psr7\Uri;
 
 /**
  * @class UserControllerTest
@@ -431,5 +434,40 @@ class UserControllerTest extends \PHPUnit\Framework\TestCase
     $this->expectExceptionMessage("Username must be specified.");
 
     $this->userController->addUser($request, new ResponseHelper(), []);
+  }
+
+  /**
+   * @test
+   * -# A caller authenticated with a read token lists its tokens
+   * -# Read tokens are revealed, write tokens stay hidden
+   */
+  public function testGetTokensHidesWriteTokensFromReadToken()
+  {
+    global $container;
+    $session = M::mock();
+    $session->shouldReceive('get')->withArgs(['token_scope'])->andReturn('read');
+    $authHelper = M::mock(\Fossology\UI\Api\Helper\AuthHelper::class);
+    $authHelper->shouldReceive('getSession')->andReturn($session);
+    $userEdit = M::mock();
+    $userEdit->shouldReceive('getListOfActiveTokens')->andReturn([
+      ['id' => '1.2', 'scope' => 'r'], ['id' => '2.2', 'scope' => 'w']]);
+    $manageToken = M::mock();
+    $manageToken->shouldReceive('revealToken')->with('1')->once()
+      ->andReturn(['token' => 'readtoken']);
+    $manageToken->shouldNotReceive('revealToken')->with('2');
+    $this->restHelper->shouldReceive('getAuthHelper')->andReturn($authHelper);
+    $this->restHelper->shouldReceive('getPlugin')->with('user_edit')
+      ->andReturn($userEdit);
+    $this->restHelper->shouldReceive('getPlugin')->with('manage-token')
+      ->andReturn($manageToken);
+
+    $request = new Request("GET", new Uri("HTTP", "localhost"), new Headers(),
+      [], [], (new StreamFactory())->createStream());
+    $response = $this->userController->getTokens($request, new ResponseHelper(),
+      ['type' => 'active']);
+    $response->getBody()->seek(0);
+    $tokens = json_decode($response->getBody()->getContents(), true)['active_tokens'];
+    $this->assertEquals('readtoken', $tokens[0]['token']);
+    $this->assertNull($tokens[1]['token']);
   }
 }

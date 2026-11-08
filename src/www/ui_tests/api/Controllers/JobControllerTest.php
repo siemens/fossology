@@ -477,4 +477,21 @@ class JobControllerTest extends \PHPUnit\Framework\TestCase
     $this->assertEquals(0, $result);
   }
 
+  /**
+   * @test
+   * -# V1 sends limit and page as headers
+   * -# Header names are case-insensitive
+   */
+  public function testV1PaginationHeadersAnyCase()
+  {
+    $headers = new Headers();
+    $headers->setHeader('Limit', '5');
+    $headers->setHeader('PAGE', '2');
+    $request = new Request("GET", new Uri("HTTP", "localhost"), $headers, [], [],
+      $this->streamFactory->createStream());
+    $method = new \ReflectionMethod($this->jobController, 'getPagination');
+    $method->setAccessible(true);
+    $this->assertEquals([5, 2],
+      $method->invoke($this->jobController, $request, ApiVersion::V1));
+  }
 }

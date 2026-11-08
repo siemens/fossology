@@ -69,12 +69,6 @@ class GroupControllerTest extends \PHPUnit\Framework\TestCase
   private $restHelper;
 
   /**
-   * @var M\MockInterface $adminPlugin
-   * AdminGroupUsersPlugin mock
-   */
-  private $adminPlugin;
-
-  /**
    * @var M\MockInterface $adminEditPlugin
    * AdminGroupEdit plugin mock
    */
@@ -91,15 +85,11 @@ class GroupControllerTest extends \PHPUnit\Framework\TestCase
     $this->dbHelper = M::mock(DbHelper::class);
     $this->restHelper = M::mock(RestHelper::class);
     $this->userDao = M::mock(UserDao::class);
-    $this->adminPlugin = M::mock('AdminGroupUsers');
     $this->adminEditPlugin = M::mock('AdminGroupEdit');
 
     $this->restHelper->shouldReceive('getDbHelper')->andReturn($this->dbHelper);
     $this->restHelper->shouldReceive('getUserDao')
       ->andReturn($this->userDao);
-
-    $this->restHelper->shouldReceive('getPlugin')
-      ->withArgs(array('group_manage_users'))->andReturn($this->adminPlugin);
 
     $this->restHelper->shouldReceive('getPlugin')
       ->withArgs(array('group_edit'))->andReturn($this->adminEditPlugin);
@@ -573,10 +563,8 @@ class GroupControllerTest extends \PHPUnit\Framework\TestCase
     $this->userDao->shouldReceive('isAdvisorOrAdmin')
       ->withArgs([$userIds[0], $groupId])->andReturn(true);
 
-    $this->dbManager->shouldReceive('prepare')->withArgs([M::any(),M::any()]);
-    $this->dbManager->shouldReceive('execute')->withArgs([M::any(),array($groupId)])->andReturn(1);
-    $this->dbManager->shouldReceive('fetchAll')->withArgs([1])->andReturn($this->getUsersWithGroup($userIds));
-    $this->dbManager->shouldReceive('freeResult')->withArgs([1]);
+    $this->userDao->shouldReceive('getGroupMembers')->withArgs([$groupId])
+      ->andReturn($this->getUsersWithGroup($userIds));
 
     $user = $this->getUsersWithGroup($userIds)[0];
     $users = [];
@@ -665,10 +653,8 @@ class GroupControllerTest extends \PHPUnit\Framework\TestCase
     $this->userDao->shouldReceive('isAdvisorOrAdmin')
       ->withArgs([$callerId, $groupId])->andReturn(false);
 
-    $this->dbManager->shouldReceive('prepare')->withArgs([M::any(),M::any()]);
-    $this->dbManager->shouldReceive('execute')->withArgs([M::any(),array($groupId)])->andReturn(1);
-    $this->dbManager->shouldReceive('fetchAll')->withArgs([1])->andReturn($this->getUsersWithGroup($userIds));
-    $this->dbManager->shouldReceive('freeResult')->withArgs([1]);
+    $this->userDao->shouldReceive('getGroupMembers')->withArgs([$groupId])
+      ->andReturn($this->getUsersWithGroup($userIds));
 
     $user = $this->getUsersWithGroup($userIds)[0];
     $users = [];
@@ -733,13 +719,12 @@ class GroupControllerTest extends \PHPUnit\Framework\TestCase
     }
     $this->dbHelper->shouldReceive('doesIdExist')->withArgs(["groups", "group_pk", $groupId])->andReturn(true);
     $this->dbHelper->shouldReceive('doesIdExist')->withArgs(["users","user_pk",$newuser])->andReturn(true);
-    $this->dbManager->shouldReceive('getSingleRow')->withArgs([M::any(),M::any(),M::any()])->andReturn($emptyArr);
+    $this->userDao->shouldReceive('getGroupMembershipId')->andReturnNull();
     $this->restHelper->shouldReceive('getUserId')->andReturn($userId);
     $this->userDao->shouldReceive('isAdvisorOrAdmin')->withArgs([$userId, $groupId])->andReturn(true);
 
-    $this->dbManager->shouldReceive('prepare')->withArgs([M::any(),M::any()]);
-    $this->dbManager->shouldReceive('execute')->withArgs([M::any(),array($groupId, $newuser,$newPerm)])->andReturn(1);
-    $this->dbManager->shouldReceive('freeResult')->withArgs([1]);
+    $this->userDao->shouldReceive('addGroupMembership')
+      ->withArgs([$groupId, $newuser, $newPerm])->once();
 
     $body = $this->streamFactory->createStream(json_encode([
       "perm" => $newPerm
@@ -849,13 +834,12 @@ class GroupControllerTest extends \PHPUnit\Framework\TestCase
     }
     $this->dbHelper->shouldReceive('doesIdExist')->withArgs(["groups", "group_pk", $groupId])->andReturn(true);
     $this->dbHelper->shouldReceive('doesIdExist')->withArgs(["users","user_pk",$newuser])->andReturn(true);
-    $this->dbManager->shouldReceive('getSingleRow')->withArgs([M::any(),M::any(),M::any()])->andReturn($emptyArr);
+    $this->userDao->shouldReceive('getGroupMembershipId')->andReturnNull();
     $this->restHelper->shouldReceive('getUserId')->andReturn($userId);
     $this->userDao->shouldReceive('isAdvisorOrAdmin')->withArgs([$userId, $groupId])->andReturn(true);
 
-    $this->dbManager->shouldReceive('prepare')->withArgs([M::any(),M::any()]);
-    $this->dbManager->shouldReceive('execute')->withArgs([M::any(),array($groupId, $newuser,$newPerm)])->andReturn(1);
-    $this->dbManager->shouldReceive('freeResult')->withArgs([1]);
+    $this->userDao->shouldReceive('addGroupMembership')
+      ->withArgs([$groupId, $newuser, $newPerm])->once();
 
     $body = $this->streamFactory->createStream(json_encode([
       "perm" => $newPerm
@@ -917,7 +901,7 @@ class GroupControllerTest extends \PHPUnit\Framework\TestCase
     }
     $this->dbHelper->shouldReceive('doesIdExist')->withArgs(["groups", "group_pk", $groupId])->andReturn(true);
     $this->dbHelper->shouldReceive('doesIdExist')->withArgs(["users","user_pk",$newuser])->andReturn(true);
-    $this->dbManager->shouldReceive('getSingleRow')->withArgs([M::any(),M::any(),M::any()])->andReturn(true);
+    $this->userDao->shouldReceive('getGroupMembershipId')->andReturn(1);
     $this->restHelper->shouldReceive('getUserId')->andReturn($userId);
     $this->userDao->shouldReceive('isAdvisorOrAdmin')->withArgs([$userId, $groupId])->andReturn(true);
 
@@ -974,12 +958,12 @@ class GroupControllerTest extends \PHPUnit\Framework\TestCase
     }
     $this->dbHelper->shouldReceive('doesIdExist')->withArgs(["groups", "group_pk", $groupIds[0]])->andReturn(true);
     $this->dbHelper->shouldReceive('doesIdExist')->withArgs(["users","user_pk",$userPk])->andReturn(true);
-    $this->dbManager->shouldReceive('getSingleRow')->withArgs([M::any(),M::any(),M::any()])->andReturn(['group_pk'=>$groupIds[0],'group_user_member_pk'=>$group_user_member_pk,'permission'=>$newPerm]);
+    $this->userDao->shouldReceive('getGroupMembershipId')->andReturn($group_user_member_pk);
     $this->restHelper->shouldReceive('getUserId')->andReturn($userId);
     $this->userDao->shouldReceive('isAdvisorOrAdmin')->withArgs([$userPk, $groupIds[0]])->andReturn(true);
     $this->userDao->shouldReceive('getUserByName')->withArgs([M::any(),M::any()]);
 
-    $this->adminPlugin->shouldReceive('updateGUMPermission')->withArgs([$group_user_member_pk,$newPerm, $this->dbManager ]);
+    $this->userDao->shouldReceive('updateGUMPermission')->withArgs([$group_user_member_pk, $newPerm])->once();
 
     $body = $this->streamFactory->createStream(json_encode([
       "perm" => $newPerm
@@ -1039,10 +1023,9 @@ class GroupControllerTest extends \PHPUnit\Framework\TestCase
     $this->dbHelper->shouldReceive('doesIdExist')
       ->withArgs(["users", "user_pk", $userId])->andReturn(true);
     $this->userDao->shouldReceive('isAdvisorOrAdmin')->andReturn(true);
-    $this->dbManager->shouldReceive('getSingleRow')->withArgs([M::any(), M::any(), M::any()])
-      ->andReturn(['group_user_member_pk' => $groupMemberPk]);
-    $this->adminPlugin->shouldReceive('updateGUMPermission')
-      ->withArgs([$groupMemberPk, -1, $this->dbManager]);
+    $this->userDao->shouldReceive('getGroupMembershipId')->andReturn($groupMemberPk);
+    $this->userDao->shouldReceive('updateGUMPermission')
+      ->withArgs([$groupMemberPk, -1])->once();
 
     $requestHeaders = new Headers();
     $request = new Request("DELETE", new Uri("HTTP", "localhost"),
@@ -1133,5 +1116,36 @@ class GroupControllerTest extends \PHPUnit\Framework\TestCase
     $this->expectException(HttpNotFoundException::class);
     $this->groupController->changeUserPermission($request,
       new ResponseHelper(), ['pathParam' => $groupId, 'userPathParam' => $userId]);
+  }
+
+  /**
+   * @test
+   * -# The target user is not in the group
+   * -# Removing and changing that user must answer 404
+   */
+  public function testMemberOperationsOnNonMember()
+  {
+    $groupId = 2;
+    $userId = 3;
+    $this->restHelper->shouldReceive('getUserId')->andReturn($userId);
+    $this->dbHelper->shouldReceive('doesIdExist')->andReturn(true);
+    $this->userDao->shouldReceive('isAdvisorOrAdmin')->andReturn(true);
+    $this->userDao->shouldReceive('getGroupMembershipId')
+      ->withArgs([$groupId, $userId])->andReturnNull();
+    $this->userDao->shouldNotReceive('updateGUMPermission');
+
+    $requestHeaders = new Headers();
+    $requestHeaders->setHeader('Content-Type', 'application/json');
+    $request = new Request("PUT", new Uri("HTTP", "localhost"), $requestHeaders,
+      [], [], $this->streamFactory->createStream('{"perm":1}'));
+    $args = ['pathParam' => $groupId, 'userPathParam' => $userId];
+    foreach (['deleteGroupMember', 'changeUserPermission'] as $handler) {
+      try {
+        $this->groupController->$handler($request, new ResponseHelper(), $args);
+        $this->fail("$handler changed a non-member");
+      } catch (\Fossology\UI\Api\Exceptions\HttpNotFoundException $e) {
+        $this->assertEquals(404, $e->getCode());
+      }
+    }
   }
 }

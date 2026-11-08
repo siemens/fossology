@@ -8,6 +8,8 @@
 
 namespace Fossology\Lib\Dao;
 
+use Fossology\Lib\Auth\Auth;
+
 use Fossology\Lib\Data\DecisionScopes;
 use Fossology\Lib\Data\DecisionTypes;
 use Fossology\Lib\Db\DbManager;
@@ -142,6 +144,26 @@ WHERE rnk = 1 AND removed = false AND decision_type = " .
     } else {
       return ["NONE"];
     }
+  }
+
+  /**
+   * Whether a file is inside at least one upload the group may read: a group
+   * permission above none, or a public upload when $publicAllowed
+   * (the rule of UploadPermissionDao::isAccessible())
+   * @param int $pfileId
+   * @param int $groupId
+   * @param bool $publicAllowed The session has a user level above none
+   * @return bool
+   */
+  public function isInAccessibleUpload($pfileId, $groupId, $publicAllowed)
+  {
+    $row = $this->dbManager->getSingleRow(
+      "SELECT EXISTS (SELECT 1 FROM uploadtree ut
+         JOIN upload u ON u.upload_pk = ut.upload_fk
+         LEFT JOIN perm_upload p ON p.upload_fk = ut.upload_fk AND p.group_fk = $2
+         WHERE ut.pfile_fk = $1 AND (p.perm > $3 OR ($4 AND u.public_perm > $3))) AS found",
+      [$pfileId, $groupId, Auth::PERM_NONE, $publicAllowed ? 'true' : 'false'], __METHOD__);
+    return $this->dbManager->booleanFromDb($row['found']);
   }
 
   /**

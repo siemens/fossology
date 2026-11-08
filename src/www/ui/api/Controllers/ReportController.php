@@ -257,18 +257,9 @@ class ReportController extends RestController
    */
   private function checkReport($id)
   {
-    $dbManager = $this->dbHelper->getDbManager();
-    $row = $dbManager->getSingleRow(
-      'SELECT jq_type FROM jobqueue WHERE jq_job_fk = $1', array(
-        $id
-      ), "reportValidity");
+    $showJobDao = $this->restHelper->getShowJobDao();
+    $row = $showJobDao->getReportJob($id);
     if (empty($row) || ! in_array($row['jq_type'], $this->reportsAllowed)) {
-      throw new HttpNotFoundException(
-        "No report scheduled with given job id.");
-    }
-    $row = $dbManager->getSingleRow('SELECT job_upload_fk FROM job WHERE job_pk = $1',
-      array($id), "reportFileUpload");
-    if (empty($row)) {
       throw new HttpNotFoundException(
         "No report scheduled with given job id.");
     }
@@ -277,9 +268,7 @@ class ReportController extends RestController
     if (! $uploadDao->isAccessible($uploadId, $this->restHelper->getGroupId())) {
       throw new HttpForbiddenException("Report is not accessible!");
     }
-    $row = $dbManager->getSingleRow('SELECT * FROM reportgen WHERE job_fk = $1',
-      array($id), "reportFileName");
-    if (empty($row)) {
+    if (! $showJobDao->isJobIdPresentInReportGen($id)) {
       throw (new HttpServiceUnavailableException(
         "Report is not ready. Retry after 10s."))
       ->setHeaders(['Retry-After' => '10']);
@@ -318,7 +307,7 @@ class ReportController extends RestController
     }
     $files = $request->getUploadedFiles();
 
-    $this->uploadAccessible($upload_pk);
+    $this->uploadEditable($upload_pk);
     if (empty($files['report'])) {
       throw new HttpBadRequestException("No file uploaded");
     }

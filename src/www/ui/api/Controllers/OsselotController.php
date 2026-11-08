@@ -83,7 +83,7 @@ class OsselotController extends RestController
     }
 
       $uploadId = (int)($args['id'] ?? 0);
-      $this->uploadAccessible($uploadId);
+      $this->uploadEditable($uploadId);
 
       $body = $this->getParsedBody($request);
       $pkg = $body['package'] ?? null;

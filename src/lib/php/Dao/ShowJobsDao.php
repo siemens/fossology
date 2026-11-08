@@ -511,6 +511,29 @@ class ShowJobsDao
   }
 
   /**
+   * @param int $uploadId
+   * @return array Ids of the jobs of the upload
+   */
+  public function getJobIdsForUpload($uploadId)
+  {
+    $rows = $this->dbManager->getRows("SELECT job_pk FROM job WHERE job_upload_fk = $1",
+      array($uploadId), __METHOD__);
+    return array_column($rows, 'job_pk');
+  }
+
+  /**
+   * @param int $jobId
+   * @return array|false jq_type and job_upload_fk of the job, false if unknown
+   */
+  public function getReportJob($jobId)
+  {
+    return $this->dbManager->getSingleRow(
+      "SELECT jq_type, job_upload_fk FROM jobqueue
+       INNER JOIN job ON job_pk = jq_job_fk WHERE jq_job_fk = $1 LIMIT 1",
+      array($jobId), __METHOD__);
+  }
+
+  /**
    * @param $jobId
    * @return bool
    */

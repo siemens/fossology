@@ -351,4 +351,21 @@ class ShowJobsDaoTest extends \PHPUnit\Framework\TestCase
     );
     $this->assertEquals($expectedData,$result);
   }
+
+  public function testGetJobIdsForUpload()
+  {
+    assertThat($this->showJobsDao->getJobIdsForUpload(1), is(equalTo([1])));
+    assertThat($this->showJobsDao->getJobIdsForUpload(99), is(emptyArray()));
+  }
+
+  public function testGetReportJob()
+  {
+    $this->dbManager->insertTableRow('jobqueue', array('jq_pk' => 30,
+      'jq_job_fk' => 2, 'jq_type' => 'spdx2', 'jq_args' => '2'));
+    $row = $this->showJobsDao->getReportJob(2);
+    assertThat($row['jq_type'], is('spdx2'));
+    assertThat(intval($row['job_upload_fk']), is(2));
+    assertThat($this->showJobsDao->getReportJob(1), is(false));
+    assertThat($this->showJobsDao->getReportJob(99), is(false));
+  }
 }

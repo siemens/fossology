@@ -212,6 +212,7 @@ namespace Fossology\UI\Api\Test\Controllers {
       $this->dbManager = M::mock(DbManager::class);
       $this->restHelper = M::mock(RestHelper::class);
       $this->uploadDao = M::mock(UploadDao::class);
+      $this->uploadDao->shouldReceive('isEditable')->andReturn(true)->byDefault();
       $this->decisionTypes = M::mock(DecisionTypes::class);
       $this->licenseDao = M::mock(LicenseDao::class);
       $this->clearingDecisionEventProcessor = M::mock(ClearingDecisionProcessor::class);
@@ -1156,5 +1157,37 @@ namespace Fossology\UI\Api\Test\Controllers {
       $this->assertEquals($this->getResponseJson($expectedResponse),
         $this->getResponseJson($actualResponse));
     }
+
+  /**
+   * @test
+   * -# An upload the group can only read
+   * -# Clearing writes must answer 403
+   */
+  public function testClearingWritesRefusedOnReadOnlyUpload()
+  {
+    $upload_pk = 1;
+    $this->dbHelper->shouldReceive('doesIdExist')
+      ->withArgs(["upload", "upload_pk", $upload_pk])->andReturn(true);
+    $this->uploadDao->shouldReceive('isAccessible')
+      ->withArgs([$upload_pk, $this->groupId])->andReturn(true);
+    $this->uploadDao->shouldReceive('isEditable')
+      ->withArgs([$upload_pk, $this->groupId])->andReturn(false);
+
+    $requestHeaders = new Headers();
+    $requestHeaders->setHeader('Content-Type', 'application/json');
+    $request = new Request("PUT", new Uri("HTTP", "localhost"), $requestHeaders,
+      [], [], $this->streamFactory->createStream('{}'));
+
+    foreach (['setClearingDecision', 'handleAddEditAndDeleteLicenseDecision',
+        'scheduleBulkScan'] as $handler) {
+      try {
+        $this->uploadTreeController->$handler($request, new ResponseHelper(),
+          ['id' => $upload_pk, 'itemId' => 200]);
+        $this->fail("$handler changed a read-only upload");
+      } catch (\Fossology\UI\Api\Exceptions\HttpForbiddenException $e) {
+        $this->assertEquals(403, $e->getCode());
+      }
+    }
+  }
   }
 }

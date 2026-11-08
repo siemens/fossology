@@ -252,7 +252,6 @@ class LicenseController extends RestController
       throw new HttpForbiddenException("Need to be admin to create " .
         "non-candidate license.");
     }
-    $tableName = "license_ref";
     $assocData = [
       "rf_shortname" => $newLicense->getShortName(),
       "rf_fullname" => $newLicense->getFullName(),
@@ -264,23 +263,22 @@ class LicenseController extends RestController
     ];
     $okToAdd = true;
     if ($newLicense->getIsCandidate()) {
-      $tableName = "license_candidate";
       $assocData["group_fk"] = $this->restHelper->getGroupId();
       $assocData["rf_user_fk_created"] = $this->restHelper->getUserId();
       $assocData["rf_user_fk_modified"] = $this->restHelper->getUserId();
       $assocData["marydone"] = $newLicense->getMergeRequest();
-      $okToAdd = $this->isNewLicense($newLicense->getShortName(),
+      $okToAdd = $this->licenseDao->isShortnameUnused($newLicense->getShortName(),
         $this->restHelper->getGroupId());
     } else {
-      $okToAdd = $this->isNewLicense($newLicense->getShortName());
+      $okToAdd = $this->licenseDao->isShortnameUnused($newLicense->getShortName());
     }
     if (! $okToAdd) {
       throw new HttpConflictException("License with shortname '" .
         $newLicense->getShortName() . "' already exists!");
     }
     try {
-      $rfPk = $this->dbHelper->getDbManager()->insertTableRow($tableName,
-        $assocData, __METHOD__ . ".newLicense", "rf_pk");
+      $rfPk = $this->licenseDao->insertLicenseRow($assocData,
+        $newLicense->getIsCandidate());
       $newInfo = new Info(201, $rfPk, InfoType::INFO);
     } catch (\Exception $e) {
       throw new HttpConflictException(
@@ -342,40 +340,10 @@ class LicenseController extends RestController
       throw new HttpBadRequestException("Empty body sent.");
     }
 
-    $tableName = "license_ref";
-    if ($isCandidate) {
-      $tableName = "license_candidate";
-    }
-    $this->dbHelper->getDbManager()->updateTableRow($tableName, $assocData,
-      "rf_pk", $license->getId(), __METHOD__ . ".updateLicense");
+    $this->licenseDao->updateLicenseRow($license->getId(), $assocData, $isCandidate);
     $newInfo = new Info(200, "License " . $license->getShortName() .
       " updated.", InfoType::INFO);
     return $response->withJson($newInfo->getArray(), $newInfo->getCode());
-  }
-
-  /**
-   * Check if the given shortname already exists in DB.
-   *
-   * @param string  $shortName Shortname to check
-   * @param integer $groupId   Group ID if candidate license
-   */
-  private function isNewLicense($shortName, $groupId = 0)
-  {
-    $tableName = "ONLY license_ref";
-    $where = "";
-    $params = [$shortName];
-    $statement = __METHOD__;
-    if ($groupId != 0) {
-      $tableName = "license_candidate";
-      $where = "AND group_fk = $2";
-      $params[] = $groupId;
-      $statement .= ".candidate";
-    }
-    $sql = "SELECT count(*) cnt FROM " .
-      "$tableName WHERE rf_shortname = $1 $where;";
-    $result = $this->dbHelper->getDbManager()->getSingleRow($sql, $params,
-      $statement);
-    return $result["cnt"] == 0;
   }
 
   /**
@@ -504,6 +472,7 @@ class LicenseController extends RestController
    */
   public function handleAdminLicenseAcknowledgement($request, $response, $args)
   {
+    $this->throwNotAdminException();
     $body = $this->getParsedBody($request);
     $errors = [];
     $success = [];
@@ -534,8 +503,7 @@ class LicenseController extends RestController
           continue;
         }
 
-        $sql = "SELECT la_pk, name FROM license_std_acknowledgement WHERE la_pk = $1;";
-        $existingAck = $this->dbHelper->getDbManager()->getSingleRow($sql, [$ackReq['id']]);
+        $existingAck = $this->adminLicenseAckDao->getAcknowledgementRow($ackReq['id']);
 
         if (empty($existingAck)) {
           $error = new Info(404, "Acknowledgement not found for the request #" . ($index + 1), InfoType::ERROR);
@@ -648,8 +616,7 @@ class LicenseController extends RestController
           continue;
         }
 
-        $sql = "SELECT lsc_pk, name, comment FROM license_std_comment WHERE lsc_pk = $1;";
-        $existingComment = $this->dbHelper->getDbManager()->getSingleRow($sql, [$commentReq['id']]);
+        $existingComment = $this->licenseStdCommentDao->getCommentRow($commentReq['id']);
 
         if (empty($existingComment)) {
           $error = new Info(404, "Standard comment not found for the request #" . ($index + 1), InfoType::ERROR);

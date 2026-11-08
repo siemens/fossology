@@ -468,4 +468,47 @@ class LicenseDaoTest extends \PHPUnit\Framework\TestCase
     assertThat($matches, equalTo($expected));
     $this->addToAssertionCount(\Hamcrest\MatcherAssert::getCount()-$this->assertCountBefore);
   }
+
+  public function testIsShortnameUnusedKeepsMainAndCandidatesApart()
+  {
+    $groupId = 401;
+    $this->setUpLicenseRefTable();
+    $this->testDb->insertData_license_ref();
+    $this->dbManager->queryOnce("CREATE TABLE license_candidate (group_fk integer) INHERITS (license_ref)");
+    $candidate = $this->dbManager->getSingleRow("SELECT * FROM ONLY license_ref ORDER BY rf_pk LIMIT 1", array(), __METHOD__ . '.cand');
+    $this->dbManager->queryOnce("DELETE FROM ONLY license_ref WHERE rf_pk=$candidate[rf_pk]");
+    $this->dbManager->getSingleRow("INSERT INTO license_candidate (rf_pk, rf_shortname, rf_text, rf_md5, rf_detector_type, group_fk) VALUES ($1, $2, $3, $4, $5, $6)",
+      array($candidate['rf_pk'], $candidate['rf_shortname'], $candidate['rf_text'], $candidate['rf_md5'], $candidate['rf_detector_type'], $groupId), __METHOD__ . '.insert');
+    $main = $this->dbManager->getSingleRow("SELECT * FROM ONLY license_ref LIMIT 1", array(), __METHOD__ . '.ref');
+    $licDao = new LicenseDao($this->dbManager);
+
+    assertThat($licDao->isShortnameUnused($main['rf_shortname']), is(false));
+    assertThat($licDao->isShortnameUnused($main['rf_shortname'], $groupId), is(true));
+    assertThat($licDao->isShortnameUnused($candidate['rf_shortname'], $groupId), is(false));
+    assertThat($licDao->isShortnameUnused($candidate['rf_shortname']), is(true));
+    assertThat($licDao->isShortnameUnused($candidate['rf_shortname'], $groupId + 1), is(true));
+    assertThat($licDao->isShortnameUnused('no-such-license'), is(true));
+  }
+
+  public function testInsertAndUpdateLicenseRow()
+  {
+    $this->setUpLicenseRefTable();
+    $this->dbManager->queryOnce("CREATE TABLE license_candidate (group_fk integer) INHERITS (license_ref)");
+    $licDao = new LicenseDao($this->dbManager);
+    $row = ['rf_pk' => 9001, 'rf_shortname' => 'MainLic', 'rf_text' => 'main text',
+      'rf_md5' => md5('main text'), 'rf_detector_type' => 1];
+
+    $mainPk = $licDao->insertLicenseRow($row);
+    $candidatePk = $licDao->insertLicenseRow(['rf_pk' => 9002, 'rf_shortname' => 'CandLic',
+      'rf_md5' => md5('cand text'), 'group_fk' => 4] + $row, true);
+    assertThat(intval($mainPk), is(9001));
+    assertThat(intval($candidatePk), is(9002));
+    $onlyMain = $this->dbManager->getSingleRow("SELECT count(*) cnt FROM ONLY license_ref WHERE rf_pk IN (9001, 9002)", [], __METHOD__ . '.main');
+    assertThat(intval($onlyMain['cnt']), is(1));
+
+    $licDao->updateLicenseRow(9002, ['rf_fullname' => 'Candidate'], true);
+    $licDao->updateLicenseRow(9001, ['rf_fullname' => 'Main'], false);
+    $names = $this->dbManager->getRows("SELECT rf_pk, rf_fullname FROM license_ref WHERE rf_pk IN (9001, 9002) ORDER BY rf_pk", [], __METHOD__ . '.names');
+    assertThat(array_column($names, 'rf_fullname'), is(['Main', 'Candidate']));
+  }
 }

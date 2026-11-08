@@ -5747,6 +5747,373 @@ paths:
                 $ref: '#/components/schemas/Info'
         default:
           $ref: '#/components/responses/defaultResponse'
+  /jobs/history:
+    parameters:
+      - name: upload
+        required: true
+        in: query
+        description: Return jobs for the given upload id
+        schema:
+          type: integer
+    get:
+      operationId: getJobsHistoryPerUpload
+      tags:
+        - Job
+      summary: Get the history of all the jobs queued based on an upload
+      description: Returns the history of all the jobs queued based on an upload
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ShowJob'
+        '400':
+          description: "Bad Request. 'upload' is a required query param"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '403':
+          description: Upload is not accessible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '404':
+          description: Upload does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        default:
+          $ref: '#/components/responses/defaultResponse'
+
+  /license/export-json:
+    get:
+      operationId: exportAdminLicenseToJSON
+      parameters:
+        - name: id
+          description: License id to export, 0 for all
+          in: query
+          required: false
+          schema:
+            type: integer
+      tags:
+        - License
+      summary: Export a json license
+      description: >
+        Export a json license
+      responses:
+        '200':
+          description: Successfully exported
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        '403':
+          description: Route is not accessible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        default:
+          $ref: '#/components/responses/defaultResponse'
+  /license/import-json:
+    post:
+      operationId: handleImportLicense
+      tags:
+        - License
+      summary: Import a json license
+      description: >
+        Import a json license to the database
+      requestBody:
+        description: Include the JSON file
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                fileInput:
+                  type: string
+                  format: binary
+                  description: JSON to be imported
+              required:
+                - fileInput
+      responses:
+        '400':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '200':
+          description: Successfully imported
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        default:
+          $ref: '#/components/responses/defaultResponse'
+  /obligations/export-json:
+    get:
+      operationId: exportObligationsToJSON
+      parameters:
+        - name: id
+          description: Obligation id to export, 0 for all
+          in: query
+          required: false
+          schema:
+            type: integer
+      tags:
+        - License
+      summary: Export a json obligation list
+      description: >
+        Export a json license obligation list
+      responses:
+        '200':
+          description: Successfully exported
+          content:
+            text/json:
+              schema:
+                type: string
+                format: binary
+        '403':
+          description: Route is not accessible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        default:
+          $ref: '#/components/responses/defaultResponse'
+
+  /obligations/import-json:
+    post:
+      operationId: importObligationsFromJSON
+      tags:
+        - License
+      summary: Import an obligation json file
+      description: >
+        Import an obligation json file
+      requestBody:
+        description: Include the JSON file
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                fileInput:
+                  type: string
+                  format: binary
+                  description: JSON to be imported
+              required:
+                - fileInput
+      responses:
+        '400':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '200':
+          description: Successfully imported
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        default:
+          $ref: '#/components/responses/defaultResponse'
+
+  /uploads/{id}/perm-groups:
+    parameters:
+      - name: id
+        required: true
+        description: Id of the upload
+        in: path
+        schema:
+          type: integer
+    get:
+      operationId: getGroupsWithPermissionsLegacy
+      tags:
+        - Upload
+      summary: Get all the groups with their respective permissions for a upload
+      description:
+        Returns the list of all the groups with their respective permissions for a upload
+      responses:
+        '200':
+          description: Get Groups with permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadPermGroups'
+        '404':
+          description: Upload does not exist
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Info'
+        default:
+          $ref: '#/components/responses/defaultResponse'
+  /osselot/packages/{package}/versions:
+    parameters:
+      - name: package
+        required: true
+        description: Package name
+        in: path
+        schema:
+          type: string
+    get:
+      operationId: getOsselotPackageVersions
+      tags:
+        - Upload
+      summary: List the versions OSSelot has curated data for
+      responses:
+        '200':
+          description: Version strings, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        '400':
+          description: Package name is missing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '404':
+          description: No curated versions for the package
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '501':
+          description: OSSelot integration is disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '502':
+          description: OSSelot is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        default:
+          $ref: '#/components/responses/defaultResponse'
+  /uploads/{id}/osselot/import:
+    parameters:
+      - name: id
+        required: true
+        description: Id of the upload
+        in: path
+        schema:
+          type: integer
+    post:
+      operationId: importOsselotReport
+      tags:
+        - Upload
+      summary: Import the curated OSSelot SPDX report for a package version
+      description: Needs write access to the upload.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - package
+                - version
+                - options
+              properties:
+                package:
+                  type: string
+                version:
+                  type: string
+                options:
+                  type: object
+                  required:
+                    - addLicenseInfoFromInfoInFile
+                    - addLicenseInfoFromConcluded
+                    - addConcludedAsDecisions
+                    - addCopyrights
+                  properties:
+                    addLicenseInfoFromInfoInFile:
+                      type: boolean
+                    addLicenseInfoFromConcluded:
+                      type: boolean
+                    addConcludedAsDecisions:
+                      type: boolean
+                    addConcludedAsDecisionsOverwrite:
+                      type: boolean
+                    addConcludedAsDecisionsTBD:
+                      type: boolean
+                    addCopyrights:
+                      type: boolean
+                    addNewLicensesAs:
+                      type: string
+                      enum: [candidate, approved, rejected]
+                    licenseMatch:
+                      type: string
+                      enum: [spdxid, name, text]
+      responses:
+        '202':
+          description: Import job scheduled; jobId is the job queue id
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Info'
+                  - type: object
+                    properties:
+                      jobId:
+                        type: integer
+        '400':
+          description: Missing or invalid fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '403':
+          description: No write access to the upload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '404':
+          description: Upload or curated report not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '409':
+          description: An import job is already in progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '501':
+          description: OSSelot integration is disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '502':
+          description: OSSelot is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        default:
+          $ref: '#/components/responses/defaultResponse'
 
 components:
   securitySchemes:

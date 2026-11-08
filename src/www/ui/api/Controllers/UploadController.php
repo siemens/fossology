@@ -57,6 +57,9 @@ use Slim\Psr7\Factory\StreamFactory;
  */
 class UploadController extends RestController
 {
+  /** Permission names the API accepts */
+  const PERMISSION_NAMES = ['none', 'read_only', 'read_write', 'clearing_admin', 'admin'];
+
 
   /**
    * Get query parameter name for agent listing
@@ -284,15 +287,11 @@ class UploadController extends RestController
       $this->uploadAccessible($id);
     }
     $this->isAdj2nestDone($id);
-    $dbManager = $this->restHelper->getDbHelper()->getDbManager();
     $uploadDao = $this->restHelper->getUploadDao();
     $uploadTreeTableName = $uploadDao->getUploadtreeTableName($id);
     $itemTreeBounds = $uploadDao->getParentItemBounds($id,$uploadTreeTableName);
-    $sql = "SELECT pfile_fk, ufile_name FROM $uploadTreeTableName " .
-      "WHERE uploadtree_pk=$1";
-    $params = array($itemTreeBounds->getItemId());
-    $descendants = $dbManager->getSingleRow($sql, $params,
-      __METHOD__ . "." . $uploadTreeTableName);
+    $descendants = $uploadDao->getUploadEntry($itemTreeBounds->getItemId(),
+      $uploadTreeTableName);
     if (empty($descendants)) {
       throw new HttpNotFoundException("Upload file not found.");
     }
@@ -433,6 +432,11 @@ class UploadController extends RestController
     }
 
     $id = intval($args['id']);
+    if ($isCopy) {
+      $this->uploadAccessible($id);
+    } else {
+      $this->uploadEditable($id);
+    }
     $returnVal = $this->restHelper->copyUpload($id, $newFolderID, $isCopy);
     return $response->withJson($returnVal->getArray(), $returnVal->getCode());
   }
@@ -532,6 +536,9 @@ class UploadController extends RestController
     $message = $uploadResponse[1];
     $statusDescription = $uploadResponse[2];
     if (! $status) {
+      if (($uploadResponse[3] ?? 0) == 400) {
+        throw new HttpBadRequestException($message . "\n" . $statusDescription);
+      }
       throw new HttpInternalServerErrorException($message . "\n" .
         $statusDescription);
     }
@@ -677,6 +684,7 @@ class UploadController extends RestController
     $groupId = $this->restHelper->getGroupId();
     $isJsonRequest = $this->isJsonRequest($request);
 
+    $this->uploadAccessible($id);
     $perm = $userDao->isAdvisorOrAdmin($userId, $groupId);
     if (!$perm) {
       throw new HttpForbiddenException("Not advisor or admin of current group. " .
@@ -755,6 +763,7 @@ class UploadController extends RestController
       $newDescription = trim($bodyContent["uploadDescription"]);
     }
     if ($newName != null || $newDescription != null) {
+      $this->uploadEditable($id);
       /** @var \upload_properties $uploadProperties */
       $uploadProperties = $this->restHelper->getPlugin('upload_properties');
       $updated = $uploadProperties->UpdateUploadProperties($id, $newName, $newDescription);
@@ -848,6 +857,14 @@ class UploadController extends RestController
   public function setUploadPermissions($request, $response, $args)
   {
     $returnVal = null;
+    $reqBody = $this->getParsedBody($request);
+    foreach (['newPermission', 'publicPermission'] as $key) {
+      if (isset($reqBody[$key]) &&
+          !in_array($reqBody[$key], self::PERMISSION_NAMES, true)) {
+        throw new HttpBadRequestException("$key must be one of: " .
+          implode(', ', self::PERMISSION_NAMES));
+      }
+    }
     // checking if the scheduler is running or not
     $commu_status = fo_communicate_with_scheduler('status', $response_from_scheduler, $error_info);
     if (!$commu_status) {
@@ -858,20 +875,16 @@ class UploadController extends RestController
     $restHelper = $container->get('helper.restHelper');
     $uploadPermissionObj = $restHelper->getPlugin('upload_permissions');
 
-    $dbManager = $this->dbHelper->getDbManager();
-    // parsing the request body
-    $reqBody = $this->getParsedBody($request);
-
     $folder_pk = intval($reqBody['folderId']);
     $upload_pk = intval($args['id']);
-    $this->uploadAccessible($upload_pk);
+    $this->uploadEditable($upload_pk);
     $allUploadsPerm = $reqBody['allUploadsPermission'] ? 1 : 0;
     $newgroup = intval($reqBody['groupId']);
     $newperm = $this->getEquivalentValueForPermission($reqBody['newPermission']);
     $public_perm = isset($reqBody['publicPermission']) ? $this->getEquivalentValueForPermission($reqBody['publicPermission']) : -1;
 
-    $query = "SELECT perm, perm_upload_pk FROM perm_upload WHERE upload_fk=$1 and group_fk=$2;";
-    $result = $dbManager->getSingleRow($query, [$upload_pk, $newgroup], __METHOD__.".getOldPerm");
+    $result = $this->restHelper->getUploadPermissionDao()
+      ->getPermissionGroups($upload_pk)[$newgroup] ?? null;
     $perm_upload_pk = 0;
     $perm = 0;
     if (!empty($result)) {
@@ -998,7 +1011,7 @@ class UploadController extends RestController
     $licenseDao = $this->container->get('dao.license');
     $clearingDao = $this->container->get('dao.clearing');
 
-    $this->uploadAccessible($uploadId);
+    $this->uploadEditable($uploadId);
 
     if (empty($shortName)) {
       throw new HttpBadRequestException("Short name missing from request.");
@@ -1041,7 +1054,7 @@ class UploadController extends RestController
     $clearingDao = $this->container->get('dao.clearing');
     $license = $licenseDao->getLicenseByShortName($shortName, $this->restHelper->getGroupId());
 
-    $this->uploadAccessible($uploadId);
+    $this->uploadEditable($uploadId);
 
     if ($license === null) {
       throw new HttpNotFoundException(
@@ -1351,6 +1364,7 @@ class UploadController extends RestController
       $returnVal = new Info(404, "Upload does not exist", InfoType::ERROR);
       return $response->withJson($returnVal->getArray(), $returnVal->getCode());
     }
+    $this->uploadAccessible($uploadId);
     $uploadDao = $this->restHelper->getUploadDao();
     $itemTreeBounds = $uploadDao->getParentItemBounds($uploadId,
       $uploadDao->getUploadtreeTableName($uploadId));

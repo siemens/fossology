@@ -465,4 +465,14 @@ class LicenseStdCommentDaoTest extends TestCase
     $commentId = -1;
     $returnVal = $this->licenseStdCommentDao->toggleComment($commentId);
   }
+
+  public function testGetCommentRow()
+  {
+    $first = $this->dbManager->getSingleRow(
+      "SELECT lsc_pk, name, comment FROM license_std_comment ORDER BY lsc_pk LIMIT 1", [], __METHOD__);
+    $row = $this->licenseStdCommentDao->getCommentRow($first['lsc_pk']);
+    $this->assertEquals($first['name'], $row['name']);
+    $this->assertEquals($first['comment'], $row['comment']);
+    $this->assertFalse($this->licenseStdCommentDao->getCommentRow(99999));
+  }
 }

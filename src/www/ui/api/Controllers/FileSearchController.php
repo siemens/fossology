@@ -12,6 +12,7 @@
 
 namespace Fossology\UI\Api\Controllers;
 
+use Fossology\Lib\Auth\Auth;
 use Fossology\Lib\Dao\ClearingDao;
 use Fossology\Lib\Dao\LicenseDao;
 use Fossology\UI\Api\Helper\FileHelper;
@@ -109,7 +110,9 @@ class FileSearchController extends RestController
   {
     $hash = $file->getHash();
     $pfile = $this->fileHelper->getPfile($hash);
-    if ($pfile === null) {
+    if ($pfile === null || !$this->fileHelper->isInAccessibleUpload(
+        intval($pfile['pfile_pk']), $this->restHelper->getGroupId(),
+        ($_SESSION[Auth::USER_LEVEL] ?? Auth::PERM_NONE) > Auth::PERM_NONE)) {
       return false;
     }
     $newHash = new Hash($pfile['pfile_sha1'], $pfile['pfile_md5'],

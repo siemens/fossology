@@ -466,7 +466,7 @@ FROM $tableName WHERE $idRowName = $1", [$id],
       throw new DuplicateTokenNameException(
         "Already have a token with same name.", 409);
     }
-    if (! $this->checkTokenKeyUnique($userId, $name)) {
+    if (! $this->checkTokenKeyUnique($userId, $key)) {
       throw new DuplicateTokenKeyException();
     }
     $sql = "INSERT INTO personal_access_tokens " .

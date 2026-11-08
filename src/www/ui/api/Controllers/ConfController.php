@@ -57,7 +57,7 @@ class ConfController extends RestController
     $body = $this->getParsedBody($request);
     $confObj = new Conf();
 
-    $this->uploadAccessible($uploadPk);
+    $this->uploadEditable($uploadPk);
 
     if (empty($body) || !array_key_exists("key", $body) ||
         !array_key_exists("value", $body)) {

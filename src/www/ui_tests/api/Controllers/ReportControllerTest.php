@@ -12,6 +12,7 @@
 
 namespace Fossology\UI\Api\Test\Controllers;
 
+use Fossology\Lib\Dao\ShowJobsDao;
 use Fossology\Lib\Dao\UploadDao;
 use Fossology\Lib\Data\Upload\Upload;
 use Fossology\Lib\Db\DbManager;
@@ -71,6 +72,9 @@ class ReportControllerTest extends \PHPUnit\Framework\TestCase
    * UploadDao mock
    */
   private $uploadDao;
+
+  /** @var M\MockInterface $showJobDao */
+  private $showJobDao;
 
   /**
    * @var integer $userId
@@ -164,6 +168,8 @@ class ReportControllerTest extends \PHPUnit\Framework\TestCase
     $this->dbManager = M::mock(DbManager::class);
     $this->restHelper = M::mock(RestHelper::class);
     $this->uploadDao = M::mock(UploadDao::class);
+    $this->showJobDao = M::mock(ShowJobsDao::class);
+    $this->restHelper->shouldReceive('getShowJobDao')->andReturn($this->showJobDao);
     $this->spdxPlugin = M::mock('SpdxTwoGeneratorUi');
     $this->readmeossPlugin = M::mock('ReadMeOssPlugin');
     $this->clixmlPlugin = M::mock('CliXmlGeneratorUi');
@@ -387,20 +393,13 @@ class ReportControllerTest extends \PHPUnit\Framework\TestCase
     $reportId = 43;
     $uploadId = 3;
 
-    $this->dbManager->shouldReceive('getSingleRow')
-      ->withArgs(['SELECT jq_type FROM jobqueue WHERE jq_job_fk = $1',
-        [$reportId], "reportValidity"])
-      ->andReturn(["jq_type" => $this->reportsAllowed[1]]);
-    $this->dbManager->shouldReceive('getSingleRow')
-      ->withArgs(['SELECT job_upload_fk FROM job WHERE job_pk = $1',
-        [$reportId], "reportFileUpload"])
-      ->andReturn(["job_upload_fk" => $uploadId]);
+    $this->showJobDao->shouldReceive('getReportJob')->withArgs([$reportId])
+      ->andReturn(["jq_type" => $this->reportsAllowed[1],
+        "job_upload_fk" => $uploadId]);
     $this->uploadDao->shouldReceive('isAccessible')->withArgs([$uploadId,
       $this->groupId])->andReturn(true);
-    $this->dbManager->shouldReceive('getSingleRow')
-      ->withArgs(['SELECT * FROM reportgen WHERE job_fk = $1',
-        [$reportId], "reportFileName"])
-      ->andReturn(["job_upload_fk" => $uploadId]);
+    $this->showJobDao->shouldReceive('isJobIdPresentInReportGen')
+      ->withArgs([$reportId])->andReturn(true);
 
     $tmpfile = tempnam(sys_get_temp_dir(), "FOO");
 
@@ -445,14 +444,9 @@ class ReportControllerTest extends \PHPUnit\Framework\TestCase
     $reportId = 43;
     $uploadId = 3;
 
-    $this->dbManager->shouldReceive('getSingleRow')
-      ->withArgs(['SELECT jq_type FROM jobqueue WHERE jq_job_fk = $1',
-        [$reportId], "reportValidity"])
-      ->andReturn(["jq_type" => $this->reportsAllowed[1]]);
-    $this->dbManager->shouldReceive('getSingleRow')
-      ->withArgs(['SELECT job_upload_fk FROM job WHERE job_pk = $1',
-        [$reportId], "reportFileUpload"])
-      ->andReturn(["job_upload_fk" => $uploadId]);
+    $this->showJobDao->shouldReceive('getReportJob')->withArgs([$reportId])
+      ->andReturn(["jq_type" => $this->reportsAllowed[1],
+        "job_upload_fk" => $uploadId]);
     $this->uploadDao->shouldReceive('isAccessible')->withArgs([$uploadId,
       $this->groupId])->andReturn(false);
 
@@ -471,10 +465,8 @@ class ReportControllerTest extends \PHPUnit\Framework\TestCase
   {
     $reportId = 43;
 
-    $this->dbManager->shouldReceive('getSingleRow')
-      ->withArgs(['SELECT jq_type FROM jobqueue WHERE jq_job_fk = $1',
-        [$reportId], "reportValidity"])
-      ->andReturn(["jq_type" => ""]);
+    $this->showJobDao->shouldReceive('getReportJob')->withArgs([$reportId])
+      ->andReturn(["jq_type" => "", "job_upload_fk" => 1]);
 
     $this->expectException(HttpNotFoundException::class);
 
@@ -492,20 +484,13 @@ class ReportControllerTest extends \PHPUnit\Framework\TestCase
     $reportId = 43;
     $uploadId = 3;
 
-    $this->dbManager->shouldReceive('getSingleRow')
-      ->withArgs(['SELECT jq_type FROM jobqueue WHERE jq_job_fk = $1',
-        [$reportId], "reportValidity"])
-      ->andReturn(["jq_type" => $this->reportsAllowed[1]]);
-    $this->dbManager->shouldReceive('getSingleRow')
-      ->withArgs(['SELECT job_upload_fk FROM job WHERE job_pk = $1',
-        [$reportId], "reportFileUpload"])
-      ->andReturn(["job_upload_fk" => $uploadId]);
+    $this->showJobDao->shouldReceive('getReportJob')->withArgs([$reportId])
+      ->andReturn(["jq_type" => $this->reportsAllowed[1],
+        "job_upload_fk" => $uploadId]);
     $this->uploadDao->shouldReceive('isAccessible')->withArgs([$uploadId,
       $this->groupId])->andReturn(true);
-    $this->dbManager->shouldReceive('getSingleRow')
-      ->withArgs(['SELECT * FROM reportgen WHERE job_fk = $1',
-        [$reportId], "reportFileName"])
-      ->andReturn(false);
+    $this->showJobDao->shouldReceive('isJobIdPresentInReportGen')
+      ->withArgs([$reportId])->andReturn(false);
 
     $this->expectException(HttpServiceUnavailableException::class);
 

@@ -197,7 +197,6 @@ class GroupController extends RestController
   public function deleteGroupMember($request, $response, $args)
   {
     $apiVersion = ApiVersion::getVersion($request);
-    $dbManager = $this->dbHelper->getDbManager();
 
     $user_pk = null;
     $group_pk = null;
@@ -213,31 +212,19 @@ class GroupController extends RestController
       $group_pk = intval($args['pathParam']);
     }
 
-    $userIsAdmin = Auth::isAdmin();
-    $userHasGroupAccess = $this->restHelper->getUserDao()->isAdvisorOrAdmin(
-      $this->restHelper->getUserId(), $group_pk);
-
     if (!$this->dbHelper->doesIdExist("groups", "group_pk", $group_pk)) {
       throw new HttpNotFoundException("Group id not found!");
     }
     if (!$this->dbHelper->doesIdExist("users", "user_pk", $user_pk)) {
       throw new HttpNotFoundException("User id not found!");
     }
-    if (! $userIsAdmin && ! $userHasGroupAccess) {
-      throw new HttpForbiddenException("Not advisor or admin of the group. " .
-        "Can not process request.");
-    }
-    $fetchResult = $dbManager->getSingleRow(
-      "SELECT group_user_member_pk FROM group_user_member " .
-      "WHERE group_fk=$1 AND user_fk=$2", [$group_pk, $user_pk],
-      __METHOD__ . ".getByGroupAndUser");
-    if (empty($fetchResult)) {
+    $this->throwNotGroupManager($group_pk);
+    $group_user_member_pk = $this->restHelper->getUserDao()
+      ->getGroupMembershipId($group_pk, $user_pk);
+    if ($group_user_member_pk === null) {
       throw new HttpNotFoundException("Not a member!");
     }
-    $group_user_member_pk = $fetchResult['group_user_member_pk'];
-    /** @var \Fossology\UI\Page\AdminGroupUsers $adminGroupUsers */
-    $adminGroupUsers = $this->restHelper->getPlugin('group_manage_users');
-    $adminGroupUsers->updateGUMPermission($group_user_member_pk, -1,$dbManager);
+    $this->restHelper->getUserDao()->updateGUMPermission($group_user_member_pk, -1);
     $returnVal = new Info(202, "User will be removed from group.", InfoType::INFO);
     return $response->withJson($returnVal->getArray(), $returnVal->getCode());
   }
@@ -278,41 +265,22 @@ class GroupController extends RestController
   public function getGroupMembers($request, $response, $args)
   {
     $apiVersion = ApiVersion::getVersion($request);
-    $userId = $this->restHelper->getUserId();
     $userDao = $this->restHelper->getUserDao();
 
     // Get the group name/id form the params and then the group Id
     $groupId = $apiVersion == ApiVersion::V2 ? intval($userDao->getGroupIdByName($args['pathParam'])) : intval($args['pathParam']);
 
-    $userIsAdmin = Auth::isAdmin();
-    $userHasGroupAccess = $userDao->isAdvisorOrAdmin($userId, $groupId);
-
     if (!$this->dbHelper->doesIdExist("groups", "group_pk", $groupId)) {
       throw new HttpNotFoundException("Group id not found!");
     }
-    if (! $userIsAdmin && ! $userHasGroupAccess) {
-      throw new HttpForbiddenException("Not advisor or admin of the group. " .
-        "Can not process request.");
-    }
+    $this->throwNotGroupManager($groupId);
 
-    // The query to get the list of users with corresponding roles from the group.
-    $dbManager = $this->dbHelper->getDbManager();
-
-    $stmt = __METHOD__ . "getUsersWithGroup";
-    $dbManager->prepare($stmt, "SELECT user_pk, group_perm
-       FROM users INNER JOIN group_user_member gum ON gum.user_fk=users.user_pk AND gum.group_fk=$1;");
-
-    $result = $dbManager->execute($stmt, array($groupId));
-    $usersWithGroup = $dbManager->fetchAll($result);
-
-    // Convert back fields [user_pk , group_user_member_pk ,group_perm ] from String to Integer
     $memberList = array();
-    foreach ($usersWithGroup as $record) {
+    foreach ($userDao->getGroupMembers($groupId) as $record) {
       $user = $this->dbHelper->getUsers($record['user_pk']);
       $userGroupMember = new UserGroupMember($user[0],$record["group_perm"]);
       $memberList[] = $userGroupMember->getArray(ApiVersion::getVersion($request));
     }
-    $dbManager->freeResult($result);
 
     return $response->withJson($memberList, 200);
   }
@@ -330,7 +298,6 @@ class GroupController extends RestController
   public function addMember($request, $response, $args)
   {
     $apiVersion = ApiVersion::getVersion($request);
-    $dbManager = $this->dbHelper->getDbManager();
 
     $body = $this->getParsedBody($request);
     $newuser = null;
@@ -348,10 +315,6 @@ class GroupController extends RestController
     }
     $newperm = intval($body['perm']);
 
-    $userIsAdmin = Auth::isAdmin();
-    $userHasGroupAccess = $this->restHelper->getUserDao()->isAdvisorOrAdmin(
-      $this->restHelper->getUserId(), $group_pk);
-
     if (!isset($newperm)) {
       throw new HttpBadRequestException("ERROR - no default permission provided");
     }
@@ -364,22 +327,13 @@ class GroupController extends RestController
     if ($newperm < 0 || $newperm > 2) {
       throw new HttpBadRequestException("ERROR - Permission should be in range [0-2]");
     }
-    if (! $userIsAdmin && ! $userHasGroupAccess) {
-      throw new HttpForbiddenException("Not advisor or admin of the group. " .
-        "Can not process request.");
-    }
-    $stmt = __METHOD__ . ".getByGroupAndUser";
-    $sql = "SELECT group_user_member_pk FROM group_user_member WHERE group_fk=$1 AND user_fk=$2;";
-    $fetchResult = $dbManager->getSingleRow($sql, [$group_pk, $newuser], $stmt);
-
+    $this->throwNotGroupManager($group_pk);
+    $userDao = $this->restHelper->getUserDao();
     // Do not produce duplicate
-    if (!empty($fetchResult)) {
+    if ($userDao->getGroupMembershipId($group_pk, $newuser) !== null) {
       throw new HttpBadRequestException("Already a member!");
     }
-    $dbManager->prepare($stmt = __METHOD__ . ".insertGUP",
-      "INSERT INTO group_user_member (group_fk, user_fk, group_perm) VALUES ($1,$2,$3)");
-    $dbManager->freeResult(
-      $dbManager->execute($stmt, array($group_pk, $newuser, $newperm)));
+    $userDao->addGroupMembership($group_pk, $newuser, $newperm);
 
     $returnVal = new Info(201, "User added to group.", InfoType::INFO);
     return $response->withJson($returnVal->getArray(), $returnVal->getCode());
@@ -396,9 +350,8 @@ class GroupController extends RestController
    */
   public function changeUserPermission($request, $response, $args)
   {
-    // Extract all  prerequisites (dbManager , user_pk , new_permission , group_pk ) for this functionality
+    // Extract all  prerequisites (user_pk , new_permission , group_pk ) for this functionality
     $apiVersion = ApiVersion::getVersion($request);
-    $dbManager = $this->dbHelper->getDbManager();
 
     $user_pk = null;
     $group_pk = null;
@@ -415,10 +368,6 @@ class GroupController extends RestController
     }
 
     $newperm = intval($this->getParsedBody($request)['perm']);
-    $userIsAdmin = Auth::isAdmin();
-    $userHasGroupAccess = $this->restHelper->getUserDao()->isAdvisorOrAdmin(
-      $this->restHelper->getUserId(), $group_pk);
-
     // Validate arguments
 
     if (!isset($newperm)) {
@@ -436,25 +385,32 @@ class GroupController extends RestController
     if ($newperm > 2) {
       throw new HttpBadRequestException("Permission can not be greater than 2");
     }
-    if (! $userIsAdmin && ! $userHasGroupAccess) {
-      throw new HttpForbiddenException("Not advisor or admin of the group. " .
-        "Can not process request.");
-    }
+    $this->throwNotGroupManager($group_pk);
 
     // Check if the relation already exists, retrieve the PK.
     // IF not, return 404 error
-    $memberRow = $dbManager->getSingleRow("SELECT group_user_member_pk FROM group_user_member WHERE group_fk=$1 AND user_fk=$2",
-      [$group_pk, $user_pk],
-      __METHOD__ . ".getByGroupAndUser");
-
-    if (empty($memberRow)) {
+    $group_user_member_pk = $this->restHelper->getUserDao()
+      ->getGroupMembershipId($group_pk, $user_pk);
+    if ($group_user_member_pk === null) {
       throw new HttpNotFoundException("User not part of the group");
     }
-    $group_user_member_pk = $memberRow['group_user_member_pk'];
-    /** @var \Fossology\UI\Page\AdminGroupUsers $adminGroupUsers */
-    $adminGroupUsers = $this->restHelper->getPlugin('group_manage_users');
-    $adminGroupUsers->updateGUMPermission($group_user_member_pk, $newperm,$dbManager);
+    $this->restHelper->getUserDao()->updateGUMPermission($group_user_member_pk, $newperm);
     $info = new Info(202, "Permission updated successfully.", InfoType::INFO);
     return $response->withJson($info->getArray(), $info->getCode());
+  }
+
+  /**
+   * Refuse callers who neither administer the system nor manage this group.
+   *
+   * @param int $groupId
+   * @throws HttpForbiddenException
+   */
+  private function throwNotGroupManager($groupId): void
+  {
+    if (! Auth::isAdmin() && ! $this->restHelper->getUserDao()->isAdvisorOrAdmin(
+        $this->restHelper->getUserId(), $groupId)) {
+      throw new HttpForbiddenException("Not advisor or admin of the group. " .
+        "Can not process request.");
+    }
   }
 }

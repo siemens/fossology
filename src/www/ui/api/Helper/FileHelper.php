@@ -76,6 +76,14 @@ class FileHelper
   }
 
   /**
+   * @sa Fossology::Lib::Dao::PfileDao::isInAccessibleUpload()
+   */
+  public function isInAccessibleUpload($pfileId, $groupId, $publicAllowed)
+  {
+    return $this->pfileDao->isInAccessibleUpload($pfileId, $groupId, $publicAllowed);
+  }
+
+  /**
    * Get the uploads where the pfile was uploaded as package
    *
    * @param integer $pfileId Pfileid to search from

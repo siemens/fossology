@@ -639,6 +639,33 @@ ORDER BY lft asc
   }
 
   /**
+   * Check a short name against main licenses only, or against one group's
+   * candidates when a group is given. Unlike isNewLicense(), the two are not
+   * combined.
+   *
+   * @param string $shortName
+   * @param int $groupId 0 for main licenses
+   * @return bool True if the short name is not taken
+   */
+  public function isShortnameUnused($shortName, $groupId = 0)
+  {
+    $tableName = "ONLY license_ref";
+    $where = "";
+    $params = [$shortName];
+    $statement = __METHOD__;
+    if ($groupId != 0) {
+      $tableName = "license_candidate";
+      $where = "AND group_fk = $2";
+      $params[] = $groupId;
+      $statement .= ".candidate";
+    }
+    $result = $this->dbManager->getSingleRow(
+      "SELECT count(*) cnt FROM $tableName WHERE rf_shortname = $1 $where",
+      $params, $statement);
+    return $result["cnt"] == 0;
+  }
+
+  /**
    * @param string $newShortname
    * @param int $groupId
    * @return bool
@@ -649,6 +676,28 @@ ORDER BY lft asc
     $sql = 'SELECT count(*) cnt FROM (' . $licenceViewDao->getDbViewQuery() . ') AS license_all WHERE rf_shortname=$1';
     $duplicatedRef = $this->dbManager->getSingleRow($sql, array($newShortname), __METHOD__.".$groupId" );
     return $duplicatedRef['cnt'] == 0;
+  }
+
+  /**
+   * @param array $columns Column name => value of the new row
+   * @param bool $isCandidate True for a group's license candidate
+   * @return int rf_pk of the new row
+   */
+  public function insertLicenseRow(array $columns, $isCandidate = false)
+  {
+    return $this->dbManager->insertTableRow(
+      $isCandidate ? 'license_candidate' : 'license_ref', $columns, '', 'rf_pk');
+  }
+
+  /**
+   * @param int $rfPk License to change
+   * @param array $columns Column name => new value
+   * @param bool $isCandidate True for a group's license candidate
+   */
+  public function updateLicenseRow($rfPk, array $columns, $isCandidate = false)
+  {
+    $this->dbManager->updateTableRow(
+      $isCandidate ? 'license_candidate' : 'license_ref', $columns, 'rf_pk', $rfPk);
   }
 
   /**
