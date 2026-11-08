@@ -75,6 +75,8 @@ class SearchController extends RestController
     // set uploadId to 0 - search in all files
     if (empty($uploadId)) {
       $uploadId = 0;
+    } elseif (filter_var($uploadId, FILTER_VALIDATE_INT, ["options" => ["min_range" => 1]]) === false) {
+      throw new HttpBadRequestException("uploadId must be a positive integer!");
     }
 
     /*

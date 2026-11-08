@@ -34,6 +34,16 @@ class ui_tag extends FO_Plugin
   } // RegisterMenus()
 
   /**
+   * @param string $tagName
+   * @return array|false Tag row, false if there is no such tag
+   */
+  private function findTag($tagName)
+  {
+    return $GLOBALS['container']->get('db.manager')->getSingleRow(
+      "SELECT * FROM tag WHERE tag = $1 LIMIT 1", array($tagName), __METHOD__);
+  }
+
+  /**
    * \brief Add a new Tag.
    */
   function CreateTag($tag_array)
@@ -80,35 +90,23 @@ class ui_tag extends FO_Plugin
     pg_exec("BEGIN;");
 
     /* See if the tag already exists */
-    $sql = "SELECT * FROM tag WHERE tag = '$tag_name'";
-    $result = pg_query($PG_CONN, $sql);
-    DBCheckResult($result, $sql, __FILE__, __LINE__);
-    if (pg_num_rows($result) < 1) {
-      pg_free_result($result);
-
+    if (empty($this->findTag($tag_name))) {
       $Val = str_replace("'", "''", $tag_name);
       $Val1 = str_replace("'", "''", $tag_desc);
       $sql = "INSERT INTO tag (tag,tag_desc) VALUES ('$Val', '$Val1');";
       $result = pg_query($PG_CONN, $sql);
       DBCheckResult($result, $sql, __FILE__, __LINE__);
       pg_free_result($result);
-    } else {
-      pg_free_result($result);
     }
 
     /* Make sure it was added */
-    $sql = "SELECT * FROM tag WHERE tag = '$tag_name' LIMIT 1;";
-    $result = pg_query($PG_CONN, $sql);
-    DBCheckResult($result, $sql, __FILE__, __LINE__);
-    if (pg_num_rows($result) < 1) {
-      pg_free_result($result);
+    $row = $this->findTag($tag_name);
+    if (empty($row)) {
       $text = _("Failed to create tag.");
       return ($text);
     }
 
-    $row = pg_fetch_assoc($result);
     $tag_pk = $row["tag_pk"];
-    pg_free_result($result);
 
     $pfileArray = array();
     $i = 0;
@@ -228,13 +226,10 @@ class ui_tag extends FO_Plugin
       pg_free_result($result);
       /* Is Tag name changed */
       if ($row[0] <> $tag_name) {
-        $sql = "SELECT * FROM tag WHERE tag = '$tag_name'";
-        $result = pg_query($PG_CONN, $sql);
-        DBCheckResult($result, $sql, __FILE__, __LINE__);
         /* Is new Tag name defined in name space */
-        if (pg_num_rows($result) >= 1) {
-          $row = pg_fetch_row($result);
-          pg_free_result($result);
+        $row = $this->findTag($tag_name);
+        if (!empty($row)) {
+          $row = array_values($row);
           /* Delete old tag association */
           $this->DeleteTag();
           /* Existing tag values cannot be changed at this phase. */
@@ -245,8 +240,6 @@ class ui_tag extends FO_Plugin
                             "tag_container" => $tag_container, "tag_dir" => $tag_dir);
           $this->CreateTag($tag_data);
           return (null);
-        } else {
-          pg_free_result($result);
         }
       }
     }

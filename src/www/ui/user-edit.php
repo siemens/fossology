@@ -264,7 +264,9 @@ class UserEditPage extends DefaultPlugin
     }
 
     /* Verify the user_name is not a duplicate  */
-    $CheckUserRec = GetSingleRec("users", "WHERE user_name='$UserRec[user_name]'");
+    $CheckUserRec = $this->dbManager->getSingleRow(
+      "SELECT user_pk FROM users WHERE user_name=$1 LIMIT 1",
+      array($UserRec['user_name']), __METHOD__ . ".checkUserName");
     if ((!empty($CheckUserRec)) and ( $CheckUserRec['user_pk'] != $UserRec['user_pk'])) {
       $Errors .= "<li>" . _("Username is not unique.") . "</li>";
     }

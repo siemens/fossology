@@ -48,7 +48,7 @@ class ajax_filebucket extends FO_Plugin
       return "NO DB connection";
     }
 
-    $bucket_pk = GetParm("bucket_pk",PARM_RAW);
+    $bucket_pk = GetParm("bucket_pk",PARM_INTEGER);
     $uploadtree_pk = GetParm("item",PARM_INTEGER);
 
     /* Get the uploadtree table name */
