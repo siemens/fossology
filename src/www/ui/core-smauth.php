@@ -134,7 +134,6 @@ class core_smauth extends FO_Plugin
     if (empty($Email)) {
       return;
     }
-    $Email = str_replace("'", "''", $Email); /* protect DB */
     $FolderName = substr($Email, 0, strpos($Email,'@'));
     $FolderName = trim($FolderName);
     if (empty($FolderName)) {
@@ -143,8 +142,8 @@ class core_smauth extends FO_Plugin
     $FolderDes = "Folder created for " . $FolderName;
 
     /* Get default User description and bucketpool from sysconf table */
-    $UserDesc = 'null';
-    $BucketPool = 'null';
+    $UserDesc = '';
+    $BucketPool = null;
     $sql = "SELECT typlen  FROM pg_type where typname='sysconfig' limit 1";
     $result = pg_query($PG_CONN, $sql);
     DBCheckResult($result, $sql, __FILE__, __LINE__);
@@ -157,7 +156,7 @@ class core_smauth extends FO_Plugin
       $R = pg_fetch_assoc($result);
       pg_free_result($result);
       if (!empty($R['conf_value'])) {
-        $UserDesc = "'".$R['conf_value']."'";
+        $UserDesc = $R['conf_value'];
       }
 
       // Get BucketPool from sysconfig
@@ -169,11 +168,11 @@ class core_smauth extends FO_Plugin
       if (!empty($R['conf_value'])) {
         $BucketPool = $R['conf_value'];
         //Check if the bucketpool defined in sysconfig exist in bucketpool table
-        $sql = "SELECT bucketpool_pk  FROM bucketpool WHERE bucketpool_pk=$BucketPool AND active='Y'";
-        $result = pg_query($PG_CONN, $sql);
+        $sql = "SELECT bucketpool_pk FROM bucketpool WHERE bucketpool_pk=$1 AND active='Y'";
+        $result = pg_query_params($PG_CONN, $sql, array(intval($BucketPool)));
         DBCheckResult($result, $sql, __FILE__, __LINE__);
         if (pg_num_rows($result) < 1) {
-          $BucketPool = 'null';       //didn't exist in bucketpool table, set it 'null'
+          $BucketPool = null;       //didn't exist in bucketpool table
         }
       } else {
         /* if didn't define bucketpool from sycconf.And only a single bucketpool record, get bucketpool from bucketpool table. If more than one, set it null*/
@@ -186,7 +185,7 @@ class core_smauth extends FO_Plugin
             $BucketPool = $R['bucketpool_pk'];
           }
         } else {
-          $BucketPool = 'null';
+          $BucketPool = null;
         }
       }
       pg_free_result($result);
@@ -195,27 +194,27 @@ class core_smauth extends FO_Plugin
     }
 
     /* See if the user exists */
-    $sql = "SELECT * FROM users WHERE user_email = '$Email';";
-    $result = pg_query($PG_CONN, $sql);
+    $sql = "SELECT * FROM users WHERE user_email = $1;";
+    $result = pg_query_params($PG_CONN, $sql, array($Email));
     DBCheckResult($result, $sql, __FILE__, __LINE__);
     $R = pg_fetch_assoc($result);
     pg_free_result($result);
     if (empty($R['user_name'])) {
       //check if folder name exists under the parent?
       pg_exec("BEGIN;");
-      $sql = "SELECT * FROM folderlist WHERE name = '$FolderName' AND parent = '1' AND foldercontents_mode = '1';";
-      $result = pg_query($PG_CONN, $sql);
+      $sql = "SELECT * FROM folderlist WHERE name = $1 AND parent = '1' AND foldercontents_mode = '1';";
+      $result = pg_query_params($PG_CONN, $sql, array($FolderName));
       DBCheckResult($result, $sql, __FILE__, __LINE__);
       $row = pg_fetch_assoc($result);
       pg_free_result($result);
       if (empty($row['name'])) {
         //create folder for the user
-        $sql = "INSERT INTO folder (folder_name, folder_desc) VALUES ('$FolderName', '$FolderDes');";
-        $result = pg_query($PG_CONN, $sql);
+        $sql = "INSERT INTO folder (folder_name, folder_desc) VALUES ($1, $2);";
+        $result = pg_query_params($PG_CONN, $sql, array($FolderName, $FolderDes));
         DBCheckResult($result, $sql, __FILE__, __LINE__);
         pg_free_result($result);
-        $sql = "SELECT folder_pk FROM folder WHERE folder_name='$FolderName' AND folder_desc = '$FolderDes';";
-        $result = pg_query($PG_CONN, $sql);
+        $sql = "SELECT folder_pk FROM folder WHERE folder_name=$1 AND folder_desc = $2;";
+        $result = pg_query_params($PG_CONN, $sql, array($FolderName, $FolderDes));
         DBCheckResult($result, $sql, __FILE__, __LINE__);
         $row = pg_fetch_assoc($result);
         pg_free_result($result);
@@ -226,13 +225,13 @@ class core_smauth extends FO_Plugin
         $FolderPk = $row['folder_pk'];
         //echo $FolderPk;
 
-        $sql = "INSERT INTO foldercontents (parent_fk,foldercontents_mode,child_id) VALUES ('1','1','$FolderPk');";
-        $result = pg_query($PG_CONN, $sql);
+        $sql = "INSERT INTO foldercontents (parent_fk,foldercontents_mode,child_id) VALUES (1,1,$1);";
+        $result = pg_query_params($PG_CONN, $sql, array(intval($FolderPk)));
         DBCheckResult($result, $sql, __FILE__, __LINE__);
         pg_free_result($result);
       } else {
-        $sql = "SELECT folder_pk FROM folder WHERE folder_name='$FolderName' AND folder_desc = '$FolderDes';";
-        $result = pg_query($PG_CONN, $sql);
+        $sql = "SELECT folder_pk FROM folder WHERE folder_name=$1 AND folder_desc = $2;";
+        $result = pg_query_params($PG_CONN, $sql, array($FolderName, $FolderDes));
         DBCheckResult($result, $sql, __FILE__, __LINE__);
         $row = pg_fetch_assoc($result);
         pg_free_result($result);
@@ -245,13 +244,17 @@ class core_smauth extends FO_Plugin
       }
 
       //create user
-      add_user($Email,$UserDesc,null,null,5,$Email,y,"agent_bucket,agent_copyright",$FolderPk,$BucketPool);
+      /* SiteMinder authenticates these users; no password can be used */
+      $unusableHash = password_hash(bin2hex(random_bytes(32)), PASSWORD_DEFAULT);
+      add_user($Email, $UserDesc, $unusableHash, Auth::PERM_WRITE, $Email, 'y',
+        $SysConf['SYSCONFIG']['UploadVisibility'] ?? 'protected',
+        "agent_bucket,agent_copyright", $FolderPk, $BucketPool);
 
       pg_exec("COMMIT;");
     } /* no user */
 
-    $sql = "SELECT * FROM users WHERE user_email = '$Email';";
-    $result = pg_query($PG_CONN, $sql);
+    $sql = "SELECT * FROM users WHERE user_email = $1;";
+    $result = pg_query_params($PG_CONN, $sql, array($Email));
     DBCheckResult($result, $sql, __FILE__, __LINE__);
     $R = pg_fetch_assoc($result);
     pg_free_result($result);

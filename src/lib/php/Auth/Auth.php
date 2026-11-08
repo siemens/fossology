@@ -104,6 +104,49 @@ class Auth
   }
 
   /**
+   * Whether the browser reached this site over HTTPS, directly or through a
+   * proxy that sets X-Forwarded-Proto
+   *
+   * @param array $server Request headers as in $_SERVER
+   * @return boolean
+   */
+  public static function isHttpsRequest($server)
+  {
+    $https = strtolower((string) ($server['HTTPS'] ?? ''));
+    $forwarded = strtolower(trim(explode(',', (string) ($server['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
+    return ($https !== '' && $https !== 'off') || $forwarded === 'https';
+  }
+
+  /**
+   * Whether a URL may be used as a redirect target: a local path, or an
+   * http(s) URL on this host. Backslashes, whitespace and control characters
+   * are refused because browsers read a backslash as a slash.
+   *
+   * @param string $url
+   * @param array $server Request headers as in $_SERVER
+   * @return boolean
+   */
+  public static function isLocalRedirect($url, $server)
+  {
+    if (preg_match('/[\\\\\s\x00-\x1f]/', $url)) {
+      return false;
+    }
+    $parts = parse_url($url);
+    if ($parts === false) {
+      return false;
+    }
+    if (empty($parts['scheme']) && empty($parts['host'])) {
+      return preg_match('#^/(?!/)#', $url) === 1;
+    }
+    $scheme = strtolower($parts['scheme'] ?? '');
+    $own = parse_url('http://' . ($server['HTTP_HOST'] ?? ''));
+    $ownPort = $own['port'] ?? (self::isHttpsRequest($server) ? 443 : 80);
+    $port = $parts['port'] ?? ($scheme === 'https' ? 443 : 80);
+    return in_array($scheme, ['http', 'https'], true) && !empty($parts['host']) &&
+      strcasecmp($parts['host'], (string) ($own['host'] ?? '')) === 0 && $port == $ownPort;
+  }
+
+  /**
    * Get REST Token format from conf
    * @return int Auth::TOKEN_TOKEN | Auth::TOKEN_OAUTH | Auth::TOKEN_BOTH
    */

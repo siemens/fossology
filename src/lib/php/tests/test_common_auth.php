@@ -29,12 +29,18 @@ class test_common_auth extends \PHPUnit\Framework\TestCase
    */
   function test_siteminder_check()
   {
+    global $SysConf;
+    $SysConf['AUTHENTICATION']['siteminder'] = 'true';
     $_SERVER['HTTP_SMUNIVERSALID'] = null;
     $result = siteminder_check();
     $this->assertEquals("-1", $result );
     $_SERVER['HTTP_SMUNIVERSALID'] = "Test Siteminder";
     $result = siteminder_check();
     $this->assertEquals("Test Siteminder", $result);
+    $SysConf['AUTHENTICATION']['siteminder'] = 'false';
+    $this->assertEquals("-1", siteminder_check());
+    unset($SysConf['AUTHENTICATION']['siteminder']);
+    $this->assertEquals("-1", siteminder_check());
   }
 
   /**

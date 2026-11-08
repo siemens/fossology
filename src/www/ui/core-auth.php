@@ -91,11 +91,7 @@ class core_auth extends FO_Plugin
     }
 
     if (array_key_exists('selectMemberGroup', $_POST)) {
-      $selectedGroupId = intval($_POST['selectMemberGroup']);
-      $this->userDao->setDefaultGroupMembership(intval($_SESSION[Auth::USER_ID]), $selectedGroupId);
-      $_SESSION[Auth::GROUP_ID] = $selectedGroupId;
-      $this->session->set(Auth::GROUP_ID, $selectedGroupId);
-      $SysConf['auth'][Auth::GROUP_ID] = $selectedGroupId;
+      $this->selectMemberGroup(intval($_POST['selectMemberGroup']));
     }
 
     if (array_key_exists(Auth::USER_ID, $_SESSION)) {
@@ -142,6 +138,24 @@ class core_auth extends FO_Plugin
     plugin_disable($_SESSION[Auth::USER_LEVEL]);
     $this->State = PLUGIN_STATE_READY;
   } // GetIP()
+
+  /**
+   * Switch the session to a group the current user is a member of.
+   * @param int $groupId
+   */
+  private function selectMemberGroup($groupId)
+  {
+    global $SysConf;
+
+    $userId = intval($_SESSION[Auth::USER_ID]);
+    if (!array_key_exists($groupId, $this->userDao->getUserGroupMap($userId))) {
+      return;
+    }
+    $this->userDao->setDefaultGroupMembership($userId, $groupId);
+    $_SESSION[Auth::GROUP_ID] = $groupId;
+    $this->session->set(Auth::GROUP_ID, $groupId);
+    $SysConf['auth'][Auth::GROUP_ID] = $groupId;
+  }
 
   /**
    * \brief Set $_SESSION and $SysConf user variables
@@ -268,6 +282,9 @@ class core_auth extends FO_Plugin
       if (array_key_exists('mod', $params) && $params['mod'] == $this->Name) {
         $referrer = Traceback_uri();
       }
+    }
+    if (!empty($referrer) && !Auth::isLocalRedirect($referrer, $_SERVER)) {
+      $referrer = Traceback_uri();
     }
     if (!empty($getEmail) && empty($userName)) {
       $validLogin = $this->checkUsernameAndPassword($getEmail, "", true);
@@ -417,6 +434,8 @@ class core_auth extends FO_Plugin
           } else {
             return false;
           }
+        } else {
+          return false;
         }
       } else if (!empty($password)) {
         /* empty password required */
@@ -431,6 +450,9 @@ class core_auth extends FO_Plugin
     }
 
     /* If you make it here, then username and password were good! */
+    if ($this->session->isStarted() && @$_SESSION[Auth::USER_NAME] !== $row['user_name']) {
+      $this->session->migrate(true);
+    }
     $this->updateSession($row);
 
     $_SESSION['time_check'] = time() + (480 * 60);

@@ -132,3 +132,7 @@ provider = password
 ; oauth : to allow only oauth tokens
 ; both  : to allow both FOSSology and oauth tokens
 resttoken = token
+; Log users in from the SiteMinder identity header. Enable only behind a
+; SiteMinder proxy that sets the header and removes any copy sent by clients.
+siteminder = false
+

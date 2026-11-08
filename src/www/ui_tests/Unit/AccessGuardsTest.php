@@ -117,6 +117,53 @@ class AccessGuardsTest extends \PHPUnit\Framework\TestCase
       $page->UpdateUser($this->userRec('bob'), false));
   }
 
+  /** @test Switching to a group of the user works */
+  public function testSelectMemberGroupAllowed()
+  {
+    $_SESSION = [Auth::USER_ID => 2, Auth::GROUP_ID => 3];
+    $auth = $this->bare('core_auth', 'core-auth.php');
+    $userDao = M::mock();
+    $userDao->shouldReceive('getUserGroupMap')->with(2)->andReturn([3 => 'a', 4 => 'b']);
+    $userDao->shouldReceive('setDefaultGroupMembership')->with(2, 4)->once();
+    $session = M::mock();
+    $session->shouldReceive('set')->with(Auth::GROUP_ID, 4)->once();
+    Reflectory::setObjectsProperty($auth, 'userDao', $userDao);
+    Reflectory::setObjectsProperty($auth, 'session', $session);
+    Reflectory::invokeObjectsMethodnameWith($auth, 'selectMemberGroup', [4]);
+    $this->assertEquals(4, $_SESSION[Auth::GROUP_ID]);
+  }
+
+  /** @test Switching to a foreign group changes nothing */
+  public function testSelectMemberGroupRefused()
+  {
+    $_SESSION = [Auth::USER_ID => 2, Auth::GROUP_ID => 3];
+    $auth = $this->bare('core_auth', 'core-auth.php');
+    $userDao = M::mock();
+    $userDao->shouldReceive('getUserGroupMap')->with(2)->andReturn([3 => 'a']);
+    $userDao->shouldNotReceive('setDefaultGroupMembership');
+    $session = M::mock();
+    $session->shouldNotReceive('set');
+    Reflectory::setObjectsProperty($auth, 'userDao', $userDao);
+    Reflectory::setObjectsProperty($auth, 'session', $session);
+    Reflectory::invokeObjectsMethodnameWith($auth, 'selectMemberGroup', [99]);
+    $this->assertEquals(3, $_SESSION[Auth::GROUP_ID]);
+  }
+
+  /** @test A wrong password fails on an account without a seed */
+  public function testWrongPasswordRefusedWithoutSeed()
+  {
+    $_SESSION = [];
+    $auth = $this->bare('core_auth', 'core-auth.php');
+    $userDao = M::mock();
+    $userDao->shouldReceive('getUserAndDefaultGroupByUserName')->andReturn([
+      'user_name' => 'bob', 'user_pk' => 2, 'user_seed' => '',
+      'user_pass' => password_hash('right', PASSWORD_DEFAULT)]);
+    $userDao->shouldNotReceive('isUserActive');
+    Reflectory::setObjectsProperty($auth, 'userDao', $userDao);
+    Reflectory::setObjectsProperty($auth, 'authExternal', false);
+    $this->assertFalse($auth->checkUsernameAndPassword('bob', 'wrong'));
+  }
+
   /** @test Tag lookups bind the name as data */
   public function testFindTagBindsName()
   {

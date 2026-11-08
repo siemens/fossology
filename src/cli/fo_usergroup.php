@@ -78,7 +78,8 @@ if ($uName && !$user) {
   }
   $agentList = userAgents();
   $email = $emailNotify = '';
-  add_user($uName, $desc, $hash, $perm, $email, $emailNotify, $agentList, $folderid);
+  add_user($uName, $desc, $hash, $perm, $email, $emailNotify,
+    $GLOBALS['SysConf']['SYSCONFIG']['UploadVisibility'] ?? 'protected', $agentList, $folderid);
   $user = $userDao->getUserByName($uName);
   print "added user $uName\n";
 }

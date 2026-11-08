@@ -21,6 +21,13 @@
  */
 function siteminder_check()
 {
+  global $SysConf;
+  /* The identity header can be sent by any client; trust it only when a
+   * SiteMinder proxy that sets it is configured. */
+  if (empty($SysConf['AUTHENTICATION']['siteminder']) ||
+      !filter_var($SysConf['AUTHENTICATION']['siteminder'], FILTER_VALIDATE_BOOLEAN)) {
+    return(-1);
+  }
   // $IDEnvVar = 'HPPF_AUTH_UID';  // for example for PingIdentity
   $IDEnvVar = 'HTTP_SMUNIVERSALID';
   if (isset($_SERVER[$IDEnvVar])) {
@@ -171,6 +178,9 @@ function account_check(&$user, &$passwd, &$group = "")
           echo "User name or password is invalid.\n";
           exit(1);
         }
+      } else {
+        echo "User name or password is invalid.\n";
+        exit(1);
       }
     }
   }

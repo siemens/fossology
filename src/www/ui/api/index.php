@@ -20,6 +20,7 @@ $GLOBALS['apiCall'] = true;
 require_once dirname(__DIR__, 3) . "/vendor/autoload.php";
 require_once dirname(__FILE__, 4) . "/lib/php/bootstrap.php";
 
+use Fossology\Lib\Auth\Auth;
 use Fossology\Lib\Util\TimingLogger;
 use Fossology\UI\Api\Controllers\AuthController;
 use Fossology\UI\Api\Controllers\BadRequestController;
@@ -71,6 +72,8 @@ function getVersionFromUri ($uri)
   preg_match('/\/repo\/api\/v(\d+)/', $uri, $matches);
   return isset($matches[1]) ? intval($matches[1]) : null;
 }
+
+ini_set('session.cookie_secure', Auth::isHttpsRequest($_SERVER) ? '1' : '0');
 
 // Determine the API version based on the URL
 $requestedVersion = isset($_SERVER['REQUEST_URI']) ? getVersionFromUri($_SERVER['REQUEST_URI']) : null;

@@ -23,6 +23,14 @@ SPDX-License-Identifier: FSFAP
 
     <services>
         <service id="session" class="Symfony\Component\HttpFoundation\Session\Session" public="true">
+            <argument type="service">
+                <service class="Symfony\Component\HttpFoundation\Session\Storage\NativeSessionStorage">
+                    <argument type="collection">
+                        <argument key="cookie_samesite">Lax</argument>
+                        <argument key="cookie_httponly">true</argument>
+                    </argument>
+                </service>
+            </argument>
         </service>
 
         <service id="logger" class="Monolog\Logger" public="true">

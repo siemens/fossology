@@ -54,4 +54,41 @@ class AuthTest extends \PHPUnit\Framework\TestCase
     $_SESSION[Auth::USER_LEVEL] = Auth::PERM_ADMIN;
     $this->assertTrue(Auth::isAdmin());
   }
+  public function testIsLocalRedirect()
+  {
+    $server = ['HTTP_HOST' => 'fossology.example:8080'];
+    foreach (['/repo/?mod=browse&upload=3', 'http://FOSSOLOGY.example:8080/repo/',
+        'https://fossology.example:8080/repo/'] as $url) {
+      $this->assertTrue(Auth::isLocalRedirect($url, $server), $url);
+    }
+    foreach (['http://fossology.example:8888/evil', 'https://fossology.example/repo/',
+        'http://fossology.example/repo/'] as $url) {
+      $this->assertFalse(Auth::isLocalRedirect($url, $server), $url);
+    }
+    $this->assertTrue(Auth::isLocalRedirect('https://f.example/repo/',
+      ['HTTP_HOST' => 'f.example', 'HTTPS' => 'on']));
+    $this->assertFalse(Auth::isLocalRedirect('https://f.example:8443/',
+      ['HTTP_HOST' => 'f.example', 'HTTPS' => 'on']));
+    $this->assertFalse(Auth::isLocalRedirect('http://f.example/repo/',
+      ['HTTP_HOST' => 'f.example', 'HTTPS' => 'on']));
+    foreach (['https://evil.example/', '//evil.example/x', "/\\evil.example",
+        "http://evil.example\\@fossology.example/", 'javascript:alert(1)',
+        'http://fossology.example.evil.example/', 'relative/path', "/repo/\nx",
+        'ftp://fossology.example/x', "/repo/ x"] as $url) {
+      $this->assertFalse(Auth::isLocalRedirect($url, $server), $url);
+    }
+  }
+
+  public function testIsHttpsRequest()
+  {
+    foreach ([['HTTPS' => 'on'], ['HTTPS' => '1'], ['HTTP_X_FORWARDED_PROTO' => 'https'],
+        ['HTTP_X_FORWARDED_PROTO' => 'HTTPS, http']] as $server) {
+      $this->assertTrue(Auth::isHttpsRequest($server), json_encode($server));
+    }
+    foreach ([[], ['HTTPS' => 'off'], ['HTTPS' => ''], ['HTTP_X_FORWARDED_PROTO' => 'http'],
+        ['HTTP_X_FORWARDED_PROTO' => 'http, https']] as $server) {
+      $this->assertFalse(Auth::isHttpsRequest($server), json_encode($server));
+    }
+  }
 }
+

@@ -7,6 +7,7 @@
 */
 
 use Fossology\Lib\Util\TimingLogger;
+use Fossology\Lib\Auth\Auth;
 use Fossology\UI\Page\HomePage;
 
 /**
@@ -40,6 +41,8 @@ $loader->addPath(dirname(__FILE__).'/template');
 $timingLogger->tic();
 ConfigInit($SYSCONFDIR, $SysConf);
 $timingLogger->toc("setup init");
+
+ini_set('session.cookie_secure', Auth::isHttpsRequest($_SERVER) ? '1' : '0');
 
 $timingLogger->tic();
 plugin_load();

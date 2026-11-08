@@ -11,7 +11,7 @@
   {% endif %}
   {{ info }}
   <form method="post" name="loginFormMain" action="{{ authUrl }}">
-    <input type="hidden" name="HTTP_REFERER" value="{{ referrer }}"/>
+    <input type="hidden" name="HTTP_REFERER" value="{{ referrer|e }}"/>
     <input type="hidden" name="timezone" id="timezone" value="" />
     {% if getOauth %}
       <input type="hidden" name="oauth" value="{{ getOauth }}">
