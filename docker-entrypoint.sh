@@ -24,7 +24,15 @@ user=$db_user;
 password=$db_password;
 EOM
 
-sed -i 's/address = .*/address = '"${FOSSOLOGY_SCHEDULER_HOST:-localhost}"'/' \
+# A scheduler-only container is reached by the web container, so it listens on
+# all addresses; an all-in-one container only needs loopback.
+if [[ $# -eq 1 && "$1" == "scheduler" ]]; then
+  default_bind=0.0.0.0
+else
+  default_bind=127.0.0.1
+fi
+sed -i -e 's/^address = .*/address = '"${FOSSOLOGY_SCHEDULER_HOST:-localhost}"'/' \
+    -e 's/^bind_address = .*/bind_address = '"${FOSSOLOGY_SCHEDULER_BIND:-$default_bind}"'/' \
     /usr/local/etc/fossology/fossology.conf
 
 # Startup DB if needed or wait for external DB

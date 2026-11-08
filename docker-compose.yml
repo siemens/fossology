@@ -24,6 +24,7 @@ services:
       - FOSSOLOGY_DB_NAME=fossology
       - FOSSOLOGY_DB_USER=fossy
       - FOSSOLOGY_DB_PASSWORD=fossy
+      - FOSSOLOGY_SCHEDULER_BIND=0.0.0.0
     command: scheduler
     depends_on:
       - db

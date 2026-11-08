@@ -12,6 +12,9 @@
 [FOSSOLOGY]
 port = 24693
 address = localhost
+; IPv4 address the scheduler listens on. It has no authentication, so use a
+; non-loopback address only on a trusted network.
+bind_address = 127.0.0.1
 
 ; REPLACEMENT for Depth.conf
 depth = 3

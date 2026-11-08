@@ -520,7 +520,10 @@ void* interface_listen_thread(scheduler_t* scheduler)
   if(error)
     FATAL("[port:%d]: failed to create socket: %s", scheduler->i_port, error->message);
 
-  inet_addr = g_inet_address_new_any(G_SOCKET_FAMILY_IPV4);
+  inet_addr = g_inet_address_new_from_string(scheduler->i_address);
+  if(inet_addr == NULL ||
+      g_inet_address_get_family(inet_addr) != G_SOCKET_FAMILY_IPV4)
+    FATAL("bind_address must be an IPv4 address: %s", scheduler->i_address);
   sock_addr = g_inet_socket_address_new(inet_addr, scheduler->i_port);
   g_object_unref(inet_addr);
 

@@ -24,6 +24,9 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include <arpa/inet.h>
+#include <ifaddrs.h>
+#include <net/if.h>
 #include <unistd.h>
 
 /* ************************************************************************** */
@@ -200,6 +203,103 @@ void test_interface_listen_thread()
   FO_ASSERT_FALSE(result);
 
   scheduler_destroy(scheduler);
+}
+
+/**
+ * \brief Find an IPv4 address of this machine that is not loopback
+ * \param buffer Receives the address
+ * \param size   Size of the buffer
+ * \return TRUE if an address was found
+ */
+static gboolean non_loopback_address(char* buffer, size_t size)
+{
+  struct ifaddrs* all;
+  struct ifaddrs* item;
+  gboolean found = FALSE;
+
+  if(getifaddrs(&all) != 0)
+    return FALSE;
+  for(item = all; item != NULL && !found; item = item->ifa_next)
+  {
+    if(item->ifa_addr != NULL && item->ifa_addr->sa_family == AF_INET &&
+        !(item->ifa_flags & IFF_LOOPBACK))
+    {
+      inet_ntop(AF_INET, &((struct sockaddr_in*)item->ifa_addr)->sin_addr,
+          buffer, size);
+      found = TRUE;
+    }
+  }
+  freeifaddrs(all);
+  return found;
+}
+
+/**
+ * \brief Listen on the given address and report who can connect
+ * \param address  Value for bind_address
+ * \param other    Non-loopback address to try, NULL to skip
+ * \param[out] via_other TRUE if the connection through other worked
+ * \return TRUE if the connection through loopback worked
+ */
+static gboolean connect_after_bind(const char* address, char* other,
+    gboolean* via_other)
+{
+  scheduler_t* scheduler;
+  char port[16];
+  int soc;
+  gboolean via_loopback;
+
+  scheduler = scheduler_init(testdb, NULL);
+  scheduler_foss_config(scheduler);
+  g_free(scheduler->i_address);
+  scheduler->i_address = g_strdup(address);
+  snprintf(port, sizeof(port), "%d", scheduler->i_port);
+  interface_init(scheduler);
+  sleep(1);
+
+  soc = socket_connect("127.0.0.1", port);
+  via_loopback = soc != 0;
+  if(soc) close(soc);
+  if(other != NULL)
+  {
+    soc = socket_connect(other, port);
+    *via_other = soc != 0;
+    if(soc) close(soc);
+  }
+
+  interface_destroy(scheduler);
+  scheduler_destroy(scheduler);
+  return via_loopback;
+}
+
+/**
+ * \brief Test for the bind_address setting
+ * \test
+ * -# Check the default without bind_address in the config
+ * -# Listen on loopback and check a non-loopback address is refused
+ * -# Listen on all interfaces and check both connect
+ */
+void test_interface_bind_address()
+{
+  scheduler_t* scheduler;
+  char other[INET_ADDRSTRLEN];
+  gboolean has_other;
+  gboolean via_other = FALSE;
+
+  scheduler = scheduler_init(testdb, NULL);
+  scheduler_foss_config(scheduler);
+  FO_ASSERT_STRING_EQUAL(scheduler->i_address, "0.0.0.0");
+  scheduler_destroy(scheduler);
+
+  has_other = non_loopback_address(other, sizeof(other));
+
+  FO_ASSERT_TRUE(connect_after_bind("127.0.0.1", has_other ? other : NULL,
+      &via_other));
+  FO_ASSERT_FALSE(via_other);
+
+  via_other = has_other;
+  FO_ASSERT_TRUE(connect_after_bind("0.0.0.0", has_other ? other : NULL,
+      &via_other));
+  FO_ASSERT_EQUAL(via_other, has_other);
 }
 
 /**
@@ -563,6 +663,7 @@ CU_TestInfo tests_interface[] =
     {"Test interface_destroy",       test_interface_destroy       },
     {"Test interface_listen_thread", test_interface_listen_thread },
     {"Test interface_pool",          test_interface_pool          },
+    {"Test bind_address",            test_interface_bind_address  },
     CU_TEST_INFO_NULL
 };
 

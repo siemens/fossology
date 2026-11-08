@@ -266,6 +266,7 @@ scheduler_t* scheduler_init(gchar* sysconfigdir, log_t* log)
   ret->i_created     = FALSE;
   ret->i_terminate   = FALSE;
   ret->i_port        = 0;
+  ret->i_address     = g_strdup("0.0.0.0");
   ret->server        = NULL;
   ret->workers       = NULL;
   ret->cancel        = NULL;
@@ -374,6 +375,7 @@ void scheduler_destroy(scheduler_t* scheduler)
 
   if(scheduler->scheduler_version) g_free(scheduler->scheduler_version);
   if(scheduler->process_name) g_free(scheduler->process_name);
+  if(scheduler->i_address)    g_free(scheduler->i_address);
   if(scheduler->sysconfig)    fo_config_free(scheduler->sysconfig);
   if(scheduler->sysconfigdir) g_free(scheduler->sysconfigdir);
   if(scheduler->host_queue)   g_list_free(scheduler->host_queue);
@@ -1057,6 +1059,19 @@ void scheduler_foss_config(scheduler_t* scheduler)
   if(scheduler->i_port == 0)
     scheduler->i_port = atoi(fo_config_get(scheduler->sysconfig,
         "FOSSOLOGY", "port", &error));
+
+  /* load the listen address */
+  if(fo_config_has_key(scheduler->sysconfig, "FOSSOLOGY", "bind_address"))
+  {
+    g_free(scheduler->i_address);
+    scheduler->i_address = g_strdup(fo_config_get(scheduler->sysconfig,
+        "FOSSOLOGY", "bind_address", &error));
+  }
+  else
+  {
+    WARNING("bind_address is not set in [FOSSOLOGY] of fossology.conf; listening on "
+        "all IPv4 addresses. Set it to 127.0.0.1 when the web server runs on this host.");
+  }
 
   /* load the log directory */
   if(!scheduler->logcmdline)

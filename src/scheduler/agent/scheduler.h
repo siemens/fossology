@@ -168,6 +168,7 @@ typedef struct
     gboolean      i_created;    ///< Has the interface been created
     gboolean      i_terminate;  ///< Has the interface been terminated
     uint16_t      i_port;       ///< The port that the scheduler is listening on
+    gchar*        i_address;    ///< The IPv4 address that the scheduler listens on
     GThread*      server;       ///< Thread that is listening to the server socket
     GThreadPool*  workers;      ///< Threads to handle incoming network communication
     GCancellable* cancel;       ///< Used to stop the listening thread when it is running
